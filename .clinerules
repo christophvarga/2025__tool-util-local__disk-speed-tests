@@ -1,0 +1,31 @@
+# Cline's Rules
+
+## General Principles
+- **Memory Bank First:** Always read all Memory Bank files at the start of every task to ensure full context.
+- **Iterative Development:** Break down tasks into smaller, manageable steps.
+- **Documentation Driven:** Maintain and update Memory Bank files as development progresses.
+- **Clarity and Precision:** Ensure all code, documentation, and communication are clear, concise, and precise.
+- **Error Handling:** Implement robust error handling in all developed solutions.
+
+## File Management
+- **Project Structure:** Organize new files within a dedicated project directory unless specified otherwise.
+- **File Editing:** Prefer `replace_in_file` for targeted edits; use `write_to_file` for new files or complete overwrites.
+- **Auto-formatting Awareness:** Always refer to the `final_file_content` after a `write_to_file` or `replace_in_file` operation, as auto-formatting may alter content.
+
+## Tool Usage
+- **One Tool at a Time:** Execute one tool per message and await user confirmation before proceeding.
+- **Contextual Tool Selection:** Choose the most appropriate tool based on the current task and available information.
+- **Command Execution:** Provide clear explanations for all `execute_command` calls. Tailor commands to the user's OS.
+- **Browser Interaction:** Use `browser_action` for web-related tasks, following the launch-interact-close sequence.
+
+## Communication
+- **Direct and Technical:** Avoid conversational filler; be direct and technical in responses.
+- **No Assumptions:** Do not assume tool success without explicit user confirmation.
+- **Ask for Clarification:** Use `ask_followup_question` only when absolutely necessary to gather missing parameters.
+- **Finality:** End `attempt_completion` results definitively, without questions or offers for further assistance.
+
+## Project-Specific Rules (for current project)
+- **macOS Focus:** All solutions must be compatible with macOS.
+- **No External Python Dependencies:** Strictly adhere to using only Python's standard library.
+- **`fio` Integration:** All disk benchmarking will rely on `fio`. Ensure `fio` is either present or instructions for its installation are provided.
+- **QLab Relevance:** `fio` test parameters must be tuned to simulate QLab's 4K ProRes HQ video playback requirements.
