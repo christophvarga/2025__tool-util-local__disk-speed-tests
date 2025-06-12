@@ -1,0 +1,4 @@
+# QLab Disk Performance Tester - Requirements for .app Bundle
+PyQt6>=6.5.0
+pyinstaller>=5.13.0
+Pillow>=10.0.0

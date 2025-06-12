@@ -21,7 +21,8 @@ The final phase involved implementing live monitoring with SSD temperature displ
 - **Thermal throttling detection** and performance degradation monitoring
 - **Python subprocess management** with background threading
 - **Standalone deployment** with bundled fio binary for Apple Silicon
-- **Zero external dependencies** - Python standard library only
+- **GUI Framework**: PyQt6 for modern, interactive user interface
+- **Zero external dependencies (core logic)** - Python standard library only (GUI adds PyQt6)
 
 ### 4. MANDATORY TECHNICAL CONSTRAINTS:
 - **fio REQUIREMENT**: All disk benchmarking MUST use fio - no alternatives
@@ -57,7 +58,7 @@ The final phase involved implementing live monitoring with SSD temperature displ
 ### 6. Project Architecture Requirements:
 - **Apple Silicon Focus**: All development targets M1/M2/M3 Macs exclusively
 - **fio Integration**: fio is the only supported disk testing engine
-- **Standalone Package**: Zero external dependencies for deployment
+- **Standalone Package**: Bundled with PyInstaller for macOS .app
 - **Professional Grade**: Built for QLab production environments
 - **Thermal Awareness**: Continuous monitoring for long-duration tests
 

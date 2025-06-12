@@ -1,292 +1,123 @@
 # QLab Disk Performance Tester
 
-A professional disk performance testing tool specifically designed for QLab video playback systems. Tests SSD performance for 4K ProRes HQ video streaming with frame blending capabilities.
-
-## Features
-
-- **Offline Operation**: Bundled `fio` binaries for Intel and Apple Silicon Macs
-- **Intelligent Disk Detection**: Automatically detects writable SSDs using macOS system profiler
-- **QLab-Specific Testing**: Simulates 8x concurrent 4K ProRes HQ streams (92 MB/s each)
-- **Multi-Tier Test Modes**: Quick (5min), Standard (30min), Extended (2h), Ultimate (8h)
-- **Professional Reporting**: Colorful CLI output and detailed JSON exports
-- **Smart Test Sizing**: Automatically adjusts test file sizes based on available disk space
-
-## Requirements
-
-- macOS (Intel or Apple Silicon)
-- Python 3.6+ (uses only standard library)
-- Writable SSD for testing
-
-## Quick Start
-
-### New Installation
-1. **Download the project archive** (`.tar.gz` or `.zip`)
-2. **Extract and install**:
-   ```bash
-   tar -xzf qlab-disk-tester_*.tar.gz
-   cd qlab-disk-tester_*/
-   bash install.sh
-   ```
-3. **Run the tester**:
-   ```bash
-   python3 qlab_disk_tester.py
-   ```
-4. **Follow the interactive prompts** to select disk and test mode
-
-### Existing Installation
-```bash
-python3 qlab_disk_tester.py
-```
-
-## Project Structure
-
-```
-qlab_disk_tester.py     # Main executable
-lib/                    # Core modules
-├── disk_detector.py    # macOS disk detection
-├── fio_engine.py       # FIO test execution
-├── qlab_analyzer.py    # QLab-specific analysis
-├── report_generator.py # CLI and JSON reporting
-└── binary_manager.py   # Binary management system
-bin/                    # FIO binaries (offline operation)
-├── fio-intel          # Intel x86_64 binary
-├── fio-apple-silicon  # Apple Silicon arm64 binary
-└── README.md          # Binary installation guide
-results/               # JSON test reports
-templates/             # FIO job templates (future)
-memory-bank/           # Development documentation
-```
-
-## Test Modes
-
-### 1. Quick Speed Test (5 minutes)
-- **Purpose**: Rapid assessment of peak performance
-- **Tests**: Sequential read/write, random read
-- **File Size**: 1GB
-- **Use Case**: Initial SSD evaluation
-
-### 2. Standard QLab Test (30 minutes) ⭐ **Recommended**
-- **Purpose**: Simulate real QLab 4K ProRes HQ workload
-- **Tests**: 8x concurrent streams, sustained read performance
-- **File Size**: 20GB
-- **Use Case**: Production readiness verification
-
-### 3. Extended Stress Test (2 hours)
-- **Purpose**: Assess sustained performance and thermal behavior
-- **Tests**: Heavy concurrent load, thermal throttling detection
-- **File Size**: 50GB
-- **Use Case**: Professional deployment validation
-
-### 4. Ultimate Endurance (8 hours)
-- **Purpose**: Push SSD to absolute limits
-- **Tests**: Maximum stress, long-term degradation analysis
-- **File Size**: 100GB
-- **Use Case**: Extreme reliability testing
-
-## QLab Suitability Analysis
-
-The tool analyzes results specifically for QLab video playback:
-
-- **Stream Capacity**: Calculates maximum 4K ProRes HQ streams (92 MB/s each)
-- **Cue Response**: Evaluates latency for smooth cue transitions
-- **Suitability Rating**: ✅ Excellent / ⚠️ Acceptable / ❌ Poor
-- **Recommendations**: Specific guidance for QLab production use
-
-## Transfer and Installation
-
-### Automated Installation (Recommended)
-
-The project includes an automated installer that handles all setup:
-
-```bash
-# After extracting the archive
-bash install.sh
-```
-
-The installer will:
-- ✅ Check macOS compatibility
-- ✅ Detect Mac architecture (Intel vs Apple Silicon)
-- ✅ Verify Python 3.7+ installation
-- ✅ Set proper file permissions
-- ✅ Check FIO availability
-- ✅ Test the installation
-- ✅ Optionally create desktop shortcut
-
-### Creating Distribution Packages
-
-To create a distributable package for sharing:
-
-```bash
-# Create .tar.gz and .zip archives
-bash package.sh
-
-# This creates:
-# - qlab-disk-tester_v1.0_YYYYMMDD_HHMMSS.tar.gz
-# - qlab-disk-tester_v1.0_YYYYMMDD_HHMMSS.zip
-```
-
-### Manual Transfer Methods
-
-#### Option 1: Complete Archive
-```bash
-# Create archive of entire project
-tar -czf qlab-disk-tester.tar.gz qlab_disk_tester.py lib/ bin/ README.md install.sh
-
-# Transfer via:
-# - USB drive
-# - AirDrop  
-# - Cloud storage (Dropbox, Google Drive)
-# - Email (if small enough)
-```
-
-#### Option 2: Git Repository
-```bash
-# If using Git version control
-git clone <repository-url>
-cd qlab-disk-tester
-bash install.sh
-```
-
-#### Option 3: Individual Files
-Minimum required files for transfer:
-```
-qlab_disk_tester.py     # Main application
-lib/                    # All Python modules
-install.sh              # Automated installer
-README.md              # Documentation
-bin/                    # FIO binaries (optional)
-```
-
-## FIO Binary Installation (Offline Operation)
-
-### Option 1: Bundled Binaries (Recommended)
-The project includes pre-compiled `fio` binaries for offline operation:
-
-1. Download appropriate binary for your Mac:
-   - **Intel Macs**: Place `fio` binary as `bin/fio-intel`
-   - **Apple Silicon**: Place `fio` binary as `bin/fio-apple-silicon`
-2. Make executable: `chmod +x bin/fio-*`
-3. Run the tester - it will automatically detect and use bundled binaries
-
-### Option 2: System Installation
-If bundled binaries aren't available, install `fio` system-wide:
-
-```bash
-# Using Homebrew
-brew install fio
-
-# Or download from: https://github.com/axboe/fio/releases
-```
-
-## Sample Output
-
-```
-╔══════════════════════════════════════════════════════════════╗
-║                    QLab Disk Performance Tester              ║
-║                  Professional Video Storage Testing          ║
-╚══════════════════════════════════════════════════════════════╝
-
-📊 PERFORMANCE METRICS
-  Bandwidth (Read): 1,234.56 MB/s
-  IOPS (Read):      308
-  Latency (avg):    3.21 ms
-  Latency (99%):    7.89 ms
-
-🎬 QLAB SUITABILITY ANALYSIS
-  4K ProRes HQ Streams: 13 simultaneous
-  Stream Performance:   ✅ EXCELLENT
-  Cue Response Time:    ✅ EXCELLENT
-
-💡 RECOMMENDATIONS
-  ✅ Perfect for professional 4K QLab production.
-```
-
-## Troubleshooting Installation
-
-### Common Issues
-
-#### "Permission denied" errors
-```bash
-# Fix file permissions
-chmod +x install.sh qlab_disk_tester.py
-chmod +x bin/fio-*
-```
-
-#### "Python 3 not found"
-- Install Python 3.7+ from [python.org](https://python.org)
-- Or use Homebrew: `brew install python3`
-
-#### "No module named 'lib'"
-- Ensure the `lib/` directory was completely copied
-- Check that `lib/__init__.py` exists
-
-#### "fio not found"
-- The application will show installation instructions
-- Install via Homebrew: `brew install fio`
-- Or place FIO binary in `bin/` directory
-
-### Architecture-Specific Notes
-
-#### Apple Silicon Macs (M1/M2/M3/M4)
-- Uses `bin/fio-apple-silicon` if available
-- Automatic architecture detection
-- Falls back to system FIO if needed
-
-#### Intel Macs
-- Uses `bin/fio-intel` if available
-- Compatible with all Intel Mac models
-- Falls back to system FIO if needed
-
-### Manual Installation Steps
-
-If the automated installer doesn't work:
-
-```bash
-# 1. Check Python
-python3 --version  # Should be 3.7+
-
-# 2. Set permissions
-chmod +x qlab_disk_tester.py
-chmod +x bin/fio-apple-silicon  # or fio-intel
-
-# 3. Test modules
-python3 -c "from lib.binary_manager import BinaryManager; print('OK')"
-
-# 4. Run application
-python3 qlab_disk_tester.py
-```
-
-## Technical Details
-
-### FIO Test Parameters
-- **Block Sizes**: Optimized for video streaming (1M-4M)
-- **Queue Depths**: Simulate concurrent stream access
-- **I/O Engine**: `posixaio` (recommended for macOS)
-- **Direct I/O**: Bypasses system cache for realistic results
-
-### QLab-Specific Calculations
-- **4K ProRes HQ**: 92 MB/s per stream (conservative estimate)
-- **Frame Blending**: Accounts for 2x read overhead
-- **Latency Thresholds**: <10ms excellent, <20ms acceptable
-
-## Development
-
-### Memory Bank System
-The project uses a comprehensive memory bank for development context:
-- `memory-bank/projectbrief.md` - Project scope and goals
-- `memory-bank/techContext.md` - Technical constraints and decisions
-- `memory-bank/progress.md` - Development status and issues
-
-### Contributing
-1. Read the memory bank files for context
-2. Follow the modular architecture
-3. Maintain Python standard library only
-4. Test on both Intel and Apple Silicon Macs
-
-## License
-
-This project is open source. The bundled `fio` binaries are GPL v2 licensed.
-
-## Support
-
-For QLab-specific questions, consult the QLab documentation. For disk performance issues, consider professional SSD benchmarking tools.
+**Professional macOS Application for QLab Storage Testing**
+
+A standalone macOS application specifically designed for QLab users to validate storage performance for professional audio/video playback. No installation required - just download and run!
+
+## 🚀 **Download & Install**
+
+### Step 1: Download
+Choose your preferred format:
+- **`QLab-Disk-Tester_v1.0.dmg`** - DMG installer (recommended)
+- **`QLab-Disk-Tester_v1.0.zip`** - ZIP archive
+
+### Step 2: Install
+- **DMG**: Open the DMG file and drag the app to your Applications folder
+- **ZIP**: Extract the ZIP and copy "QLab Disk Performance Tester.app" to Applications
+
+### Step 3: Run
+Double-click the app in your Applications folder - that's it!
+
+**✅ No Python installation required**  
+**✅ No external dependencies**  
+**✅ No command line needed**
+
+## 🎯 **What It Does**
+
+Tests your storage drives specifically for QLab video playback requirements:
+
+- **4K ProRes 422 Streams**: Tests bandwidth from 656 MB/s to 2100 MB/s
+- **4K ProRes HQ Streams**: Tests bandwidth from 950 MB/s to 3200 MB/s  
+- **Real-time Monitoring**: Live performance charts during testing
+- **QLab Suitability**: Clear recommendations for your QLab setup
+
+## 🖥️ **System Requirements**
+
+- **macOS 10.14 (Mojave) or later**
+- **Intel or Apple Silicon Mac**
+- **External SSD recommended** (for testing)
+
+## 📊 **Test Profiles**
+
+### 🔧 **Setup Check** (30 seconds)
+Quick validation to ensure your drive is ready for testing.
+
+### 🎬 **QLab ProRes 422** (2.5 hours)
+Simulates multiple 4K ProRes 422 video streams as used in QLab productions.
+
+### 🎬 **QLab ProRes HQ** (2.5 hours)
+Tests the demanding 4K ProRes HQ format for high-end QLab installations.
+
+### ⚡ **Max Sustained** (2 hours)
+Pushes your drive to maximum sustained performance over extended periods.
+
+## 🎮 **How to Use**
+
+1. **Launch** the QLab Disk Performance Tester app
+2. **Select** the drive you want to test from the dropdown
+3. **Choose** a test profile based on your QLab needs
+4. **Click** "Start Test" and monitor the real-time progress
+5. **Review** the results and QLab suitability recommendations
+
+## 📈 **Understanding Results**
+
+The app provides clear guidance:
+
+- **✅ Excellent**: Perfect for professional QLab production
+- **⚠️ Good**: Suitable for most QLab applications  
+- **❌ Poor**: May struggle with demanding QLab content
+
+Results include:
+- **Stream Capacity**: How many 4K streams your drive can handle
+- **Bandwidth Performance**: Read speeds in MB/s
+- **QLab Recommendations**: Specific guidance for your setup
+
+## 🔧 **Troubleshooting**
+
+### "App can't be opened" (macOS Security)
+1. Right-click the app and select "Open"
+2. Click "Open" in the security dialog
+3. The app will remember this choice for future launches
+
+### Permission Issues
+- The app will request disk access permissions automatically
+- Grant access when prompted for accurate testing
+- Test external drives to avoid system drive restrictions
+
+### Performance Tips
+- Close other applications during testing for best results
+- Ensure at least 10GB free space on the drive being tested
+- Use external SSDs rather than internal drives when possible
+
+## 📱 **App Details**
+
+- **Size**: 77MB standalone application
+- **Languages**: English interface
+- **Updates**: Check for new versions periodically
+- **Results**: Saved automatically in JSON format
+
+## 🎬 **Perfect for QLab Users**
+
+Whether you're running:
+- **Live theater productions** with multiple video cues
+- **Corporate presentations** with 4K content
+- **Concert visuals** with high-bandwidth video
+- **Installation projects** requiring reliable playback
+
+This tool ensures your storage can handle the demands of professional QLab productions.
+
+## 📞 **Support**
+
+- **Questions**: Create an issue on the project repository
+- **QLab Help**: Visit [qlab.app](https://qlab.app) for QLab-specific support
+- **Storage Issues**: Consult your drive manufacturer for hardware problems
+
+## 📄 **License**
+
+This application is copyleft by **varga.media** and free to use for all QLab users.
+
+---
+
+**🎉 Ready to ensure your storage is QLab-ready? Download the app and test your drives in minutes!**
+
+*© 2025 varga.media - Professional QLab Solutions*
