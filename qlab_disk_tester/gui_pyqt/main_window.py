@@ -2,7 +2,7 @@ import sys
 import os
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QComboBox, QProgressBar, QFrame, QTextEdit
+    QLabel, QPushButton, QComboBox, QProgressBar, QFrame, QTextEdit, QMessageBox
 )
 from PyQt6.QtGui import QPainter, QIcon
 from PyQt6.QtCore import QTimer, QPointF, Qt, QObject, pyqtSignal
@@ -13,9 +13,10 @@ import json
 import subprocess
 
 from qlab_disk_tester.core.disk_detector import DiskDetector
-from qlab_disk_tester.core.python_disk_engine import PythonDiskEngine
-from qlab_disk_tester.core.temperature_monitor import TemperatureMonitor
+from qlab_disk_tester.core.fio_manager import FioManager
+from qlab_disk_tester.core.real_temperature_monitor import RealTemperatureMonitor
 from qlab_disk_tester.gui_pyqt.styles.qss_styles import QSS_STYLES
+from qlab_disk_tester.gui_pyqt.components.debug_terminal import DebugTerminal
 
 class MainWindow(QMainWindow):
     test_finished_signal = pyqtSignal(str) # Signal to indicate test completion, with results as string
@@ -43,10 +44,14 @@ class MainWindow(QMainWindow):
         # Apply stylesheet to the application
         self.setStyleSheet(QSS_STYLES)
 
-        # Python Engine and Disk Detector instances
-        self.python_engine = PythonDiskEngine()
+        # Production-safe engines - FIO first, no fallbacks
+        self.fio_manager = FioManager()
         self.disk_detector = DiskDetector()
-        self.temperature_monitor = TemperatureMonitor()
+        self.temperature_monitor = RealTemperatureMonitor()
+        
+        # Check system status at startup
+        self.fio_status = self.fio_manager.get_fio_status()
+        self.temp_status = self.temperature_monitor.get_temperature_status()
         
         # Temperature monitoring
         self.current_temperature = None
@@ -78,6 +83,7 @@ class MainWindow(QMainWindow):
         self._create_test_configuration_card()
         self._create_live_progress_card()
         self._create_results_card()
+        self._create_debug_terminal()
 
         # Test state
         self.running = False
@@ -93,14 +99,35 @@ class MainWindow(QMainWindow):
         header_layout = QHBoxLayout(header_frame)
         header_layout.setContentsMargins(15, 10, 15, 10)
 
-        title_label = QLabel("QLab Disk Performance Tester")
+        title_label = QLabel("QLab Disk Performance Tester - Production Safe")
         title_label.setObjectName("TitleLabel")
         header_layout.addWidget(title_label)
 
-        self.engine_status_label = QLabel("Python Disk Engine: Ready")
+        # Production-safe status display
+        if self.fio_status['available']:
+            fio_text = f"✅ FIO Ready ({self.fio_status['version']})"
+            fio_color = "color: green;"
+        else:
+            fio_text = "❌ FIO Missing - No real tests possible"
+            fio_color = "color: red;"
+        
+        self.engine_status_label = QLabel(fio_text)
         self.engine_status_label.setObjectName("EngineStatusLabel")
-        self.engine_status_label.setStyleSheet("color: green;")
+        self.engine_status_label.setStyleSheet(fio_color)
         header_layout.addWidget(self.engine_status_label)
+
+        # Temperature status
+        if self.temp_status['available']:
+            temp_text = "🌡️ Temp Monitor Ready"
+            temp_color = "color: green;"
+        else:
+            temp_text = "🌡️ Temp Monitor Limited"
+            temp_color = "color: orange;"
+        
+        self.temp_status_label = QLabel(temp_text)
+        self.temp_status_label.setObjectName("TempStatusLabel")
+        self.temp_status_label.setStyleSheet(temp_color)
+        header_layout.addWidget(self.temp_status_label)
 
         # Add header to the overall vertical layout
         self.overall_layout.addWidget(header_frame)
@@ -286,11 +313,12 @@ class MainWindow(QMainWindow):
         """)
         card_layout.addWidget(self.performance_display)
         
-        # Start temperature monitoring
+        # Start temperature monitoring only if available
         def temp_callback(temp):
             self.current_temperature = temp
         
-        self.temperature_monitor.start_monitoring(temp_callback)
+        if self.temp_status['available']:
+            self.temperature_monitor.start_monitoring(temp_callback)
 
         # Log Output (using QTextEdit for better scrolling and text display)
         self.log_output = QTextEdit("Ready to start test...")
@@ -325,7 +353,71 @@ class MainWindow(QMainWindow):
         self.right_panel.addWidget(card_frame)
         self.right_panel.addStretch() # Push cards to top
 
+    def _create_debug_terminal(self):
+        """Create and add the debug terminal to the bottom of the window."""
+        self.debug_terminal = DebugTerminal()
+        self.overall_layout.addWidget(self.debug_terminal)
+        
+        # Log startup information
+        self.debug_terminal.log_info("QLab Disk Performance Tester initialized")
+        self.debug_terminal.log_debug(f"FIO Status: {self.fio_status}")
+        self.debug_terminal.log_debug(f"Temperature Monitor: {self.temp_status}")
+        self.debug_terminal.log_debug(f"Available drives: {len(self.drive_options)}")
+
     def _on_start_test(self):
+        # Production-safe pre-flight checks
+        if not self.fio_status['available']:
+            QMessageBox.critical(self, "FIO Not Available", 
+                               f"Cannot perform real disk tests without FIO.\n\n"
+                               f"Error: {self.fio_status['error']}\n\n"
+                               f"Installation Guide:\n" + 
+                               "\n".join(self.fio_status.get('installation_guide', [])))
+            return
+        
+        # Validate drive selection
+        selected_drive_index = self.drive_combo.currentIndex()
+        if selected_drive_index == -1 or not self.drive_options:
+            QMessageBox.critical(self, "No Drive Selected", 
+                               "Please select a target drive for testing.\n\n"
+                               "If no drives appear in the list, check that you have\n"
+                               "external drives connected or sufficient free space.")
+            return
+
+        selected_drive_data = self.drive_options[selected_drive_index]['data']
+        selected_drive_path = selected_drive_data.get('Mount Point')
+        
+        if not selected_drive_path or not os.path.exists(selected_drive_path):
+            QMessageBox.critical(self, "Invalid Drive Path", 
+                               f"Selected drive path is invalid: {selected_drive_path}\n\n"
+                               "Please select a different drive.")
+            return
+        
+        # Test write permissions
+        test_file_path = os.path.join(selected_drive_path, 'qlab_test_permissions')
+        try:
+            with open(test_file_path, 'w') as f:
+                f.write('test')
+            os.remove(test_file_path)
+        except Exception as e:
+            QMessageBox.critical(self, "Permission Error", 
+                               f"Cannot write to selected drive: {selected_drive_path}\n\n"
+                               f"Error: {e}\n\n"
+                               "Please check drive permissions or select a different drive.")
+            return
+        
+        # Check available space
+        try:
+            import shutil
+            free_space_bytes = shutil.disk_usage(selected_drive_path).free
+            free_space_gb = free_space_bytes / (1024**3)
+            if free_space_gb < 5:  # Need at least 5GB for tests
+                QMessageBox.warning(self, "Low Disk Space", 
+                                   f"Selected drive has only {free_space_gb:.1f}GB free space.\n\n"
+                                   "At least 5GB is recommended for reliable testing.\n"
+                                   "Continue anyway?")
+        except:
+            pass  # Continue if we can't check space
+        
         # Reset performance metrics
         self.current_throughput = 0.0
         self.current_iops = 0
@@ -333,19 +425,24 @@ class MainWindow(QMainWindow):
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
         self.progress_bar.setValue(0)
-        self.log_output.setText("Starting test...")
+        
+        # Enhanced logging with debug info
+        debug_info = [
+            "🚀 STARTING REAL DISK TEST WITH FIO",
+            f"📁 Target Drive: {selected_drive_data.get('Name', 'Unknown')}",
+            f"📂 Mount Point: {selected_drive_path}",
+            f"💾 Free Space: {selected_drive_data.get('Free', 'Unknown')}",
+            f"🔧 FIO Path: {self.fio_manager.fio_path}",
+            f"📊 Test Profile: {self.profile_combo.currentText()}",
+            "─" * 50
+        ]
+        self.log_output.setText("\n".join(debug_info))
+        
         self.results_text.setText("Results will appear here after test completion.")
         self.chart_data = []
         self.chart_timer.start()
 
-        selected_drive_index = self.drive_combo.currentIndex()
-        if selected_drive_index == -1:
-            self.log_output.setText("Error: No drive selected.")
-            self._reset_ui_on_finish()
-            return
-
-        selected_drive_path = self.drive_options[selected_drive_index]['data'].get('Mount Point')
-        test_mode = self.profile_combo.currentText() # Get selected profile name
+        test_mode = self.profile_combo.currentText()
 
         # Map profile name to test mode
         test_mode_map = {
@@ -356,11 +453,138 @@ class MainWindow(QMainWindow):
         }
         test_mode_internal = test_mode_map.get(test_mode, "setup_check")
 
-        # Execute Python disk test in a separate thread
+        # Execute REAL FIO disk test in a separate thread
         self.running = True
-        self.test_thread = threading.Thread(target=self._run_python_test_threaded, args=(test_mode_internal, selected_drive_path, 1)) # 1GB test size for now
+        self.test_thread = threading.Thread(target=self._run_real_fio_test_threaded, args=(test_mode_internal, selected_drive_path, 2))
         self.test_thread.daemon = True
         self.test_thread.start()
+
+    def _run_real_fio_test_threaded(self, test_mode, disk_path, test_size_gb):
+        """Execute REAL FIO disk tests in a separate thread."""
+        try:
+            # Use a production-safe monitor with enhanced error handling
+            class ProductionMonitor:
+                def __init__(self, parent_window):
+                    self.parent_window = parent_window
+                    self.start_time = time.time()
+                    self.total_runtime = 0
+                    self.log_messages = []
+
+                def set_test_phase(self, phase_name, runtime):
+                    self.total_runtime = runtime
+                    message = f"🔥 REAL TEST: {phase_name} (Runtime: {runtime}s)"
+                    self.log_messages.append(message)
+                    self._update_log_display()
+
+                def log_error(self, error_message):
+                    """Log error messages for display in the GUI"""
+                    self.log_messages.append(f"❌ ERROR: {error_message}")
+                    self._update_log_display()
+
+                def _update_log_display(self):
+                    """Update the log display with all messages using signals"""
+                    if len(self.log_messages) > 30:  # Keep more messages for debugging
+                        self.log_messages = self.log_messages[-30:]
+                    
+                    log_text = "\n".join(self.log_messages)
+                    self.parent_window.log_update_signal.emit(log_text)
+
+                def update_with_fio_data(self, line):
+                    # Log ALL FIO output for debugging
+                    clean_line = line.strip()
+                    if clean_line:  # Only log non-empty lines
+                        self.log_messages.append(f"FIO: {clean_line}")
+                    
+                    # Parse real FIO performance data
+                    # Look for FIO patterns like "read: IOPS=1234, BW=500MiB/s"
+                    fio_match = re.search(r'read:.*?BW=(\d+\.?\d*)([KMGT]?i?B/s)', line)
+                    if fio_match:
+                        bw_value = float(fio_match.group(1))
+                        bw_unit = fio_match.group(2)
+                        
+                        # Convert to MB/s
+                        if 'KiB/s' in bw_unit or 'KB/s' in bw_unit:
+                            mbps = bw_value / 1024
+                        elif 'MiB/s' in bw_unit or 'MB/s' in bw_unit:
+                            mbps = bw_value
+                        elif 'GiB/s' in bw_unit or 'GB/s' in bw_unit:
+                            mbps = bw_value * 1024
+                        else:
+                            mbps = bw_value
+                        
+                        # Extract IOPS if available
+                        iops_match = re.search(r'IOPS=(\d+)', line)
+                        iops = int(iops_match.group(1)) if iops_match else int(mbps * 256)
+                        
+                        # Use signal for thread-safe progress update
+                        self.parent_window.progress_update_signal.emit(0, mbps, iops)
+                    
+                    self._update_log_display()
+
+            monitor = ProductionMonitor(self)
+            
+            # Enhanced pre-test logging
+            monitor.log_messages.append("🚀 THREAD STARTED: FIO disk performance test")
+            monitor.log_messages.append(f"📁 Target Directory: {disk_path}")
+            monitor.log_messages.append(f"📊 Test Mode: {test_mode}")
+            monitor.log_messages.append(f"💾 Test Size: {test_size_gb}GB")
+            monitor.log_messages.append(f"🔧 FIO Manager Status: {self.fio_manager.get_fio_status()}")
+            monitor._update_log_display()
+            
+            # Test directory access before starting FIO
+            try:
+                test_access_file = os.path.join(disk_path, 'qlab_access_test')
+                with open(test_access_file, 'w') as f:
+                    f.write('access test')
+                os.remove(test_access_file)
+                monitor.log_messages.append(f"✅ Directory access confirmed: {disk_path}")
+                monitor._update_log_display()
+            except Exception as access_error:
+                monitor.log_error(f"Directory access failed: {access_error}")
+                self.test_finished_signal.emit(f"❌ Cannot access target directory: {access_error}")
+                return
+            
+            # Check if FIO manager is properly initialized
+            if not self.fio_manager.is_fio_available():
+                fio_status = self.fio_manager.get_fio_status()
+                monitor.log_error(f"FIO not available: {fio_status}")
+                self.test_finished_signal.emit(f"❌ FIO not available: {fio_status.get('error', 'Unknown error')}")
+                return
+            
+            monitor.log_messages.append("🔥 Starting FIO execution...")
+            monitor._update_log_display()
+            
+            # Execute FIO test with enhanced error handling
+            results = self.fio_manager.execute_real_disk_test(test_mode, disk_path, test_size_gb, monitor=monitor)
+            
+            # Enhanced result handling
+            if results:
+                monitor.log_messages.append("✅ FIO test completed successfully")
+                monitor._update_log_display()
+                self.test_finished_signal.emit(json.dumps(results, indent=2))
+            else:
+                monitor.log_error("FIO test returned no results")
+                self.test_finished_signal.emit("❌ FIO test failed - no results returned")
+
+        except Exception as e:
+            # Enhanced exception handling with full traceback
+            import traceback
+            error_details = traceback.format_exc()
+            error_message = f"❌ THREAD EXCEPTION: {e}\n\nFull traceback:\n{error_details}"
+            
+            # Try to emit the error, but handle if that fails too
+            try:
+                self.test_finished_signal.emit(error_message)
+            except Exception as signal_error:
+                print(f"Failed to emit error signal: {signal_error}")
+                print(f"Original error: {error_message}")
+        
+        finally:
+            # Ensure UI is reset even if everything fails
+            try:
+                self.log_update_signal.emit("🔄 Test thread finished (cleanup)")
+            except:
+                pass
 
     def _run_python_test_threaded(self, test_mode, disk_path, test_size_gb):
         try:
@@ -460,7 +684,7 @@ class MainWindow(QMainWindow):
         selected_drive_index = self.drive_combo.currentIndex()
         if selected_drive_index != -1:
             selected_drive_path = self.drive_options[selected_drive_index]['data'].get('Mount Point')
-            self.python_engine.cleanup_test_files(selected_drive_path)
+            self.fio_manager.cleanup_test_files(selected_drive_path)
 
     def _handle_log_update_on_main_thread(self, log_text):
         """Handle log updates on the main thread"""
@@ -503,14 +727,14 @@ class MainWindow(QMainWindow):
 
     def _on_stop_test(self):
         self.running = False
-        # Stop the Python engine test
-        self.python_engine.stop_test()
+        # Stop the FIO manager test
+        self.fio_manager.stop_test()
         self._reset_ui_on_finish()
         # Clean up test files if stopped manually
         selected_drive_index = self.drive_combo.currentIndex()
         if selected_drive_index != -1:
             selected_drive_path = self.drive_options[selected_drive_index]['data'].get('Mount Point')
-            self.python_engine.cleanup_test_files(selected_drive_path)
+            self.fio_manager.cleanup_test_files(selected_drive_path)
 
     def _format_results_for_display(self, results_data):
         """Format JSON results into a beautiful, modern display."""

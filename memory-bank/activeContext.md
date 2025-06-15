@@ -1,62 +1,116 @@
-# Active Context
+# Active Context - QLab Disk Performance Tester
 
-## Current Focus
-**✅ COMPLETED**: Successfully created a standalone macOS .app bundle for the QLab Disk Performance Tester. The application is now fully packaged and ready for distribution without any external dependencies.
+## Current Status: ✅ ARCHITECTURE RESTRUCTURE COMPLETE
 
-## Key Decisions Made
-- **✅ MAJOR SUCCESS**: Created standalone .app bundle using PyInstaller
-- **✅ Project Cleanup**: Removed all old/obsolete files and dependencies
-- **✅ Pure Python Engine**: Custom Python disk testing engine provides all benchmarking functionality
-- **✅ Complete Standalone Solution**: No external tools or installation required
-- **✅ Professional Packaging**: Created DMG and ZIP distribution packages
+**Date:** 2025-06-15  
+**Major Achievement:** Successfully implemented bridge-based architecture
 
-### Final Project Structure:
+## 🏗️ New Architecture Overview
+
+### Previous Approach (Abandoned)
+- ❌ Integrated sandboxed version with embedded FIO
+- ❌ Complex packaging with permission issues
+- ❌ FIO shared memory limitations on macOS
+
+### Current Implementation: Bridge Architecture ✅
+
+**4-Component Design:**
+1. **Web GUI (Sandboxed)** - `web-gui/` directory
+2. **Helper Binary (Unsandboxed)** - `diskbench/` CLI tool  
+3. **Communication Bridge** - `bridge-server/server.py` HTTP server
+4. **Result Processor** - Built into bridge server
+
+## 🚀 Current Working Status
+
+### Fully Functional Components
+- ✅ **Web Interface**: Professional QLab-branded GUI at `http://localhost:8080`
+- ✅ **Bridge Server**: HTTP server with RESTful API endpoints
+- ✅ **Helper Binary**: Complete diskbench CLI with FIO integration
+- ✅ **System Detection**: Intelligent macOS compatibility handling
+- ✅ **Disk Detection**: Multi-drive support with type classification
+- ✅ **Test Execution**: Background test running with progress monitoring
+- ✅ **Error Handling**: Comprehensive error reporting and user feedback
+
+### Architecture Flow (Working)
 ```
-qlab_disk_tester/          # Main application package
-├── main.py               # Entry point
-├── gui_pyqt/            # PyQt6 interface
-├── core/                # Disk testing engine
-└── icon.png             # App icon
-
-dist/                      # Distribution files
-├── QLab Disk Performance Tester.app  # Standalone macOS app (77MB)
-├── QLab-Disk-Tester_v1.0_*.dmg      # DMG installer
-└── QLab-Disk-Tester_v1.0_*.zip      # ZIP distribution
-
-build_app.sh              # Automated build script
-qlab_disk_tester.spec     # PyInstaller configuration
-requirements.txt          # Python dependencies
+Web GUI → HTTP Bridge → diskbench CLI → FIO Engine → JSON Results → Web Display
 ```
 
-### App Bundle Features:
-- **Size**: 77MB standalone .app
-- **Compatibility**: macOS 10.14+ (Mojave and later)
-- **Dependencies**: All PyQt6 dependencies embedded
-- **Icon**: Professional app icon with ICNS format
-- **Distribution**: DMG and ZIP packages ready
-- **Code Signing**: Prepared for future signing
+### Key Achievements
+- **System Status**: Correctly identifies "FIO limitations but tests can run"
+- **Disk Discovery**: Detects Cache_2TB, Data, macmini-Backup, Macintosh HD
+- **Test Types**: QLab ProRes HQ/422, Setup Check, Baseline Streaming
+- **Progress Monitoring**: Real-time test status and completion tracking
+- **User Experience**: Clean, professional interface with architecture transparency
 
-### Test Results:
-- **✅ App Structure**: Valid macOS .app bundle
-- **✅ Executable**: Properly signed and executable
-- **✅ Launch Test**: Successfully opens on macOS
-- **✅ Dependencies**: All PyQt6 libraries embedded
-- **✅ Distribution**: DMG and ZIP packages created
+## 📁 New Directory Structure
 
-## Completed Tasks
-1. **✅ Project Cleanup**: Removed old FIO files, CLI versions, and obsolete dependencies
-2. **✅ PyInstaller Setup**: Created spec file with proper configuration
-3. **✅ Build Automation**: Created comprehensive build script with testing
-4. **✅ Icon Conversion**: Added Pillow for PNG to ICNS conversion
-5. **✅ App Bundle Creation**: Successfully built 77MB standalone .app
-6. **✅ Distribution Packages**: Created DMG and ZIP for easy distribution
-7. **✅ Testing**: Verified app structure and launch functionality
+```
+/
+├── diskbench/              # Helper binary (unsandboxed CLI)
+│   ├── main.py            # Entry point
+│   ├── commands/          # Command handlers
+│   ├── core/              # FIO integration & test engines
+│   └── utils/             # System utilities
+├── bridge-server/         # Communication bridge
+│   └── server.py          # HTTP server with API endpoints
+├── web-gui/               # Frontend (sandboxable)
+│   ├── index.html         # Main interface
+│   ├── styles.css         # QLab-branded styling
+│   └── app.js             # Frontend logic
+└── fio-3.37/              # Bundled FIO binary
+```
 
-## Ready for Distribution
-The QLab Disk Performance Tester is now a professional, standalone macOS application that can be distributed to users without requiring any installation or external dependencies. Users simply need to:
+## 🎯 Next Development Priorities
 
-1. Download the DMG or ZIP file
-2. Copy the .app to Applications folder
-3. Double-click to run
+### Immediate (High Priority)
+1. **FIO Wrapper Enhancement** - Implement proper macOS shared memory workarounds
+2. **Test Pattern Refinement** - Optimize QLab ProRes patterns for real-world usage
+3. **Results Analysis** - Enhanced QLab-specific performance recommendations
 
-**Status: PRODUCTION READY** 🎉
+### Future Enhancements
+1. **App Store Packaging** - Package web GUI as sandboxed macOS app
+2. **Cross-Platform Support** - Windows/Linux helper binaries
+3. **Advanced Monitoring** - Temperature and thermal throttling detection
+4. **Automated Reports** - PDF generation and email delivery
+
+## 🔧 Development Environment
+
+### Running the System
+```bash
+# Start bridge server
+cd bridge-server && python3 server.py &
+
+# Access web interface
+open http://localhost:8080
+```
+
+### Testing Commands
+```bash
+# System status
+curl http://localhost:8080/api/status
+
+# List disks  
+curl http://localhost:8080/api/disks
+
+# Start test
+curl -X POST http://localhost:8080/api/test/start \
+  -H "Content-Type: application/json" \
+  -d '{"test_type": "qlab_prores_hq", "disk_path": "/Volumes/Cache_2TB", "size_gb": 1}'
+```
+
+## 📊 Current Test Results
+
+### System Compatibility
+- **FIO Available**: ✅ True (bundled binary found)
+- **FIO Working**: ❌ False (shared memory limitations)
+- **FIO Partial**: ✅ True (workarounds available)
+- **System Usable**: ✅ True (can run tests with limitations)
+
+### Architecture Validation
+- **Web GUI → Bridge**: ✅ Working (HTTP communication)
+- **Bridge → CLI**: ✅ Working (subprocess execution)
+- **CLI → FIO**: ⚠️ Partial (shared memory issues)
+- **Error Handling**: ✅ Working (comprehensive reporting)
+
+This architecture successfully addresses the original requirements while providing a foundation for future App Store distribution and cross-platform expansion.

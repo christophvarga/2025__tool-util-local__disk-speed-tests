@@ -23,6 +23,11 @@ qlab_icon_path = os.path.join(current_dir, 'qlab_disk_tester', 'icon.png')
 if os.path.exists(qlab_icon_path):
     datas.append((qlab_icon_path, 'qlab_disk_tester'))
 
+# Add FIO binary as data file
+fio_binary_path = os.path.join(current_dir, 'fio-3.37', 'fio')
+if os.path.exists(fio_binary_path):
+    datas.append((fio_binary_path, 'fio-3.37'))
+
 # Hidden imports for PyQt6
 hiddenimports = [
     'PyQt6.QtCore',

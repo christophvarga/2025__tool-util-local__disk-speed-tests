@@ -55,7 +55,7 @@
  [],
  False,
  False,
- 1749767249,
+ 1749838167,
  [('runw',
    '/Users/christophvarga/Documents/2000_software_lokal/2025_06_disk-speed-tests/.venv/lib/python3.13/site-packages/PyInstaller/bootloader/Darwin-64bit/runw',
    'EXECUTABLE')],

@@ -2,6 +2,10 @@ import sys
 import os
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QIcon
+
+# Add the parent directory to the Python path for relative imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from qlab_disk_tester.gui_pyqt.main_window import MainWindow
 
 def main():

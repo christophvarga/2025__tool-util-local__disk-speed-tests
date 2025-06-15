@@ -374,7 +374,7 @@
 		</data>
 		<key>Resources/base_library.zip</key>
 		<data>
-		MD2rHH5jWix24ad2jqdb3Ooe+wI=
+		OEaEXXRg5mllx1HGeXYT3zCghlk=
 		</data>
 		<key>Resources/generated-76b5f105155ec95516dc6dd444a7f0ad0101be1ba079e4f3984975b702368a0a.icns</key>
 		<data>
@@ -720,6 +720,20 @@
 			<key>symlink</key>
 			<string>../Resources/base_library.zip</string>
 		</dict>
+		<key>Frameworks/fio-3.37</key>
+		<dict>
+			<key>symlink</key>
+			<string>fio-3__dot__37</string>
+		</dict>
+		<key>Frameworks/fio-3__dot__37/fio</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			jEq83xdrjg9yJODZHZqxrSrV8BQ=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"8c4abcdf176b8e0f7224e0d91d9ab1ad2ad5f014"</string>
+		</dict>
 		<key>Frameworks/icon.png</key>
 		<dict>
 			<key>symlink</key>
@@ -931,6 +945,15 @@
 			</data>
 			<key>requirement</key>
 			<string>cdhash H"c331f95328e91808c58277c28a4093a0f3cb6f55"</string>
+		</dict>
+		<key>Frameworks/lib-dynload/_queue.cpython-313-darwin.so</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			vEjh4NGyDQawTbFGwPKqAxJP9rg=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"bc48e1e0d1b20d06b04db146c0f2aa03124ff6b8"</string>
 		</dict>
 		<key>Frameworks/lib-dynload/_random.cpython-313-darwin.so</key>
 		<dict>
@@ -1881,8 +1904,13 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			1ztdcuKuPtPxklIr2c9zsqxReIghGLPtDHHBOTUBBDs=
+			4mJ+SD5Vz5/J95d3K+ASbGJanxb/V97KbMZ78iQiSPs=
 			</data>
+		</dict>
+		<key>Resources/fio-3.37</key>
+		<dict>
+			<key>symlink</key>
+			<string>../Frameworks/fio-3.37</string>
 		</dict>
 		<key>Resources/generated-76b5f105155ec95516dc6dd444a7f0ad0101be1ba079e4f3984975b702368a0a.icns</key>
 		<dict>

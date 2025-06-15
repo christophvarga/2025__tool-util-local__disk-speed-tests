@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QLab Disk Performance Tester</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-hard-drive"></i> QLab Disk Performance Tester</h1>
+            <p class="subtitle">Professional disk testing for audio/video applications</p>
+        </header>
+
+        <!-- System Status Banner -->
+        <div id="systemStatus" class="system-status">
+            <div class="status-indicator">
+                <i class="fas fa-circle-notch fa-spin"></i> Checking system status...
+            </div>
+        </div>
+
+        <!-- Setup Wizard (Hidden by default) -->
+        <div id="setupWizard" class="setup-wizard hidden">
+            <div class="setup-header">
+                <h2><i class="fas fa-tools"></i> System Setup & Diagnostics</h2>
+                <p>Follow these steps to configure your system for optimal disk testing</p>
+            </div>
+            
+            <div class="setup-steps">
+                <div id="step1" class="setup-step active">
+                    <div class="step-header">
+                        <span class="step-number">1</span>
+                        <h3>System Detection</h3>
+                        <div class="step-status" id="step1Status">
+                            <i class="fas fa-circle-notch fa-spin"></i>
+                        </div>
+                    </div>
+                    <div class="step-content">
+                        <p>Checking system compatibility and detecting existing components...</p>
+                        <div id="detectionResults" class="detection-results"></div>
+                    </div>
+                </div>
+
+                <div id="step2" class="setup-step">
+                    <div class="step-header">
+                        <span class="step-number">2</span>
+                        <h3>Installation & Configuration</h3>
+                        <div class="step-status" id="step2Status">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                    </div>
+                    <div class="step-content">
+                        <p>Install and configure required components for your system</p>
+                        <div id="installationProgress" class="installation-progress"></div>
+                        <button id="startInstallation" class="btn btn-primary" disabled>
+                            <i class="fas fa-download"></i> Install Components
+                        </button>
+                    </div>
+                </div>
+
+                <div id="step3" class="setup-step">
+                    <div class="step-header">
+                        <span class="step-number">3</span>
+                        <h3>Validation & Testing</h3>
+                        <div class="step-status" id="step3Status">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                    </div>
+                    <div class="step-content">
+                        <p>Verify installation and run validation tests</p>
+                        <div id="validationResults" class="validation-results"></div>
+                        <button id="runValidation" class="btn btn-success" disabled>
+                            <i class="fas fa-check"></i> Run Validation
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="setup-controls">
+                <button id="closeSetup" class="btn btn-secondary">
+                    <i class="fas fa-times"></i> Close Setup
+                </button>
+                <button id="skipSetup" class="btn btn-outline">
+                    <i class="fas fa-forward"></i> Skip Setup
+                </button>
+                <button id="retrySetup" class="btn btn-warning hidden">
+                    <i class="fas fa-redo"></i> Retry Setup
+                </button>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <button id="testingTab" class="nav-tab active">
+                <i class="fas fa-play"></i> Testing
+            </button>
+            <button id="setupTab" class="nav-tab">
+                <i class="fas fa-tools"></i> Setup & Diagnostics
+            </button>
+            <button id="architectureTab" class="nav-tab">
+                <i class="fas fa-info-circle"></i> Architecture
+            </button>
+        </div>
+
+        <!-- Architecture Info -->
+        <div class="architecture-section">
+            <button id="toggleArchitecture" class="btn btn-info">
+                <i class="fas fa-info-circle"></i> Show Architecture Details
+            </button>
+            
+            <div id="architectureDetails" class="architecture-details hidden">
+                <h3><i class="fas fa-sitemap"></i> System Architecture</h3>
+                <div class="architecture-grid">
+                    <div class="arch-component">
+                        <h4><i class="fas fa-desktop"></i> Web GUI (Sandboxed)</h4>
+                        <ul>
+                            <li>Clean user interface</li>
+                            <li>Browser-based operation</li>
+                            <li>Disk selection & test configuration</li>
+                            <li>Results visualization</li>
+                        </ul>
+                    </div>
+                    <div class="arch-component">
+                        <h4><i class="fas fa-cogs"></i> Helper Binary (Unsandboxed)</h4>
+                        <ul>
+                            <li>Runs actual FIO commands</li>
+                            <li>Access to raw disk devices</li>
+                            <li>JSON output formatting</li>
+                            <li>Safety parameter validation</li>
+                        </ul>
+                    </div>
+                    <div class="arch-component">
+                        <h4><i class="fas fa-bridge"></i> Communication Bridge</h4>
+                        <ul>
+                            <li>Local command execution</li>
+                            <li>Parameter sanitization</li>
+                            <li>Progress monitoring</li>
+                            <li>Error handling</li>
+                        </ul>
+                    </div>
+                    <div class="arch-component">
+                        <h4><i class="fas fa-chart-bar"></i> Result Processor</h4>
+                        <ul>
+                            <li>FIO JSON parsing</li>
+                            <li>QLab-specific analysis</li>
+                            <li>Performance recommendations</li>
+                            <li>Report generation</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="cli-example">
+                    <strong>CLI Command Example:</strong>
+                    <code>./diskbench --test qlab_prores_hq --disk /dev/disk1s1 --output result.json</code>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Interface -->
+        <div class="main-interface">
+            <!-- Disk Selection -->
+            <div class="section">
+                <h3><i class="fas fa-hard-drive"></i> Select Disk</h3>
+                <div id="diskList" class="disk-list">
+                    <div class="loading">
+                        <i class="fas fa-spinner fa-spin"></i> Loading available disks...
+                    </div>
+                </div>
+                <button id="refreshDisks" class="btn btn-secondary">
+                    <i class="fas fa-sync-alt"></i> Refresh Disk List
+                </button>
+            </div>
+
+            <!-- Test Selection -->
+            <div class="section">
+                <h3><i class="fas fa-cog"></i> Test Type</h3>
+                <div class="test-types">
+                    <label class="test-option">
+                        <input type="radio" name="testType" value="qlab_prores_hq" checked>
+                        <div class="test-card recommended">
+                            <h4>QLab ProRes HQ Test <span class="badge">RECOMMENDED</span></h4>
+                            <p>Mixed read/write patterns optimized for QLab ProRes HQ video playback</p>
+                        </div>
+                    </label>
+                    
+                    <label class="test-option">
+                        <input type="radio" name="testType" value="qlab_prores_422">
+                        <div class="test-card">
+                            <h4>QLab ProRes 422 Test</h4>
+                            <p>Optimized for QLab ProRes 422 video playback requirements</p>
+                        </div>
+                    </label>
+                    
+                    <label class="test-option">
+                        <input type="radio" name="testType" value="setup_check">
+                        <div class="test-card">
+                            <h4>Setup Check</h4>
+                            <p>Quick system validation and basic performance check</p>
+                        </div>
+                    </label>
+                    
+                    <label class="test-option">
+                        <input type="radio" name="testType" value="baseline_streaming">
+                        <div class="test-card">
+                            <h4>Baseline Streaming</h4>
+                            <p>General streaming performance test for audio/video content</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Test Controls -->
+            <div class="section">
+                <h3><i class="fas fa-play"></i> Test Controls</h3>
+                <div class="controls">
+                    <div class="control-group">
+                        <label for="testSize">Test Size (GB):</label>
+                        <input type="number" id="testSize" min="1" max="100" value="10">
+                    </div>
+                    
+                    <div class="control-buttons">
+                        <button id="startTest" class="btn btn-primary" disabled>
+                            <i class="fas fa-play"></i> Start Test
+                        </button>
+                        
+                        <button id="stopTest" class="btn btn-danger hidden">
+                            <i class="fas fa-stop"></i> Stop Test
+                        </button>
+                        
+                        <button id="exportResults" class="btn btn-success hidden">
+                            <i class="fas fa-download"></i> Export Results
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Section -->
+        <div id="progressSection" class="section hidden">
+            <h3><i class="fas fa-chart-line"></i> Test Progress</h3>
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div id="progressFill" class="progress-fill"></div>
+                </div>
+                <div id="progressText" class="progress-text">Preparing test...</div>
+            </div>
+            <div id="progressDetails" class="progress-details"></div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsSection" class="section hidden">
+            <h3><i class="fas fa-chart-bar"></i> Test Results</h3>
+            
+            <!-- QLab Analysis -->
+            <div id="qlabAnalysis" class="qlab-analysis"></div>
+            
+            <!-- Detailed Metrics -->
+            <div id="detailedMetrics" class="metrics-grid"></div>
+            
+            <!-- Implementation Details -->
+            <div class="implementation-details">
+                <h4><i class="fas fa-info-circle"></i> Implementation Details</h4>
+                <div id="implementationInfo" class="implementation-info"></div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>QLab Disk Performance Tester v1.0.0 | Architecture: Web GUI → Helper Binary → FIO Engine</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
