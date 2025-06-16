@@ -1,116 +1,185 @@
 # Active Context - QLab Disk Performance Tester
 
-## Current Status: ✅ ARCHITECTURE RESTRUCTURE COMPLETE
+## Current Status: ✅ HOMEBREW FIO ARCHITECTURE COMPLETE
 
-**Date:** 2025-06-15  
-**Major Achievement:** Successfully implemented bridge-based architecture
+**Date:** 2025-06-16  
+**Major Achievement:** Successfully transitioned to Homebrew-only FIO with honest status reporting
 
-## 🏗️ New Architecture Overview
+## 🏗️ Current Architecture Overview
 
-### Previous Approach (Abandoned)
+### Previous Approaches (Abandoned)
 - ❌ Integrated sandboxed version with embedded FIO
-- ❌ Complex packaging with permission issues
-- ❌ FIO shared memory limitations on macOS
+- ❌ Bundled FIO binaries with shared memory issues
+- ❌ Fake success messages hiding real macOS limitations
 
-### Current Implementation: Bridge Architecture ✅
+### Current Implementation: Homebrew FIO Bridge Architecture ✅
 
 **4-Component Design:**
-1. **Web GUI (Sandboxed)** - `web-gui/` directory
-2. **Helper Binary (Unsandboxed)** - `diskbench/` CLI tool  
-3. **Communication Bridge** - `bridge-server/server.py` HTTP server
-4. **Result Processor** - Built into bridge server
+1. **Web GUI (Browser)** - `web-gui/` directory - Plain HTML/CSS/JS
+2. **HTTP Bridge Server** - `bridge-server/server.py` - Python HTTP server
+3. **Helper Binary (CLI)** - `diskbench/` - Python CLI tool
+4. **System FIO** - Homebrew-installed `/opt/homebrew/bin/fio` or `/usr/local/bin/fio`
 
 ## 🚀 Current Working Status
 
 ### Fully Functional Components
 - ✅ **Web Interface**: Professional QLab-branded GUI at `http://localhost:8080`
 - ✅ **Bridge Server**: HTTP server with RESTful API endpoints
-- ✅ **Helper Binary**: Complete diskbench CLI with FIO integration
-- ✅ **System Detection**: Intelligent macOS compatibility handling
-- ✅ **Disk Detection**: Multi-drive support with type classification
-- ✅ **Test Execution**: Background test running with progress monitoring
-- ✅ **Error Handling**: Comprehensive error reporting and user feedback
+- ✅ **Helper Binary**: Complete diskbench CLI with Homebrew FIO integration
+- ✅ **Honest Status Reporting**: Real macOS limitations shown to users
+- ✅ **Homebrew FIO Detection**: Detects Apple Silicon and Intel Homebrew paths
+- ✅ **Python Fallback**: Automatic fallback when FIO fails
+- ✅ **System Integration**: Uses `brew install fio` for installation
 
 ### Architecture Flow (Working)
 ```
-Web GUI → HTTP Bridge → diskbench CLI → FIO Engine → JSON Results → Web Display
+Web GUI → HTTP Bridge → diskbench CLI → Homebrew FIO → JSON Results → Web Display
+                                     ↓ (when FIO fails)
+                                   Python Fallback → JSON Results → Web Display
 ```
 
 ### Key Achievements
-- **System Status**: Correctly identifies "FIO limitations but tests can run"
-- **Disk Discovery**: Detects Cache_2TB, Data, macmini-Backup, Macintosh HD
-- **Test Types**: QLab ProRes HQ/422, Setup Check, Baseline Streaming
-- **Progress Monitoring**: Real-time test status and completion tracking
-- **User Experience**: Clean, professional interface with architecture transparency
+- **Honest FIO Status**: Reports "FIO installed with limitations" instead of fake success
+- **Real Error Reporting**: Shows actual "shm segment" errors instead of hiding them
+- **Homebrew Integration**: Guides users through `brew install fio` process
+- **System-Level FIO**: No more bundled binaries, uses system-installed FIO
+- **Transparent Limitations**: Users understand what works and what doesn't
 
-## 📁 New Directory Structure
+## 📁 Current Directory Structure
 
 ```
 /
 ├── diskbench/              # Helper binary (unsandboxed CLI)
-│   ├── main.py            # Entry point
-│   ├── commands/          # Command handlers
+│   ├── main.py            # Entry point with Homebrew FIO detection
+│   ├── commands/          # Setup, test, validation commands
+│   │   ├── setup.py       # Homebrew FIO installation guidance
+│   │   ├── test.py        # Test execution with FIO + Python fallback
+│   │   └── validate.py    # Honest system validation
 │   ├── core/              # FIO integration & test engines
-│   └── utils/             # System utilities
+│   │   ├── fio_runner.py  # Homebrew FIO execution
+│   │   ├── python_fallback.py # Python disk testing
+│   │   └── qlab_patterns.py   # QLab test patterns
+│   └── utils/             # System utilities and logging
 ├── bridge-server/         # Communication bridge
-│   └── server.py          # HTTP server with API endpoints
-├── web-gui/               # Frontend (sandboxable)
-│   ├── index.html         # Main interface
+│   └── server.py          # HTTP server with diskbench integration
+├── web-gui/               # Frontend (browser-based)
+│   ├── index.html         # Main interface with setup wizard
 │   ├── styles.css         # QLab-branded styling
-│   └── app.js             # Frontend logic
-└── fio-3.37/              # Bundled FIO binary
+│   └── app.js             # Frontend logic with honest error handling
+└── memory-bank/           # Updated documentation
 ```
 
-## 🎯 Next Development Priorities
+## 🎯 FIO Integration Strategy
 
-### Immediate (High Priority)
-1. **FIO Wrapper Enhancement** - Implement proper macOS shared memory workarounds
-2. **Test Pattern Refinement** - Optimize QLab ProRes patterns for real-world usage
-3. **Results Analysis** - Enhanced QLab-specific performance recommendations
+### ✅ What We Do (Correct Approach)
+1. **Homebrew Detection**: Check `/opt/homebrew/bin/fio` and `/usr/local/bin/fio`
+2. **Installation Guidance**: Direct users to `brew install fio`
+3. **Honest Reporting**: Show real macOS shared memory limitations
+4. **Automatic Fallback**: Use Python testing when FIO fails
+5. **Simple FIO Configs**: Basic patterns that work on macOS
 
-### Future Enhancements
-1. **App Store Packaging** - Package web GUI as sandboxed macOS app
-2. **Cross-Platform Support** - Windows/Linux helper binaries
-3. **Advanced Monitoring** - Temperature and thermal throttling detection
-4. **Automated Reports** - PDF generation and email delivery
+### ❌ What We Don't Do (Abandoned Approaches)
+1. **No Bundled FIO**: Removed `fio-3.37/` directory completely
+2. **No Shared Memory Fixes**: Don't try to solve macOS SHM issues with flags
+3. **No Fake Success**: No more misleading "✅ FIO working perfectly" messages
+4. **No Complex Embedding**: FIO runs as normal system process
+5. **No Admin Requirements**: Users install FIO via Homebrew (normal user process)
+
+## 📊 Current System Status
+
+### Honest Status Reporting ✅
+```json
+{
+  "fio_available": true,
+  "fio_working": false,
+  "fio_partial": true,
+  "fio_type": "homebrew",
+  "system_usable": true,
+  "warnings": ["FIO has shared memory limitations on macOS"]
+}
+```
+
+### Installation Wizard Results ✅
+- **Installation**: "FIO installation completed but functionality is limited on macOS"
+- **Validation**: "FIO test failed: error: failed to setup shm segment"
+- **User Understanding**: Users see real limitations instead of fake promises
+
+### Test Execution Results ✅
+- **FIO Attempt**: Try Homebrew FIO first with simple configurations
+- **Error Handling**: Log real FIO errors ("shm segment" issues)
+- **Automatic Fallback**: Switch to Python testing when FIO fails
+- **Results Labeling**: Clear indication of which testing method was used
 
 ## 🔧 Development Environment
+
+### System Requirements
+```bash
+# Install Homebrew (if not present)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install FIO via Homebrew
+brew install fio
+
+# Verify installation
+which fio
+fio --version
+```
 
 ### Running the System
 ```bash
 # Start bridge server
-cd bridge-server && python3 server.py &
+cd bridge-server && python3 server.py
 
 # Access web interface
 open http://localhost:8080
 ```
 
-### Testing Commands
+### API Testing
 ```bash
-# System status
+# System status (shows honest FIO limitations)
 curl http://localhost:8080/api/status
 
-# List disks  
-curl http://localhost:8080/api/disks
-
-# Start test
-curl -X POST http://localhost:8080/api/test/start \
+# FIO installation
+curl -X POST http://localhost:8080/api/setup \
   -H "Content-Type: application/json" \
-  -d '{"test_type": "qlab_prores_hq", "disk_path": "/Volumes/Cache_2TB", "size_gb": 1}'
+  -d '{"action": "install_fio"}'
+
+# Validation (shows real errors)
+curl -X POST http://localhost:8080/api/validate \
+  -H "Content-Type: application/json" \
+  -d '{"action": "run_all_tests"}'
 ```
 
-## 📊 Current Test Results
+## 📈 Next Development Priorities
 
-### System Compatibility
-- **FIO Available**: ✅ True (bundled binary found)
-- **FIO Working**: ❌ False (shared memory limitations)
-- **FIO Partial**: ✅ True (workarounds available)
-- **System Usable**: ✅ True (can run tests with limitations)
+### Immediate Focus
+1. **Simple FIO Patterns**: Optimize basic test configurations for macOS compatibility
+2. **Python Testing Enhancement**: Improve fallback testing to provide valuable QLab analysis
+3. **User Education**: Better documentation about FIO limitations and alternatives
 
-### Architecture Validation
-- **Web GUI → Bridge**: ✅ Working (HTTP communication)
-- **Bridge → CLI**: ✅ Working (subprocess execution)
-- **CLI → FIO**: ⚠️ Partial (shared memory issues)
-- **Error Handling**: ✅ Working (comprehensive reporting)
+### Future Enhancements
+1. **Advanced FIO Configurations**: Explore file-based testing approaches
+2. **Performance Benchmarking**: Establish realistic performance expectations for macOS
+3. **Cross-Platform Support**: Extend architecture to Windows/Linux
 
-This architecture successfully addresses the original requirements while providing a foundation for future App Store distribution and cross-platform expansion.
+## 🎯 User Experience Goals
+
+### Honest Communication ✅
+- Users understand FIO has limitations on macOS
+- Clear guidance on what works and what doesn't
+- Transparent error reporting instead of fake success messages
+- Realistic expectations about system capabilities
+
+### Practical Functionality ✅
+- System still provides useful QLab disk analysis
+- Python fallback ensures testing always works
+- Clear labeling of which testing method was used
+- Professional results regardless of FIO status
+
+### Simple Setup ✅
+- Standard Homebrew installation process
+- No complex DMG packaging or installers
+- No admin privileges required for normal operation
+- Clear setup wizard with honest status reporting
+
+This architecture provides transparent, honest disk testing capabilities while working within macOS limitations and providing users with realistic expectations about system performance.

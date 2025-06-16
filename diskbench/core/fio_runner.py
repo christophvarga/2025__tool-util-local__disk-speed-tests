@@ -1,5 +1,5 @@
 """
-FIO runner for diskbench helper binary.
+FIO runner for diskbench helper binary - Pure Homebrew FIO only.
 """
 
 import logging
@@ -16,38 +16,39 @@ from utils.security import validate_fio_parameters, get_safe_test_directory, che
 logger = logging.getLogger(__name__)
 
 class FioRunner:
-    """Manages FIO execution and result processing."""
+    """Manages FIO execution and result processing - Homebrew FIO only."""
     
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.fio_path = self._find_fio_binary()
     
     def _find_fio_binary(self) -> Optional[str]:
-        """Find FIO binary (bundled or system)."""
-        # Check for bundled FIO first
-        script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        bundled_paths = [
-            os.path.join(script_dir, '..', 'fio-3.37', 'fio'),
-            os.path.join(script_dir, '..', 'resources', 'fio-3.37', 'fio'),
-            '/usr/local/share/qlab-disk-tester/fio-3.37/fio'
+        """Find system-installed FIO binary (Homebrew only)."""
+        
+        # Homebrew FIO paths (Apple Silicon and Intel)
+        homebrew_paths = [
+            '/opt/homebrew/bin/fio',  # Apple Silicon Homebrew
+            '/usr/local/bin/fio',     # Intel Homebrew
         ]
         
-        for path in bundled_paths:
-            if os.path.exists(path) and os.access(path, os.X_OK):
-                self.logger.info(f"Found bundled FIO at: {path}")
-                return path
+        for fio_path in homebrew_paths:
+            if os.path.exists(fio_path) and os.access(fio_path, os.X_OK):
+                self.logger.info(f"Found Homebrew FIO at: {fio_path}")
+                return fio_path
         
-        # Check system FIO
+        # System PATH FIO (backup for other installations)
         try:
             result = subprocess.run(['which', 'fio'], capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
                 fio_path = result.stdout.strip()
-                self.logger.info(f"Found system FIO at: {fio_path}")
-                return fio_path
+                # Only accept if it's not already checked above
+                if fio_path not in homebrew_paths:
+                    self.logger.info(f"Found system FIO at: {fio_path}")
+                    return fio_path
         except Exception:
             pass
         
-        self.logger.error("FIO binary not found")
+        self.logger.error("FIO not found. Install with: brew install fio")
         return None
     
     def get_fio_status(self) -> Dict[str, Any]:
@@ -85,6 +86,126 @@ class FioRunner:
             'path': self.fio_path,
             'version': None
         }
+    
+    def run_simple_fio_test(self, test_type: str, target_path: str, 
+                           progress_callback=None) -> Optional[Dict[str, Any]]:
+        """
+        Run simple FIO test with basic, reliable configuration.
+        
+        Args:
+            test_type: Type of test (read, write, randread, randwrite, mixed)
+            target_path: Path to test (disk or directory)
+            progress_callback: Optional callback for progress updates
+        
+        Returns:
+            Test results or None on error
+        """
+        if not self.fio_path:
+            self.logger.error("FIO binary not available")
+            return None
+        
+        # Create safe test directory
+        test_directory = get_safe_test_directory()
+        
+        try:
+            # Create test directory
+            os.makedirs(test_directory, exist_ok=True)
+            
+            # Simple, reliable FIO command
+            output_file = os.path.join(test_directory, 'fio_output.json')
+            
+            # Basic FIO command that works on macOS - sync engine, no shared memory
+            cmd = [
+                self.fio_path,
+                '--name=diskbench_test',
+                f'--rw={test_type}',
+                '--size=100M',
+                '--ioengine=sync',
+                '--direct=0',
+                '--numjobs=1',
+                '--iodepth=1',
+                '--runtime=30',
+                '--time_based',
+                '--output-format=json',
+                f'--output={output_file}',
+                f'--directory={test_directory}'
+            ]
+            
+            # Validate command parameters
+            safe_cmd = validate_fio_parameters(cmd)
+            if len(safe_cmd) != len(cmd):
+                self.logger.warning("Some FIO parameters were filtered for security")
+            
+            self.logger.info(f"Running FIO command: {' '.join(safe_cmd)}")
+            
+            # Run FIO with clean environment - no sandbox workarounds
+            env = os.environ.copy()
+            
+            process = subprocess.Popen(
+                safe_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=env,
+                cwd=test_directory
+            )
+            
+            # Monitor progress if callback provided
+            if progress_callback:
+                self._monitor_progress(process, progress_callback)
+            
+            stdout, stderr = process.communicate()
+            
+            if process.returncode != 0:
+                error_msg = f"FIO failed with return code {process.returncode}"
+                if stderr:
+                    error_msg += f". Error: {stderr}"
+                
+                # No fallback - report honest FIO error
+                self.logger.error(f"FIO failed with shared memory error: {stderr}")
+                
+                self.logger.error(error_msg)
+                return {
+                    'error': error_msg,
+                    'fio_stdout': stdout,
+                    'fio_stderr': stderr,
+                    'return_code': process.returncode
+                }
+            
+            # Parse results
+            if os.path.exists(output_file):
+                with open(output_file, 'r') as f:
+                    fio_results = json.load(f)
+                
+                # Process and enhance results
+                processed_results = self._process_fio_results(fio_results)
+                processed_results['test_type'] = test_type
+                processed_results['target_path'] = target_path
+                processed_results['engine'] = 'homebrew_fio'
+                return processed_results
+            else:
+                error_msg = "FIO output file not found"
+                self.logger.error(error_msg)
+                return {
+                    'error': error_msg,
+                    'fio_stdout': stdout,
+                    'fio_stderr': stderr
+                }
+                
+        except Exception as e:
+            error_msg = f"Error running FIO test: {e}"
+            self.logger.error(error_msg)
+            return {
+                'error': error_msg,
+                'exception': str(e)
+            }
+        finally:
+            # Cleanup
+            try:
+                if os.path.exists(test_directory):
+                    shutil.rmtree(test_directory)
+            except Exception as e:
+                self.logger.warning(f"Failed to cleanup test directory: {e}")
     
     def run_fio_test(self, config_content: str, test_directory: str, 
                      progress_callback=None) -> Optional[Dict[str, Any]]:
@@ -128,12 +249,15 @@ class FioRunner:
             
             self.logger.info(f"Running FIO command: {' '.join(safe_cmd)}")
             
-            # Run FIO
+            # Run FIO with clean environment - no sandbox workarounds
+            env = os.environ.copy()
+            
             process = subprocess.Popen(
                 safe_cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                env=env,
                 cwd=test_directory
             )
             
@@ -144,9 +268,17 @@ class FioRunner:
             stdout, stderr = process.communicate()
             
             if process.returncode != 0:
-                self.logger.error(f"FIO failed with return code {process.returncode}")
-                self.logger.error(f"STDERR: {stderr}")
-                return None
+                error_msg = f"FIO failed with return code {process.returncode}"
+                if stderr:
+                    error_msg += f". Error: {stderr}"
+                
+                self.logger.error(f"FIO failed: {stderr}")
+                return {
+                    'error': error_msg,
+                    'fio_stdout': stdout,
+                    'fio_stderr': stderr,
+                    'return_code': process.returncode
+                }
             
             # Parse results
             if os.path.exists(output_file):
@@ -157,12 +289,21 @@ class FioRunner:
                 processed_results = self._process_fio_results(fio_results)
                 return processed_results
             else:
-                self.logger.error("FIO output file not found")
-                return None
+                error_msg = "FIO output file not found"
+                self.logger.error(error_msg)
+                return {
+                    'error': error_msg,
+                    'fio_stdout': stdout,
+                    'fio_stderr': stderr
+                }
                 
         except Exception as e:
-            self.logger.error(f"Error running FIO test: {e}")
-            return None
+            error_msg = f"Error running FIO test: {e}"
+            self.logger.error(error_msg)
+            return {
+                'error': error_msg,
+                'exception': str(e)
+            }
         finally:
             # Cleanup
             try:
@@ -174,8 +315,7 @@ class FioRunner:
     def _monitor_progress(self, process, progress_callback):
         """Monitor FIO progress and call callback."""
         try:
-            # Simple progress monitoring - could be enhanced
-            # FIO doesn't provide easy progress info, so this is basic
+            # Simple progress monitoring
             import time
             start_time = time.time()
             
@@ -210,7 +350,8 @@ class FioRunner:
                 'fio_version': fio_results.get('fio version', 'unknown'),
                 'timestamp': fio_results.get('timestamp', 0),
                 'jobs': [],
-                'summary': {}
+                'summary': {},
+                'engine': 'homebrew_fio'
             }
             
             # Process each job

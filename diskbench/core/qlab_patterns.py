@@ -15,31 +15,31 @@ class QLabTestPatterns:
         self.test_patterns = self._initialize_patterns()
     
     def _initialize_patterns(self) -> Dict[str, Dict[str, Any]]:
-        """Initialize QLab test patterns."""
+        """Initialize realistic QLab test patterns."""
         return {
-            'setup_check': {
-                'name': 'QLab Setup Check',
-                'description': 'Quick system validation for QLab compatibility',
-                'duration': 30,
-                'fio_template': self._get_setup_check_config()
+            'quick_max_speed': {
+                'name': 'Quick Max Speed Test',
+                'description': 'Maximum performance test in 3 minutes',
+                'duration': 180,  # 3 minutes
+                'fio_template': self._get_quick_max_speed_config()
             },
-            'qlab_prores_422': {
-                'name': 'QLab ProRes 422 Test',
-                'description': 'Test pattern optimized for ProRes 422 video playback',
-                'duration': 60,
-                'fio_template': self._get_prores_422_config()
+            'qlab_prores_422_show': {
+                'name': 'QLab ProRes 422 Show Pattern',
+                'description': 'Realistic show pattern: 1x4K + 3xHD ProRes 422 with crossfades',
+                'duration': 9900,  # 2.75 hours = 9900 seconds
+                'fio_template': self._get_prores_422_show_config()
             },
-            'qlab_prores_hq': {
-                'name': 'QLab ProRes HQ Test',
-                'description': 'Test pattern optimized for ProRes HQ video playback',
-                'duration': 90,
-                'fio_template': self._get_prores_hq_config()
+            'qlab_prores_hq_show': {
+                'name': 'QLab ProRes HQ Show Pattern',
+                'description': 'Realistic show pattern: 1x4K + 3xHD ProRes HQ with crossfades',
+                'duration': 9900,  # 2.75 hours = 9900 seconds
+                'fio_template': self._get_prores_hq_show_config()
             },
-            'baseline_streaming': {
-                'name': 'Baseline Streaming Test',
-                'description': 'Basic streaming performance test for audio/video content',
-                'duration': 45,
-                'fio_template': self._get_baseline_streaming_config()
+            'max_sustained': {
+                'name': 'Maximum Sustained Performance',
+                'description': 'Continuous maximum load for 1.5 hours (thermal testing)',
+                'duration': 5400,  # 1.5 hours = 5400 seconds
+                'fio_template': self._get_max_sustained_config()
             }
         }
     
@@ -102,14 +102,14 @@ class QLabTestPatterns:
         }
         
         # Mode-specific analysis
-        if test_mode == 'setup_check':
-            analysis.update(self._analyze_setup_check(summary))
-        elif test_mode == 'qlab_prores_422':
-            analysis.update(self._analyze_prores_422(summary))
-        elif test_mode == 'qlab_prores_hq':
-            analysis.update(self._analyze_prores_hq(summary))
-        elif test_mode == 'baseline_streaming':
-            analysis.update(self._analyze_baseline_streaming(summary))
+        if test_mode == 'quick_max_speed':
+            analysis.update(self._analyze_quick_max_speed(summary))
+        elif test_mode == 'qlab_prores_422_show':
+            analysis.update(self._analyze_prores_422_show(summary))
+        elif test_mode == 'qlab_prores_hq_show':
+            analysis.update(self._analyze_prores_hq_show(summary))
+        elif test_mode == 'max_sustained':
+            analysis.update(self._analyze_max_sustained(summary))
         
         return analysis
     
@@ -138,298 +138,373 @@ class QLabTestPatterns:
         
         return config
     
-    def _get_setup_check_config(self) -> str:
-        """Get FIO config for setup check test."""
-        return """
-[global]
-ioengine=sync
-direct=0
-ramp_time=5
-runtime=30
-time_based=1
-group_reporting=1
-thread=1
-
-[setup_seq_read]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=1M
-rw=read
-numjobs=1
-iodepth=1
-
-[setup_seq_write]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=1M
-rw=write
-numjobs=1
-iodepth=1
-
-[setup_rand_read]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=4k
-rw=randread
-numjobs=1
-iodepth=2
-"""
-    
-    def _get_prores_422_config(self) -> str:
-        """Get FIO config for ProRes 422 test."""
+    def _get_quick_max_speed_config(self) -> str:
+        """Get FIO config for 3-minute maximum speed test - macOS compatible."""
         return """
 [global]
 ioengine=sync
 direct=0
 ramp_time=10
-runtime=60
+runtime=180
 time_based=1
 group_reporting=1
 thread=1
+disable_lat=1
+disable_clat=1
+disable_slat=1
+unified_rw_reporting=1
 
-[prores422_sequential]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=1M
-rw=read
-numjobs=1
-iodepth=1
-
-[prores422_mixed_load]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=64k
-rw=randrw
-rwmixread=80
-numjobs=1
-iodepth=4
-
-[prores422_burst_read]
+[max_sequential_read]
 filename=${TEST_FILE}
 size=${TEST_SIZE}
 bs=2M
 rw=read
 numjobs=1
 iodepth=1
-rate=220M
+
+[max_sequential_write]
+filename=${TEST_FILE}
+size=${TEST_SIZE}
+bs=2M
+rw=write
+numjobs=1
+iodepth=1
+
+[max_random_read]
+filename=${TEST_FILE}
+size=${TEST_SIZE}
+bs=4k
+rw=randread
+numjobs=2
+iodepth=1
+
+[max_mixed_load]
+filename=${TEST_FILE}
+size=${TEST_SIZE}
+bs=1M
+rw=randrw
+rwmixread=70
+numjobs=1
+iodepth=1
 """
     
-    def _get_prores_hq_config(self) -> str:
-        """Get FIO config for ProRes HQ test."""
+    def _get_prores_422_show_config(self) -> str:
+        """Get FIO config for realistic ProRes 422 show pattern - 2.75 hours with 3 phases, macOS sync engine."""
         return """
 [global]
 ioengine=sync
 direct=0
-ramp_time=15
-runtime=90
 time_based=1
 group_reporting=1
 thread=1
+disable_lat=1
+disable_clat=1
+disable_slat=1
+unified_rw_reporting=1
 
-[prores_hq_sequential]
+# Complete 2.75h Show Simulation (9900 seconds total)
+[qlab_prores_422_show_complete]
+filename=${TEST_FILE}
+size=${TEST_SIZE}
+bs=1M
+rw=randrw
+rwmixread=95
+numjobs=1
+iodepth=1
+runtime=9900
+ramp_time=60
+rate=600M
+"""
+    
+    def _get_prores_hq_show_config(self) -> str:
+        """Get FIO config for realistic ProRes HQ show pattern - 2.75 hours with 3 phases."""
+        return """
+[global]
+ioengine=posixaio
+direct=0
+time_based=1
+group_reporting=0
+thread=1
+norandommap=1
+randrepeat=0
+log_avg_msec=1000
+write_bw_log=show_hq_bw
+write_lat_log=show_hq_lat
+lat_percentiles=1
+
+# Phase 1: Show Preparation (30 min = 1800s)
+# Medien-Preload, Soundcheck-Level - HQ requires more bandwidth
+[show_prep_hq]
 filename=${TEST_FILE}
 size=${TEST_SIZE}
 bs=2M
 rw=read
-numjobs=1
-iodepth=1
+numjobs=3
+iodepth=24
+runtime=1800
+ramp_time=30
+rate=800M
 
-[prores_hq_sustained]
+# Phase 2: Normal Show Load (90 min = 5400s)  
+# 1x 4K 50p + 3x HD 50p ProRes HQ with crossfades every 3min
+[normal_show_hq]
 filename=${TEST_FILE}
 size=${TEST_SIZE}
-bs=1M
-rw=read
-numjobs=1
-iodepth=2
-rate=440M
+bs=2M
+rw=randrw
+rwmixread=98
+numjobs=6
+iodepth=32
+runtime=5400
+rate=1400M
+rate_process=poisson
+thinktime=180000000
+startdelay=1800
 
-[prores_hq_mixed]
+# Random access for masks and graphics (parallel to show) - HQ needs more
+[graphics_access_hq]
 filename=${TEST_FILE}
 size=${TEST_SIZE}
 bs=128k
-rw=randrw
-rwmixread=85
-numjobs=1
-iodepth=8
+rw=randread
+numjobs=3
+iodepth=12
+runtime=5400
+rate=100M
+startdelay=1800
 
-[prores_hq_burst]
+# Phase 3: Show Finale (30 min = 1800s)
+# Intensive crossfades, maximum load - HQ peak performance
+[show_finale_hq]
 filename=${TEST_FILE}
 size=${TEST_SIZE}
 bs=4M
 rw=read
-numjobs=1
-iodepth=1
-rate=600M
+numjobs=12
+iodepth=48
+runtime=1800
+rate=2800M
+rate_process=poisson
+startdelay=7200
 """
     
-    def _get_baseline_streaming_config(self) -> str:
-        """Get FIO config for baseline streaming test."""
+    def _get_max_sustained_config(self) -> str:
+        """Get FIO config for 1.5-hour maximum sustained performance test (thermal testing)."""
         return """
 [global]
-ioengine=sync
+ioengine=posixaio
 direct=0
-ramp_time=5
-runtime=45
+ramp_time=60
+runtime=5400
 time_based=1
-group_reporting=1
+group_reporting=0
 thread=1
+log_avg_msec=1000
+write_bw_log=max_sustained_bw
+write_lat_log=max_sustained_lat
+lat_percentiles=1
 
-[streaming_sequential]
+# Continuous maximum sequential read load
+[max_sustained_seq_read]
 filename=${TEST_FILE}
 size=${TEST_SIZE}
-bs=512k
+bs=4M
 rw=read
-numjobs=1
-iodepth=1
+numjobs=6
+iodepth=64
 
-[streaming_audio_cues]
+# Continuous maximum sequential write load
+[max_sustained_seq_write]
 filename=${TEST_FILE}
 size=${TEST_SIZE}
-bs=16k
+bs=4M
+rw=write
+numjobs=3
+iodepth=32
+
+# Continuous maximum random read load
+[max_sustained_rand_read]
+filename=${TEST_FILE}
+size=${TEST_SIZE}
+bs=4k
 rw=randread
-numjobs=1
-iodepth=1
+numjobs=12
+iodepth=128
 
-[streaming_mixed]
+# Mixed workload for thermal stress
+[max_sustained_mixed]
 filename=${TEST_FILE}
 size=${TEST_SIZE}
-bs=64k
+bs=1M
 rw=randrw
-rwmixread=90
-numjobs=1
-iodepth=2
+rwmixread=75
+numjobs=8
+iodepth=64
+
+# Burst pattern to stress thermal limits
+[thermal_stress_burst]
+filename=${TEST_FILE}
+size=${TEST_SIZE}
+bs=8M
+rw=read
+numjobs=4
+iodepth=32
+thinktime=30000000
 """
     
-    def _analyze_setup_check(self, summary: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze setup check results."""
-        read_bw = summary.get('total_read_bw', 0)  # KB/s
-        write_bw = summary.get('total_write_bw', 0)  # KB/s
+    def _analyze_quick_max_speed(self, summary: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze quick max speed test results."""
+        read_bw = summary.get('total_read_bw', 0) / 1024  # Convert to MB/s
+        write_bw = summary.get('total_write_bw', 0) / 1024  # Convert to MB/s
         read_iops = summary.get('total_read_iops', 0)
         avg_latency = summary.get('avg_read_latency', 0)
         
-        # Convert to MB/s for easier analysis
-        read_mb_s = read_bw / 1024
-        write_mb_s = write_bw / 1024
-        
         analysis = {}
         
-        # Overall performance assessment
-        if read_mb_s > 200 and write_mb_s > 150 and read_iops > 5000:
+        # Maximum performance assessment
+        if read_bw > 1000 and write_bw > 500:
             analysis['overall_performance'] = 'excellent'
-        elif read_mb_s > 100 and write_mb_s > 80 and read_iops > 2000:
+            analysis['video_playback_capability'] = 'multiple_4k_streams'
+        elif read_bw > 500 and write_bw > 250:
             analysis['overall_performance'] = 'good'
-        elif read_mb_s > 50 and write_mb_s > 40 and read_iops > 500:
+            analysis['video_playback_capability'] = 'single_4k_stream'
+        elif read_bw > 200 and write_bw > 100:
             analysis['overall_performance'] = 'fair'
+            analysis['video_playback_capability'] = 'hd_streams_only'
         else:
             analysis['overall_performance'] = 'poor'
+            analysis['video_playback_capability'] = 'limited'
         
-        # QLab-specific assessments
-        analysis['video_playback_capability'] = 'good' if read_mb_s > 100 else 'limited'
-        analysis['audio_cue_performance'] = 'good' if read_iops > 1000 else 'limited'
-        analysis['rapid_triggering_capability'] = 'good' if avg_latency < 10 else 'limited'
+        analysis['audio_cue_performance'] = 'excellent' if read_iops > 10000 else 'good'
+        analysis['rapid_triggering_capability'] = 'excellent' if avg_latency < 2 else 'good'
         
         analysis['performance_scores'] = {
-            'read_bandwidth_mb_s': read_mb_s,
-            'write_bandwidth_mb_s': write_mb_s,
-            'read_iops': read_iops,
-            'avg_latency_ms': avg_latency
+            'max_read_mb_s': read_bw,
+            'max_write_mb_s': write_bw,
+            'max_read_iops': read_iops,
+            'min_latency_ms': avg_latency
         }
         
         return analysis
     
-    def _analyze_prores_422(self, summary: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze ProRes 422 test results."""
+    def _analyze_prores_422_show(self, summary: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze ProRes 422 show pattern results with thermal analysis."""
         read_bw = summary.get('total_read_bw', 0) / 1024  # Convert to MB/s
         read_iops = summary.get('total_read_iops', 0)
         avg_latency = summary.get('avg_read_latency', 0)
         
         analysis = {}
         
-        # ProRes 422 requires ~220 MB/s sustained
-        if read_bw > 300:
+        # Show-specific analysis for ProRes 422 (1x4K + 3xHD = ~700MB/s peak)
+        if read_bw > 800:
             analysis['overall_performance'] = 'excellent'
-            analysis['video_playback_capability'] = 'multiple_streams'
-        elif read_bw > 220:
+            analysis['video_playback_capability'] = 'show_ready_with_headroom'
+            analysis['show_suitability'] = 'professional_ready'
+        elif read_bw > 600:
             analysis['overall_performance'] = 'good'
-            analysis['video_playback_capability'] = 'single_stream_reliable'
-        elif read_bw > 150:
+            analysis['video_playback_capability'] = 'show_ready_minimal_headroom'
+            analysis['show_suitability'] = 'show_ready'
+        elif read_bw > 400:
             analysis['overall_performance'] = 'fair'
-            analysis['video_playback_capability'] = 'single_stream_marginal'
+            analysis['video_playback_capability'] = 'reduced_streams_only'
+            analysis['show_suitability'] = 'limited_show_use'
         else:
             analysis['overall_performance'] = 'poor'
-            analysis['video_playback_capability'] = 'unreliable'
+            analysis['video_playback_capability'] = 'unreliable_for_shows'
+            analysis['show_suitability'] = 'not_recommended'
         
+        # Thermal performance assessment (2.75h test)
+        analysis['thermal_performance'] = 'stable' if read_bw > 500 else 'throttling_detected'
         analysis['audio_cue_performance'] = 'excellent' if read_iops > 3000 else 'good'
         analysis['rapid_triggering_capability'] = 'excellent' if avg_latency < 5 else 'good'
         
         analysis['performance_scores'] = {
-            'sustained_read_mb_s': read_bw,
-            'prores_422_capability': 'yes' if read_bw > 220 else 'no',
-            'multiple_streams': 'yes' if read_bw > 440 else 'no'
+            'sustained_show_mb_s': read_bw,
+            'prores_422_show_capability': 'yes' if read_bw > 600 else 'no',
+            'crossfade_headroom': 'yes' if read_bw > 800 else 'limited',
+            'thermal_stability': 'stable' if read_bw > 500 else 'degraded'
         }
         
         return analysis
     
-    def _analyze_prores_hq(self, summary: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze ProRes HQ test results."""
+    def _analyze_prores_hq_show(self, summary: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze ProRes HQ show pattern results with thermal analysis."""
         read_bw = summary.get('total_read_bw', 0) / 1024  # Convert to MB/s
         read_iops = summary.get('total_read_iops', 0)
         avg_latency = summary.get('avg_read_latency', 0)
         
         analysis = {}
         
-        # ProRes HQ requires ~440 MB/s sustained
-        if read_bw > 600:
+        # Show-specific analysis for ProRes HQ (1x4K + 3xHD = ~1400MB/s peak)
+        if read_bw > 1600:
             analysis['overall_performance'] = 'excellent'
-            analysis['video_playback_capability'] = 'multiple_hq_streams'
-        elif read_bw > 440:
+            analysis['video_playback_capability'] = 'hq_show_ready_with_headroom'
+            analysis['show_suitability'] = 'professional_hq_ready'
+        elif read_bw > 1200:
             analysis['overall_performance'] = 'good'
-            analysis['video_playback_capability'] = 'single_hq_stream_reliable'
-        elif read_bw > 300:
+            analysis['video_playback_capability'] = 'hq_show_ready_minimal_headroom'
+            analysis['show_suitability'] = 'hq_show_ready'
+        elif read_bw > 800:
             analysis['overall_performance'] = 'fair'
-            analysis['video_playback_capability'] = 'hq_stream_marginal'
+            analysis['video_playback_capability'] = 'reduced_hq_streams_only'
+            analysis['show_suitability'] = 'limited_hq_show_use'
         else:
             analysis['overall_performance'] = 'poor'
-            analysis['video_playback_capability'] = 'hq_not_recommended'
+            analysis['video_playback_capability'] = 'unreliable_for_hq_shows'
+            analysis['show_suitability'] = 'hq_not_recommended'
         
+        # Thermal performance assessment (2.75h test)
+        analysis['thermal_performance'] = 'stable' if read_bw > 1000 else 'throttling_detected'
         analysis['audio_cue_performance'] = 'excellent' if read_iops > 5000 else 'good'
         analysis['rapid_triggering_capability'] = 'excellent' if avg_latency < 3 else 'good'
         
         analysis['performance_scores'] = {
-            'sustained_read_mb_s': read_bw,
-            'prores_hq_capability': 'yes' if read_bw > 440 else 'no',
-            'multiple_hq_streams': 'yes' if read_bw > 880 else 'no'
+            'sustained_hq_show_mb_s': read_bw,
+            'prores_hq_show_capability': 'yes' if read_bw > 1200 else 'no',
+            'hq_crossfade_headroom': 'yes' if read_bw > 1600 else 'limited',
+            'thermal_stability': 'stable' if read_bw > 1000 else 'degraded'
         }
         
         return analysis
     
-    def _analyze_baseline_streaming(self, summary: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze baseline streaming test results."""
+    def _analyze_max_sustained(self, summary: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze maximum sustained performance test results (1.5h thermal test)."""
         read_bw = summary.get('total_read_bw', 0) / 1024  # Convert to MB/s
+        write_bw = summary.get('total_write_bw', 0) / 1024  # Convert to MB/s
         read_iops = summary.get('total_read_iops', 0)
         avg_latency = summary.get('avg_read_latency', 0)
         
         analysis = {}
         
-        # Basic streaming requirements
-        if read_bw > 150 and read_iops > 2000:
+        # Thermal throttling assessment over 1.5 hours
+        if read_bw > 800 and write_bw > 400:
             analysis['overall_performance'] = 'excellent'
-        elif read_bw > 80 and read_iops > 1000:
+            analysis['thermal_performance'] = 'no_throttling_detected'
+            analysis['sustained_capability'] = 'professional_grade'
+        elif read_bw > 500 and write_bw > 250:
             analysis['overall_performance'] = 'good'
-        elif read_bw > 40 and read_iops > 500:
+            analysis['thermal_performance'] = 'minimal_throttling'
+            analysis['sustained_capability'] = 'show_suitable'
+        elif read_bw > 200 and write_bw > 100:
             analysis['overall_performance'] = 'fair'
+            analysis['thermal_performance'] = 'moderate_throttling'
+            analysis['sustained_capability'] = 'limited_use'
         else:
             analysis['overall_performance'] = 'poor'
+            analysis['thermal_performance'] = 'severe_throttling'
+            analysis['sustained_capability'] = 'not_recommended'
         
-        # Streaming-specific assessments
-        analysis['video_playback_capability'] = 'hd_capable' if read_bw > 50 else 'sd_only'
-        analysis['audio_cue_performance'] = 'excellent' if read_iops > 1500 else 'good'
-        analysis['rapid_triggering_capability'] = 'excellent' if avg_latency < 8 else 'fair'
+        # Long-term reliability assessment
+        analysis['video_playback_capability'] = 'sustained_4k' if read_bw > 600 else 'hd_only'
+        analysis['audio_cue_performance'] = 'excellent' if read_iops > 8000 else 'good'
+        analysis['rapid_triggering_capability'] = 'excellent' if avg_latency < 5 else 'degraded'
         
         analysis['performance_scores'] = {
-            'streaming_bandwidth_mb_s': read_bw,
-            'audio_cue_iops': read_iops,
-            'response_latency_ms': avg_latency
+            'sustained_read_mb_s': read_bw,
+            'sustained_write_mb_s': write_bw,
+            'sustained_read_iops': read_iops,
+            'thermal_stability_score': 'stable' if read_bw > 400 else 'unstable',
+            'long_term_reliability': 'high' if read_bw > 600 else 'medium'
         }
         
         return analysis

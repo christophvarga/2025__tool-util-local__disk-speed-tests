@@ -28,26 +28,35 @@ The application uses a **sandboxed GUI + unsandboxed helper binary** architectur
 
 ## 🚀 Quick Start
 
-### 1. Open the Web Interface
+### 1. Install FIO via Homebrew
+
+```bash
+# Install Homebrew (if not already installed)
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install FIO
+brew install fio
+```
+
+### 2. Start the Bridge Server
+
+```bash
+cd bridge-server
+python server.py
+```
+
+### 3. Open the Web Interface
 
 ```bash
 open web-gui/index.html
 ```
 
-### 2. Test the Helper Binary
-
-```bash
-cd diskbench
-python main.py --version
-python test_diskbench.py
-```
-
-### 3. Run a Test
+### 4. Run Setup Wizard
 
 1. Open the web interface in your browser
-2. Select a disk from the available list
-3. Choose a test type (QLab ProRes HQ recommended)
-4. Set test size (10GB default)
+2. Follow the setup wizard to verify FIO installation
+3. Select a disk from the available list
+4. Choose a test type (QLab Mixed Test recommended)
 5. Click "Start Test"
 6. View results and export if needed
 
@@ -151,7 +160,8 @@ The tool provides specific recommendations based on test results:
 │   ├── index.html          # Main interface
 │   ├── styles.css          # Styling
 │   └── app.js              # Application logic
-├── fio-3.37/               # Bundled FIO binary
+├── bridge-server/          # HTTP API server
+│   └── server.py           # Bridge communication
 └── memory-bank/            # Development documentation
 ```
 

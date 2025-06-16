@@ -1,277 +1,278 @@
 # Technical Context
 
-## Architecture Overview
+## Current Architecture: Web GUI + HTTP Bridge + Homebrew FIO
 
-### New Architecture: Web GUI + Helper Binary
-The project has transitioned from an integrated PyQt6 application to a **Web GUI + Helper Binary** architecture to solve sandbox limitations while maintaining professional disk testing capabilities.
+**CRITICAL CORRECTION**: The project uses a simple Web GUI + Python HTTP Bridge + System FIO architecture. No React, no Flask, no bundled binaries.
 
 ```mermaid
 graph TB
-    A[React Web GUI] --> B[Flask Backend]
-    B --> C[HTTP/WebSocket Bridge]
-    C --> D[diskbench Helper Binary]
-    D --> E[FIO Engine]
-    E --> F[Real Disk Testing]
+    A[Web GUI<br/>HTML/CSS/JS] --> B[HTTP Bridge<br/>Python Server]
+    B --> C[diskbench Helper<br/>Python CLI]
+    C --> D[Homebrew FIO<br/>/opt/homebrew/bin/fio]
+    D --> F[Real Disk Testing]
     F --> G[JSON Results]
     G --> C
     C --> B
     B --> A
     
-    subgraph "Sandboxed Environment"
+    subgraph "Browser"
         A
-        B
         H[localhost:8080]
-        I[Pattern Storage]
     end
     
-    subgraph "Unsandboxed Environment"
+    subgraph "HTTP Bridge Server"
+        B
+        I[Python subprocess]
+    end
+    
+    subgraph "System Level"
+        C
         D
-        E
         F
-        J[/usr/local/bin/diskbench]
-        K[Bundled FIO Binary]
     end
 ```
 
 ## Technology Stack
 
 ### Frontend Layer
-- **Framework**: React 18+ with modern hooks
-- **Styling**: CSS Modules or Styled Components
-- **State Management**: React Context + useReducer
-- **Real-time Updates**: WebSocket connection to Flask backend
-- **Local Storage**: Browser localStorage for custom patterns
-- **Build Tool**: Create React App or Vite
+- **Technology**: Plain HTML5 + CSS3 + Vanilla JavaScript
+- **Location**: `web-gui/` directory
+- **Communication**: HTTP fetch() to localhost:8080
+- **No Framework**: No React, no build process, no bundling
+- **Real-time Updates**: Polling HTTP endpoints for progress
 
-### Backend Layer
-- **Framework**: Python Flask with Flask-SocketIO
-- **API**: RESTful endpoints for disk operations
-- **Real-time**: WebSocket for live test progress
-- **Process Management**: subprocess.Popen for helper binary
-- **Security**: Input validation and sanitization
-- **Logging**: Structured logging for debugging
+### HTTP Bridge Layer
+- **Technology**: Python 3 + built-in http.server
+- **Location**: `bridge-server/server.py`
+- **Purpose**: Translate web requests to diskbench commands
+- **Communication**: subprocess calls to diskbench helper
+- **Security**: Input validation and parameter sanitization
 
 ### Helper Binary Layer
-- **Language**: Python (standalone executable)
-- **CLI Framework**: argparse for command-line interface
-- **FIO Integration**: Bundled FIO binary execution
-- **Output Format**: JSON for structured results
-- **Security**: Input validation and path sanitization
-- **Installation**: System-wide installation to /usr/local/bin/
+- **Technology**: Python 3 CLI tool
+- **Location**: `diskbench/` directory
+- **FIO Integration**: Calls system-installed Homebrew FIO ONLY
+- **No Fallback**: Pure FIO approach - if FIO fails, honest error reporting
+- **Output**: JSON formatted results
 
-### Distribution Layer
-- **Package Format**: macOS DMG with installer
-- **App Bundle**: Sandboxed .app for GUI
-- **Helper Installation**: Admin-privileged installer script
-- **FIO Bundling**: Included FIO binary with proper licensing
-- **Documentation**: Integrated setup guides
+### FIO Layer
+- **Source**: Homebrew package manager ONLY
+- **Installation**: `brew install fio`
+- **Location**: `/opt/homebrew/bin/fio` or `/usr/local/bin/fio`
+- **No Bundling**: No embedded FIO binaries
+- **No Sandbox**: Runs in normal system context
 
 ## Core Components
 
-### 1. React Frontend (`frontend/`)
-```javascript
-// Component Structure
-src/
-├── components/
-│   ├── DiskSelector.jsx          # Disk selection interface
-│   ├── TestPatterns.jsx          # Built-in pattern library
-│   ├── CustomPatternEditor.jsx   # FIO syntax editor
-│   ├── TestRunner.jsx            # Test execution interface
-│   ├── ProgressMonitor.jsx       # Real-time progress display
-│   ├── ResultsViewer.jsx         # Test results analysis
-│   └── HelperInstaller.jsx       # Helper binary setup
-├── hooks/
-│   ├── useWebSocket.js           # WebSocket connection management
-│   ├── useLocalStorage.js        # Pattern storage
-│   └── useTestRunner.js          # Test execution logic
-├── services/
-│   ├── api.js                    # REST API client
-│   ├── diskService.js            # Disk detection
-│   └── patternService.js         # Pattern management
-└── utils/
-    ├── fioValidator.js           # FIO syntax validation
-    └── formatters.js             # Data formatting utilities
+### 1. Web GUI (`web-gui/`)
+```
+web-gui/
+├── index.html                    # Main interface
+├── styles.css                   # Styling
+└── app.js                       # JavaScript logic
 ```
 
-### 2. Flask Backend (`app/`)
+**Key Features:**
+- Disk selection dropdown
+- Test pattern selection
+- Progress monitoring
+- Results display
+- Setup wizard integration
+
+### 2. HTTP Bridge (`bridge-server/`)
 ```python
-# API Structure
-app/
-├── main.py                       # Flask app + launcher
-├── api/
-│   ├── __init__.py
-│   ├── disks.py                  # Disk enumeration endpoints
-│   ├── tests.py                  # Test execution endpoints
-│   ├── patterns.py               # Pattern management
-│   └── system.py                 # System status endpoints
-├── services/
-│   ├── helper_manager.py         # Helper binary management
-│   ├── test_executor.py          # Test execution coordination
-│   └── websocket_handler.py      # Real-time updates
-└── utils/
-    ├── security.py               # Input validation
-    └── logging_config.py         # Logging setup
+# Bridge Server Structure
+bridge-server/
+└── server.py                    # HTTP server + diskbench bridge
 ```
+
+**Endpoints:**
+- `GET /api/disks` - List available disks
+- `GET /api/status` - System status and FIO availability
+- `POST /api/setup` - Install/validate FIO
+- `POST /api/test/start` - Start disk test
+- `GET /api/test/{id}` - Get test progress/results
+- `POST /api/validate` - Run validation tests
 
 ### 3. Helper Binary (`diskbench/`)
 ```python
 # CLI Structure
 diskbench/
-├── main.py                       # CLI entry point
+├── main.py                      # CLI entry point
 ├── commands/
-│   ├── __init__.py
-│   ├── test.py                   # Test execution commands
-│   ├── list_disks.py            # Disk enumeration
-│   └── validate.py              # System validation
+│   ├── setup.py                 # FIO installation/validation
+│   ├── test.py                  # Test execution
+│   ├── list_disks.py           # Disk enumeration
+│   └── validate.py             # System validation
 ├── core/
-│   ├── fio_runner.py            # FIO execution engine
-│   ├── disk_detector.py         # macOS disk detection
-│   ├── pattern_loader.py        # Test pattern management
-│   └── result_processor.py      # JSON result formatting
+│   ├── fio_runner.py           # Homebrew FIO execution
+│   └── qlab_patterns.py       # Test patterns
 └── utils/
-    ├── security.py              # Input sanitization
-    ├── logging.py               # Logging configuration
-    └── system_info.py           # System information
+    ├── security.py             # Input validation
+    ├── logging.py              # Logging
+    └── system_info.py          # System detection
 ```
+
+## FIO Integration Strategy
+
+### ✅ Correct Approach: Homebrew FIO Only
+
+```bash
+# Installation
+brew install fio
+
+# Detection
+/opt/homebrew/bin/fio --version    # Apple Silicon
+/usr/local/bin/fio --version       # Intel
+```
+
+### ❌ What We DON'T Do
+
+- **No bundled FIO**: No embedded binaries in app package
+- **No shared memory "fixes"**: Don't try to solve macOS SHM issues with flags
+- **No sandbox FIO**: FIO runs in normal system context
+- **No embedded execution**: FIO called via subprocess from bridge server
+
+### ✅ What We DO
+
+1. **Guide users to install Homebrew FIO**
+2. **Detect system-installed FIO paths**
+3. **Use simple FIO configurations that work on macOS**
+4. **Report honest errors when FIO fails**
+5. **Report honest status about FIO limitations**
 
 ## Data Flow Architecture
 
-### 1. Test Execution Flow
+### 1. System Setup Flow
 ```
-User selects disk + pattern in React GUI
-    ↓ HTTP POST /api/tests/start
-Flask validates request + spawns helper binary
-    ↓ subprocess.Popen(['diskbench', '--test', 'qlab_hq', ...])
-Helper binary executes FIO with bundled binary
-    ↓ Real-time stdout parsing
-Flask streams progress via WebSocket
-    ↓ WebSocket messages
-React updates progress display in real-time
-    ↓ Test completion
-Helper binary outputs JSON results
-    ↓ HTTP response
-React displays formatted results with QLab analysis
+User opens web-gui/index.html
+    ↓ HTTP GET /api/status
+Bridge server checks for Homebrew FIO
+    ↓ subprocess: brew --version && which fio
+Returns honest status: FIO available but limited
+    ↓ User clicks "Install FIO"
+Bridge executes: brew install fio
+    ↓ Real installation status returned
+Web GUI shows honest result: "FIO installed with macOS limitations"
 ```
 
-### 2. Custom Pattern Flow
+### 2. Test Execution Flow
 ```
-User creates custom pattern in editor
-    ↓ FIO syntax validation in browser
-Pattern saved to localStorage
-    ↓ HTTP POST /api/patterns/save
-Flask validates and stores pattern
-    ↓ Available for test execution
-Pattern appears in test selection dropdown
-    ↓ User selects custom pattern
-Same execution flow as built-in patterns
-```
-
-### 3. Helper Installation Flow
-```
-GUI detects missing helper binary
-    ↓ HTTP GET /api/system/helper-status
-Flask checks /usr/local/bin/diskbench
-    ↓ Returns installation status
-React shows "Install Helper" button
-    ↓ User clicks install
-Flask executes installer script with admin privileges
-    ↓ sudo installer script
-Helper binary installed system-wide
-    ↓ Installation verification
-GUI enables real disk testing features
+User selects disk + pattern in Web GUI
+    ↓ HTTP POST /api/test/start
+Bridge server validates parameters
+    ↓ subprocess: python diskbench/main.py --test qlab_mixed --disk /dev/disk1s1
+Helper binary executes Homebrew FIO
+    ↓ If FIO fails: returns honest error message
+Returns JSON results or error details
+    ↓ HTTP response to Web GUI
+Results displayed with QLab performance analysis or error message
 ```
 
-## Security Considerations
+### 3. Error Handling Flow
+```
+FIO execution fails with "shm segment" error
+    ↓ Helper binary logs real error
+Returns detailed error information to user
+    ↓ No false success messages
+Error message shows: "FIO failed: error: failed to setup shm segment"
+    ↓ Honest reporting to user
+User understands system limitations and next steps
+```
+
+## Security Architecture
 
 ### Input Validation
-- **Disk Paths**: Whitelist validation against system disk list
-- **FIO Parameters**: Syntax validation and dangerous flag filtering
-- **File Paths**: Path traversal prevention
-- **Command Injection**: Parameterized subprocess calls only
+- **Disk Paths**: Validate against system disk enumeration
+- **Test Parameters**: Whitelist known safe values
+- **Command Injection**: Use subprocess with argument lists
+- **Path Traversal**: Restrict file operations to specified directories
 
 ### Privilege Separation
-- **GUI Process**: Sandboxed, minimal privileges
-- **Helper Binary**: Unsandboxed, disk access only
-- **Installation**: Admin privileges only during setup
-- **Communication**: Localhost-only HTTP/WebSocket
+- **Web GUI**: Runs in browser sandbox (no system access)
+- **Bridge Server**: Localhost HTTP only (no network access)
+- **Helper Binary**: Normal user privileges (no admin required)
+- **FIO**: System-installed binary (normal execution context)
 
-### FIO Safety
-- **Parameter Filtering**: Remove dangerous flags (--exec, --external)
-- **Path Restrictions**: Limit file operations to selected disk
-- **Resource Limits**: Prevent system overload
-- **Timeout Protection**: Kill runaway processes
+### No Admin Privileges Required
+- **Installation**: Users install FIO via Homebrew (normal user process)
+- **Execution**: All testing runs as normal user
+- **File Access**: Uses user-accessible disk paths
+- **No Elevation**: No sudo or admin authentication needed
 
-## Performance Optimizations
+## macOS Integration
 
-### Frontend Performance
-- **Component Memoization**: React.memo for expensive components
-- **Virtual Scrolling**: For large result datasets
-- **Debounced Updates**: Throttle real-time progress updates
-- **Code Splitting**: Lazy load heavy components
+### Homebrew Integration
+```bash
+# Check Homebrew availability
+brew --version
 
-### Backend Performance
-- **Async Processing**: Non-blocking test execution
-- **Connection Pooling**: Efficient WebSocket management
-- **Caching**: Cache disk information and system status
-- **Resource Management**: Proper subprocess cleanup
+# Install FIO
+brew install fio
 
-### Helper Binary Performance
-- **Efficient FIO Execution**: Optimized parameters for macOS
-- **Minimal Dependencies**: Standalone Python executable
-- **Fast Startup**: Minimal import overhead
-- **Memory Management**: Proper cleanup of large test files
+# Verify installation
+which fio
+fio --version
+```
+
+### Disk Detection
+```python
+# System disk enumeration
+diskutil list -plist
+mount | grep /dev/disk
+df -h
+```
+
+### Path Handling
+```python
+# Homebrew paths (Apple Silicon)
+/opt/homebrew/bin/fio
+
+# Homebrew paths (Intel)
+/usr/local/bin/fio
+
+# System PATH fallback
+shutil.which('fio')
+```
 
 ## Testing Strategy
 
-### Unit Testing
-- **Frontend**: Jest + React Testing Library
-- **Backend**: pytest with Flask test client
-- **Helper Binary**: pytest with subprocess mocking
-- **Integration**: End-to-end test scenarios
+### FIO Testing Approach
+1. **Simple configurations first**: Basic read/write tests
+2. **Avoid problematic flags**: No shared memory assumptions
+3. **File-based testing**: Use temporary files, not raw devices
+4. **macOS-compatible engines**: posix, sync engines
+5. **JSON output**: Structured results for parsing
 
-### Performance Testing
-- **Load Testing**: Multiple concurrent test executions
-- **Memory Profiling**: Long-running test memory usage
-- **Disk Performance**: Validation against known benchmarks
-- **WebSocket Stress**: High-frequency update handling
-
-### Platform Testing
-- **macOS Versions**: 10.14+ compatibility testing
-- **Hardware Variants**: Intel and Apple Silicon Macs
-- **Disk Types**: SSD, HDD, external drives
-- **Permission Scenarios**: Various security configurations
+### Validation Testing
+1. **System capability detection**: What actually works
+2. **Honest error reporting**: Real error messages, not fake success
+3. **User guidance**: Clear next steps when issues occur
+4. **Performance expectations**: Realistic benchmarks for macOS
 
 ## Deployment Architecture
 
-### Development Environment
-```bash
-# Frontend development
-cd frontend && npm start          # React dev server on :3000
-cd app && python main.py         # Flask backend on :8080
-
-# Helper binary testing
-cd diskbench && python main.py --test setup_check --disk /tmp
+### Current Structure
+```
+project/
+├── web-gui/                     # HTML/CSS/JS interface
+├── bridge-server/               # Python HTTP server
+├── diskbench/                   # Python CLI helper
+└── memory-bank/                 # Documentation
 ```
 
-### Production Distribution
-```
-QLab-Disk-Tester.dmg
-├── QLab Disk Tester.app/         # Sandboxed GUI app
-│   └── Contents/
-│       ├── MacOS/main            # Flask + React bundle
-│       └── Resources/static/     # React build output
-├── diskbench                     # Helper binary
-├── fio-3.37/                     # FIO binary
-├── install-helper.sh             # Installation script
-└── README.pdf                   # Setup instructions
-```
+### No Complex Distribution
+- **No DMG packaging**: Simple directory structure
+- **No app bundles**: Plain Python + HTML files
+- **No installers**: Users handle Homebrew installation
+- **No bundled binaries**: System-installed FIO only
 
-### Installation Process
-1. User mounts DMG and drags app to Applications
-2. First launch detects missing helper binary
-3. GUI prompts for helper installation
-4. Admin authentication for system-wide installation
-5. Helper binary and FIO installed to /usr/local/
-6. GUI enables full functionality
+### User Setup Process
+1. Clone/download project files
+2. Install Homebrew (if not present)
+3. Run `brew install fio`
+4. Start bridge server: `python bridge-server/server.py`
+5. Open `web-gui/index.html` in browser
+6. Follow setup wizard for validation
 
-This architecture provides the optimal balance of user experience, security, and functionality while maintaining compatibility with macOS security requirements.
+This architecture provides honest, transparent disk testing capabilities while respecting macOS limitations and avoiding complex distribution challenges.

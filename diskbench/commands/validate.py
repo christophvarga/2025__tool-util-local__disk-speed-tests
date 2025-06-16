@@ -155,50 +155,54 @@ class ValidateCommand:
         }
     
     def _check_fio_availability(self) -> Dict[str, Any]:
-        """Check FIO availability."""
+        """Check FIO availability - Homebrew only."""
         try:
-            # Check for bundled FIO first
-            script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            bundled_fio_paths = [
-                os.path.join(script_dir, '..', 'fio-3.37', 'fio'),
-                os.path.join(script_dir, '..', 'resources', 'fio-3.37', 'fio'),
-                '/usr/local/share/qlab-disk-tester/fio-3.37/fio'
+            # Check Homebrew FIO paths (Apple Silicon and Intel)
+            homebrew_paths = [
+                '/opt/homebrew/bin/fio',  # Apple Silicon Homebrew
+                '/usr/local/bin/fio',     # Intel Homebrew
             ]
             
-            for fio_path in bundled_fio_paths:
+            for fio_path in homebrew_paths:
                 if os.path.exists(fio_path) and os.access(fio_path, os.X_OK):
-                    # Test FIO execution
                     try:
                         result = subprocess.run([fio_path, '--version'], 
                                               capture_output=True, text=True, timeout=10)
                         if result.returncode == 0:
                             version = result.stdout.strip().split('\n')[0]
+                            # NOTE: Do NOT run FIO tests here - that causes sandbox issues
+                            # FIO execution only happens from unsandboxed bridge server
                             return {
                                 'passed': True,
-                                'message': f'Bundled FIO available: {version}',
-                                'details': f'Path: {fio_path}, Version: {version}'
+                                'message': f'Homebrew FIO available: {version}',
+                                'details': f'Path: {fio_path}, Version: {version}, Status: Binary found (execution will be tested in bridge server)'
                             }
-                    except Exception:
+                    except Exception as e:
                         continue
             
-            # Check system FIO
+            # Check system PATH FIO (backup for other installations)
             try:
-                result = subprocess.run(['fio', '--version'], 
-                                      capture_output=True, text=True, timeout=10)
+                result = subprocess.run(['which', 'fio'], capture_output=True, text=True, timeout=5)
                 if result.returncode == 0:
-                    version = result.stdout.strip().split('\n')[0]
-                    return {
-                        'passed': True,
-                        'message': f'System FIO available: {version}',
-                        'details': f'System FIO found, Version: {version}'
-                    }
+                    fio_path = result.stdout.strip()
+                    # Only accept if it's not already checked above
+                    if fio_path not in homebrew_paths:
+                        version_result = subprocess.run([fio_path, '--version'], 
+                                                      capture_output=True, text=True, timeout=10)
+                        if version_result.returncode == 0:
+                            version = version_result.stdout.strip().split('\n')[0]
+                            return {
+                                'passed': True,
+                                'message': f'System FIO available: {version}',
+                                'details': f'Path: {fio_path}, Version: {version}'
+                            }
             except Exception:
                 pass
             
             return {
                 'passed': False,
-                'message': 'FIO not found',
-                'details': 'Neither bundled nor system FIO is available'
+                'message': 'FIO not found. Install with: brew install fio',
+                'details': 'Homebrew FIO not detected. Run: brew install fio'
             }
             
         except Exception as e:

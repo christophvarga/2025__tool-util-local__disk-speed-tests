@@ -59,7 +59,8 @@ Examples:
     
     operation_group.add_argument(
         '--test',
-        choices=['setup_check', 'qlab_prores_422', 'qlab_prores_hq', 'baseline_streaming'],
+        choices=['setup_check', 'qlab_prores_422', 'qlab_prores_hq', 'baseline_streaming', 
+                'quick_max_speed', 'qlab_prores_422_show', 'qlab_prores_hq_show', 'max_sustained'],
         help='Run a built-in test pattern'
     )
     

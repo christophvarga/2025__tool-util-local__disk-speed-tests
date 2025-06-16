@@ -8,11 +8,17 @@
 class DiskBenchApp {
     constructor() {
         this.selectedDisk = null;
-        this.selectedTestType = 'qlab_prores_hq';
+        this.selectedTestType = 'qlab_prores_422_show';
         this.testSize = 10;
         this.isTestRunning = false;
         this.testResults = null;
         this.progressInterval = null;
+        
+        // Temperature monitoring
+        this.temperatureInterval = null;
+        this.currentTemperature = null;
+        this.maxTemperature = null;
+        this.temperatureHistory = [];
         
         // Setup wizard state
         this.currentTab = 'testing';
@@ -240,6 +246,9 @@ class DiskBenchApp {
         document.getElementById('stopTest').classList.remove('hidden');
         document.getElementById('exportResults').classList.add('hidden');
         
+        // Start temperature monitoring
+        await this.startTemperatureMonitoring();
+        
         // Reset progress
         this.updateProgress(0, 'Preparing test...');
         
@@ -285,6 +294,10 @@ class DiskBenchApp {
             this.updateProgressDetails(`Error: ${error.message}`);
         } finally {
             this.isTestRunning = false;
+            
+            // Stop temperature monitoring
+            this.stopTemperatureMonitoring();
+            
             this.updateUI();
             document.getElementById('startTest').classList.remove('hidden');
             document.getElementById('stopTest').classList.add('hidden');
@@ -352,6 +365,12 @@ class DiskBenchApp {
     showResults(results) {
         document.getElementById('resultsSection').classList.remove('hidden');
         document.getElementById('exportResults').classList.remove('hidden');
+        
+        // Add temperature data to results
+        const tempSummary = this.getTemperatureSummary();
+        if (tempSummary) {
+            results.temperature_monitoring = tempSummary;
+        }
         
         // Render QLab analysis
         this.renderQLabAnalysis(results.qlab_analysis || results.analysis);
@@ -851,42 +870,53 @@ class DiskBenchApp {
         startButton.disabled = true;
         step2Status.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
         
-        // Simulate installation process
-        const logMessages = [
-            { type: 'info', message: 'Starting FIO installation process...' },
-            { type: 'info', message: 'Detecting macOS version and architecture...' },
-            { type: 'success', message: 'macOS compatible version detected' },
-            { type: 'info', message: 'Downloading FIO binary for macOS...' },
-            { type: 'info', message: 'Configuring FIO for macOS shared memory...' },
-            { type: 'warning', message: 'Applying macOS-specific patches...' },
-            { type: 'success', message: 'FIO installation completed' },
-            { type: 'info', message: 'Testing FIO functionality...' },
-            { type: 'success', message: 'FIO is working correctly' }
-        ];
-        
         installationProgress.innerHTML = '';
         
-        for (let i = 0; i < logMessages.length; i++) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            const log = logMessages[i];
-            installationProgress.innerHTML += `<div class="log-line ${log.type}">[${new Date().toLocaleTimeString()}] ${log.message}</div>`;
-            installationProgress.scrollTop = installationProgress.scrollHeight;
+        try {
+            // Call real setup API
+            this.addLogMessage(installationProgress, 'info', 'Starting FIO installation process...');
+            
+            const setupResult = await this.callBridgeAPI('/api/setup', {
+                method: 'POST',
+                body: { action: 'install_fio' }
+            });
+            
+            if (setupResult.success) {
+                // Show real installation progress
+                if (setupResult.logs) {
+                    for (const logEntry of setupResult.logs) {
+                        this.addLogMessage(installationProgress, logEntry.level || 'info', `[${logEntry.timestamp}] ${logEntry.message}`);
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                    }
+                }
+                
+                // Refresh system status
+                await this.checkSystemStatus();
+                
+                // Mark step 2 as completed if FIO is now working
+                if (this.setupState.fioWorking) {
+                    step2.classList.add('completed');
+                    step2Status.innerHTML = '<i class="fas fa-check"></i>';
+                    this.enableStep3();
+                    this.addLogMessage(installationProgress, 'success', 'FIO installation completed successfully!');
+                } else {
+                    step2Status.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+                    this.addLogMessage(installationProgress, 'warning', 'FIO installation completed but functionality is limited on macOS');
+                    this.enableStep3(); // Still enable validation to show current status
+                }
+                
+            } else {
+                throw new Error(setupResult.error || 'Installation failed');
+            }
+            
+        } catch (error) {
+            console.error('Installation failed:', error);
+            this.addLogMessage(installationProgress, 'error', `Installation failed: ${error.message}`);
+            step2Status.innerHTML = '<i class="fas fa-times"></i>';
+        } finally {
+            this.setupState.installationInProgress = false;
+            startButton.disabled = false;
         }
-        
-        // Update state
-        this.setupState.fioAvailable = true;
-        this.setupState.fioWorking = true;
-        this.setupState.installationInProgress = false;
-        
-        // Mark step 2 as completed
-        step2.classList.add('completed');
-        step2Status.innerHTML = '<i class="fas fa-check"></i>';
-        
-        // Enable step 3
-        this.enableStep3();
-        
-        // Update system status
-        this.updateSystemStatus('ready', '✅ System ready for testing');
     }
     
     async runValidation() {
@@ -898,43 +928,82 @@ class DiskBenchApp {
         validationButton.disabled = true;
         step3Status.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
         
-        // Simulate validation tests
-        const tests = [
-            { name: 'FIO Binary Test', delay: 1000 },
-            { name: 'Disk Access Test', delay: 1500 },
-            { name: 'Performance Test', delay: 2000 },
-            { name: 'Configuration Test', delay: 1000 }
-        ];
-        
         validationResults.innerHTML = '';
         
-        for (const test of tests) {
-            // Add pending test
-            validationResults.innerHTML += `
-                <div class="validation-test" id="test-${test.name.replace(/\s+/g, '-').toLowerCase()}">
-                    <span class="validation-test-name">${test.name}</span>
-                    <div class="validation-result pending">
-                        <i class="fas fa-circle-notch fa-spin"></i> Running...
+        try {
+            // Call real validation API
+            const validationResult = await this.callBridgeAPI('/api/validate', {
+                method: 'POST',
+                body: { action: 'run_all_tests' }
+            });
+            
+            if (validationResult.success && validationResult.tests) {
+                // Show real validation results
+                for (const test of validationResult.tests) {
+                    const testId = `test-${test.name.replace(/\s+/g, '-').toLowerCase()}`;
+                    
+                    // Add test entry
+                    validationResults.innerHTML += `
+                        <div class="validation-test" id="${testId}">
+                            <span class="validation-test-name">${test.name}</span>
+                            <div class="validation-result pending">
+                                <i class="fas fa-circle-notch fa-spin"></i> Running...
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Wait a bit for visual effect
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Update with real result
+                    const testEl = document.getElementById(testId);
+                    const resultEl = testEl.querySelector('.validation-result');
+                    
+                    if (test.passed) {
+                        resultEl.innerHTML = `<i class="fas fa-check"></i> ${test.result}`;
+                        resultEl.className = 'validation-result pass';
+                    } else {
+                        resultEl.innerHTML = `<i class="fas fa-times"></i> ${test.result}`;
+                        resultEl.className = 'validation-result fail';
+                    }
+                }
+                
+                // Update completion status based on overall results
+                const allPassed = validationResult.tests.every(test => test.passed);
+                
+                if (allPassed) {
+                    step3.classList.add('completed');
+                    step3Status.innerHTML = '<i class="fas fa-check"></i>';
+                    this.updateSystemStatus('ready', '✅ System fully validated and ready for testing');
+                } else {
+                    step3Status.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+                    this.updateSystemStatus('warning', '⚠️ Some validation tests failed - Limited functionality');
+                }
+                
+            } else {
+                throw new Error(validationResult.error || 'Validation failed');
+            }
+            
+        } catch (error) {
+            console.error('Validation failed:', error);
+            validationResults.innerHTML = `
+                <div class="validation-test">
+                    <span class="validation-test-name">Validation Error</span>
+                    <div class="validation-result fail">
+                        <i class="fas fa-times"></i> ${error.message}
                     </div>
                 </div>
             `;
-            
-            await new Promise(resolve => setTimeout(resolve, test.delay));
-            
-            // Update to passed
-            const testEl = document.getElementById(`test-${test.name.replace(/\s+/g, '-').toLowerCase()}`);
-            testEl.querySelector('.validation-result').innerHTML = `
-                <i class="fas fa-check"></i> Passed
-            `;
-            testEl.querySelector('.validation-result').className = 'validation-result pass';
+            step3Status.innerHTML = '<i class="fas fa-times"></i>';
+        } finally {
+            validationButton.disabled = false;
         }
-        
-        // Mark step 3 as completed
-        step3.classList.add('completed');
-        step3Status.innerHTML = '<i class="fas fa-check"></i>';
-        
-        // Update system status to fully ready
-        this.updateSystemStatus('ready', '✅ System fully validated and ready for testing');
+    }
+    
+    addLogMessage(container, level, message) {
+        const logClass = level === 'error' ? 'error' : level === 'warning' ? 'warning' : level === 'success' ? 'success' : 'info';
+        container.innerHTML += `<div class="log-line ${logClass}">[${new Date().toLocaleTimeString()}] ${message}</div>`;
+        container.scrollTop = container.scrollHeight;
     }
     
     closeSetup() {
@@ -951,10 +1020,468 @@ class DiskBenchApp {
         this.initializeSetupWizard();
         this.checkSystemStatus();
     }
+    
+    // Pattern Info Modal Functions
+    showPatternInfo(patternType) {
+        const modal = document.getElementById('patternInfoModal');
+        const title = document.getElementById('modalTitle');
+        const body = document.getElementById('modalBody');
+        
+        const patternData = this.getPatternData(patternType);
+        
+        title.textContent = patternData.title;
+        body.innerHTML = patternData.content;
+        
+        modal.classList.remove('hidden');
+        
+        // Close modal when clicking outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closePatternInfo();
+            }
+        });
+    }
+    
+    closePatternInfo() {
+        const modal = document.getElementById('patternInfoModal');
+        modal.classList.add('hidden');
+    }
+    
+    getPatternData(patternType) {
+        const patterns = {
+            'quick_max_speed': {
+                title: 'Quick Max Speed Test - 3 Minutes',
+                content: `
+                    <div class="pattern-overview">
+                        <h4>🚀 Maximum Performance Assessment</h4>
+                        <p>Schnelle Ermittlung der maximalen Disk-Performance für erste Einschätzung der System-Fähigkeiten.</p>
+                    </div>
+                    
+                    <div class="pattern-phases">
+                        <h4>Test-Phasen (3 Minuten):</h4>
+                        <div class="phase-item">
+                            <div class="phase-header">
+                                <span class="phase-title">Phase 1: Sequential Performance</span>
+                                <span class="phase-duration">60s</span>
+                            </div>
+                            <div class="phase-description">
+                                Maximale sequenzielle Read/Write-Performance ermitteln
+                            </div>
+                        </div>
+                        <div class="phase-item">
+                            <div class="phase-header">
+                                <span class="phase-title">Phase 2: Random Access</span>
+                                <span class="phase-duration">60s</span>
+                            </div>
+                            <div class="phase-description">
+                                4K Random Read/Write für Latenz-Assessment
+                            </div>
+                        </div>
+                        <div class="phase-item">
+                            <div class="phase-header">
+                                <span class="phase-title">Phase 3: Mixed Load</span>
+                                <span class="phase-duration">60s</span>
+                            </div>
+                            <div class="phase-description">
+                                Kombinierte Last für realistische Performance-Einschätzung
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="technical-specs">
+                        <h4>Technische Parameter:</h4>
+                        <div class="spec-grid">
+                            <div class="spec-item">
+                                <span class="spec-label">Block Size</span>
+                                <span class="spec-value">4K - 1M</span>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-label">Queue Depth</span>
+                                <span class="spec-value">1 - 32</span>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-label">Test Pattern</span>
+                                <span class="spec-value">Sequential + Random</span>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-label">Ziel-Bandbreite</span>
+                                <span class="spec-value">Max. verfügbar</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <p><strong>Verwendung:</strong> Ideal für schnelle System-Checks und erste Performance-Einschätzung vor längeren Tests.</p>
+                `
+            },
+            'qlab_prores_422_show': {
+                title: 'QLab ProRes 422 Show Pattern - 2,75 Stunden',
+                content: `
+                    <div class="pattern-overview">
+                        <h4>🎬 Realistische Show-Simulation</h4>
+                        <p>Simuliert eine 2,75-stündige Show mit 1x 4K 50p + 3x HD 50p ProRes 422 Streams inklusive Crossfades alle 3 Minuten.</p>
+                    </div>
+                    
+                    <div class="pattern-phases">
+                        <h4>Show-Phasen (2,75 Stunden):</h4>
+                        <div class="phase-item">
+                            <div class="phase-header">
+                                <span class="phase-title">Phase 1: Show-Vorbereitung</span>
+                                <span class="phase-duration">30min</span>
+                            </div>
+                            <div class="phase-description">
+                                Moderate Last: ~400 MB/s - Cue-Vorbereitung und System-Check
+                            </div>
+                        </div>
+                        <div class="phase-item">
+                            <div class="phase-header">
+                                <span class="phase-title">Phase 2: Normale Show-Last</span>
+                                <span class="phase-duration">90min</span>
+                            </div>
+                            <div class="phase-description">
+                                Kontinuierliche Last: ~700 MB/s mit Crossfades alle 3min auf 1400 MB/s
+                            </div>
+                        </div>
+                        <div class="phase-item">
+                            <div class="phase-header">
+                                <span class="phase-title">Phase 3: Show-Finale</span>
+                                <span class="phase-duration">75min</span>
+                            </div>
+                            <div class="phase-description">
+                                Intensive Überblendungen: Peaks bis 1400 MB/s, häufige Crossfades
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="technical-specs">
+                        <h4>ProRes 422 Spezifikationen:</h4>
+                        <div class="spec-grid">
+                            <div class="spec-item">
+                                <span class="spec-label">4K 50p Stream</span>
+                                <span class="spec-value">~220 MB/s</span>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-label">HD 50p Streams (3x)</span>
+                                <span class="spec-value">~150 MB/s</span>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-label">Crossfade Peaks</span>
+                                <span class="spec-value">700→1400 MB/s</span>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-label">Crossfade Interval</span>
+                                <span class="spec-value">Alle 3 Minuten</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <p><strong>Thermal Testing:</strong> Überwacht Performance-Degradation über 2,75h und bewertet Show-Tauglichkeit.</p>
+                `
+            },
+            'qlab_prores_hq_show': {
+                title: 'QLab ProRes HQ Show Pattern - 2,75 Stunden',
+                content: `
+                    <div class="pattern-overview">
+                        <h4>🎬 High-Quality Show-Simulation</h4>
+                        <p>Simuliert eine 2,75-stündige Show mit 1x 4K 50p + 3x HD 50p ProRes HQ Streams - höchste Qualitätsanforderungen.</p>
+                    </div>
+                    
+                    <div class="pattern-phases">
+                        <h4>Show-Phasen (2,75 Stunden):</h4>
+                        <div class="phase-item">
+                            <div class="phase-header">
+                                <span class="phase-title">Phase 1: Show-Vorbereitung</span>
+                                <span class="phase-duration">30min</span>
+                            </div>
+                            <div class="phase-description">
+                                HQ-Vorbereitung: ~800 MB/s - Intensive Cue-Checks
+                            </div>
+                        </div>
+                        <div class="phase-item">
+                            <div class="phase-header">
+                                <span class="phase-title">Phase 2: Normale Show-Last</span>
+                                <span class="phase-duration">90min</span>
+                            </div>
+                            <div class="phase-description">
+                                Kontinuierliche HQ-Last: ~1400 MB/s mit Crossfades alle 3min auf 2800 MB/s
+                            </div>
+                        </div>
+                        <div class="phase-item">
+                            <div class="phase-header">
+                                <span class="phase-title">Phase 3: Show-Finale</span>
+                                <span class="phase-duration">75min</span>
+                            </div>
+                            <div class="phase-description">
+                                Maximale HQ-Überblendungen: Peaks bis 2800 MB/s, intensive Crossfades
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="technical-specs">
+                        <h4>ProRes HQ Spezifikationen:</h4>
+                        <div class="spec-grid">
+                            <div class="spec-item">
+                                <span class="spec-label">4K 50p Stream</span>
+                                <span class="spec-value">~440 MB/s</span>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-label">HD 50p Streams (3x)</span>
+                                <span class="spec-value">~300 MB/s</span>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-label">Crossfade Peaks</span>
+                                <span class="spec-value">1400→2800 MB/s</span>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-label">Thermal Stress</span>
+                                <span class="spec-value">Sehr hoch</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <p><strong>Professional Grade:</strong> Höchste Anforderungen - nur für High-End-SSDs empfohlen.</p>
+                `
+            },
+            'max_sustained': {
+                title: 'Maximum Sustained Performance - 1,5 Stunden',
+                content: `
+                    <div class="pattern-overview">
+                        <h4>🔥 Thermal Stress Testing</h4>
+                        <p>Kontinuierliche Maximallast über 1,5 Stunden zur Bewertung der thermischen Stabilität und Performance-Retention.</p>
+                    </div>
+                    
+                    <div class="pattern-phases">
+                        <h4>Thermal Test-Phasen (1,5 Stunden):</h4>
+                        <div class="phase-item">
+                            <div class="phase-header">
+                                <span class="phase-title">Phase 1: Aufwärmung</span>
+                                <span class="phase-duration">15min</span>
+                            </div>
+                            <div class="phase-description">
+                                Graduelle Steigerung zur Maximallast - Thermal Baseline
+                            </div>
+                        </div>
+                        <div class="phase-item">
+                            <div class="phase-header">
+                                <span class="phase-title">Phase 2: Sustained Maximum</span>
+                                <span class="phase-duration">60min</span>
+                            </div>
+                            <div class="phase-description">
+                                Kontinuierliche Maximallast - Throttling-Detektion
+                            </div>
+                        </div>
+                        <div class="phase-item">
+                            <div class="phase-header">
+                                <span class="phase-title">Phase 3: Stress Burst</span>
+                                <span class="phase-duration">15min</span>
+                            </div>
+                            <div class="phase-description">
+                                Burst-Pattern mit Peaks - Worst-Case-Szenario
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="technical-specs">
+                        <h4>Thermal Testing Parameter:</h4>
+                        <div class="spec-grid">
+                            <div class="spec-item">
+                                <span class="spec-label">Test-Pattern</span>
+                                <span class="spec-value">Sequential + Random + Mixed</span>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-label">Load Level</span>
+                                <span class="spec-value">100% Maximum</span>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-label">Throttling Check</span>
+                                <span class="spec-value">30min Intervalle</span>
+                            </div>
+                            <div class="spec-item">
+                                <span class="spec-label">Performance Retention</span>
+                                <span class="spec-value">Kontinuierlich</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <p><strong>Bewertung:</strong> Klassifiziert SSDs als "Professional Grade", "Consumer Grade" oder "Limited Use" basierend auf thermischer Performance.</p>
+                `
+            }
+        };
+        
+        return patterns[patternType] || {
+            title: 'Unknown Test Pattern',
+            content: '<p>Pattern information not available.</p>'
+        };
+    }
+    
+    // Temperature Monitoring Functions
+    async startTemperatureMonitoring() {
+        if (this.temperatureInterval) {
+            return; // Already monitoring
+        }
+        
+        // Reset temperature tracking
+        this.currentTemperature = null;
+        this.maxTemperature = null;
+        this.temperatureHistory = [];
+        
+        // Show temperature widget
+        const widget = document.getElementById('temperatureWidget');
+        widget.classList.remove('hidden');
+        
+        // Start monitoring
+        this.temperatureInterval = setInterval(async () => {
+            try {
+                const tempData = await this.callBridgeAPI('/api/temperature');
+                if (tempData.success && tempData.temperature !== undefined) {
+                    this.updateTemperatureDisplay(tempData.temperature);
+                }
+            } catch (error) {
+                console.warn('Temperature monitoring error:', error);
+                // Continue monitoring despite errors
+            }
+        }, 5000); // Update every 5 seconds
+        
+        // Initial temperature reading
+        try {
+            const tempData = await this.callBridgeAPI('/api/temperature');
+            if (tempData.success && tempData.temperature !== undefined) {
+                this.updateTemperatureDisplay(tempData.temperature);
+            }
+        } catch (error) {
+            console.warn('Initial temperature reading failed:', error);
+        }
+    }
+    
+    stopTemperatureMonitoring() {
+        if (this.temperatureInterval) {
+            clearInterval(this.temperatureInterval);
+            this.temperatureInterval = null;
+        }
+        
+        // Hide temperature widget
+        const widget = document.getElementById('temperatureWidget');
+        widget.classList.add('hidden');
+    }
+    
+    updateTemperatureDisplay(temperature) {
+        this.currentTemperature = temperature;
+        
+        // Update max temperature
+        if (this.maxTemperature === null || temperature > this.maxTemperature) {
+            this.maxTemperature = temperature;
+        }
+        
+        // Add to history
+        this.temperatureHistory.push({
+            timestamp: Date.now(),
+            temperature: temperature
+        });
+        
+        // Keep only last 100 readings
+        if (this.temperatureHistory.length > 100) {
+            this.temperatureHistory.shift();
+        }
+        
+        // Update widget display
+        const currentTempEl = document.getElementById('currentTemp');
+        const maxTempEl = document.getElementById('maxTemp');
+        const statusEl = document.getElementById('tempStatus');
+        
+        if (currentTempEl) currentTempEl.textContent = Math.round(temperature);
+        if (maxTempEl) maxTempEl.textContent = Math.round(this.maxTemperature);
+        
+        // Update status based on temperature
+        if (statusEl) {
+            if (temperature < 50) {
+                statusEl.innerHTML = '<i class="fas fa-circle"></i> Normal';
+                statusEl.className = 'temp-status';
+            } else if (temperature < 70) {
+                statusEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Warm';
+                statusEl.className = 'temp-status warning';
+            } else {
+                statusEl.innerHTML = '<i class="fas fa-fire"></i> Hot';
+                statusEl.className = 'temp-status danger';
+            }
+        }
+        
+        // Update progress section if test is running
+        if (this.isTestRunning) {
+            this.updateProgressTemperature(temperature, this.maxTemperature);
+        }
+    }
+    
+    updateProgressTemperature(current, max) {
+        const progressSection = document.getElementById('progressSection');
+        if (!progressSection || progressSection.classList.contains('hidden')) {
+            return;
+        }
+        
+        // Check if temperature display already exists
+        let tempDisplay = progressSection.querySelector('.progress-temperature');
+        if (!tempDisplay) {
+            // Create temperature display in progress section
+            tempDisplay = document.createElement('div');
+            tempDisplay.className = 'progress-temperature';
+            tempDisplay.innerHTML = `
+                <div class="progress-temp-icon">
+                    <i class="fas fa-thermometer-half"></i>
+                </div>
+                <div class="progress-temp-info">
+                    <div class="progress-temp-current">Current: <span id="progressCurrentTemp">--</span>°C</div>
+                    <div class="progress-temp-max">Maximum: <span id="progressMaxTemp">--</span>°C</div>
+                </div>
+            `;
+            
+            // Insert after progress details
+            const progressDetails = document.getElementById('progressDetails');
+            if (progressDetails) {
+                progressDetails.parentNode.insertBefore(tempDisplay, progressDetails.nextSibling);
+            }
+        }
+        
+        // Update temperature values
+        const currentEl = tempDisplay.querySelector('#progressCurrentTemp');
+        const maxEl = tempDisplay.querySelector('#progressMaxTemp');
+        
+        if (currentEl) currentEl.textContent = Math.round(current);
+        if (maxEl) maxEl.textContent = Math.round(max);
+    }
+    
+    getTemperatureSummary() {
+        if (!this.temperatureHistory.length) {
+            return null;
+        }
+        
+        const temperatures = this.temperatureHistory.map(entry => entry.temperature);
+        const avgTemp = temperatures.reduce((sum, temp) => sum + temp, 0) / temperatures.length;
+        
+        return {
+            current: this.currentTemperature,
+            maximum: this.maxTemperature,
+            average: avgTemp,
+            readings: this.temperatureHistory.length,
+            thermal_throttling_risk: this.maxTemperature > 70
+        };
+    }
+}
+
+// Global functions for modal (called from HTML onclick)
+function showPatternInfo(patternType) {
+    if (window.app) {
+        window.app.showPatternInfo(patternType);
+    }
+}
+
+function closePatternInfo() {
+    if (window.app) {
+        window.app.closePatternInfo();
+    }
 }
 
 // Initialize the application when the page loads
 let app;
 document.addEventListener('DOMContentLoaded', () => {
     app = new DiskBenchApp();
+    // Make app globally available for modal functions
+    window.app = app;
 });

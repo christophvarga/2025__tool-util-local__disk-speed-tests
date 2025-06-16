@@ -144,11 +144,31 @@ body {
 }
 
 .section h3 {
-    color: var(--dark-color);
+    color: #ffffff;
     margin-bottom: 20px;
-    font-size: 1.3rem;
-    border-bottom: 2px solid var(--light-color);
-    padding-bottom: 10px;
+    font-size: 1.4rem;
+    font-weight: 700;
+    border-bottom: 3px solid var(--primary-color);
+    padding-bottom: 12px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    background: linear-gradient(135deg, rgba(0,123,255,0.15) 0%, rgba(0,123,255,0.05) 100%);
+    padding: 12px 15px;
+    border-radius: 6px;
+}
+
+/* Verbesserte H2 Headlines für dunklen Hintergrund */
+h2 {
+    color: #ffffff;
+    margin-bottom: 1.5rem;
+    font-size: 1.6rem;
+    font-weight: 700;
+    border-bottom: 3px solid var(--primary-color);
+    padding-bottom: 0.8rem;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    background: linear-gradient(135deg, rgba(0,123,255,0.2) 0%, rgba(0,123,255,0.1) 100%);
+    padding: 15px 20px;
+    border-left: 4px solid var(--primary-color);
+    border-radius: 8px;
 }
 
 .section h3 i {
@@ -559,14 +579,306 @@ body {
     font-size: 0.8rem;
 }
 
+/* Test Pattern Info Icons */
+.info-icon {
+    color: #007bff;
+    cursor: pointer;
+    margin-left: 8px;
+    font-size: 0.9em;
+    opacity: 0.7;
+    transition: all 0.2s ease;
+}
+
+.info-icon:hover {
+    opacity: 1;
+    color: #0056b3;
+    transform: scale(1.1);
+}
+
+.test-duration {
+    font-size: 0.85em;
+    color: #666;
+    margin-top: 5px;
+    font-weight: 500;
+}
+
+/* Modal Styles */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(2px);
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    max-width: 800px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-50px) scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 25px;
+    border-bottom: 1px solid #e0e0e0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 12px 12px 0 0;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.3em;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.2em;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 50%;
+    transition: background-color 0.2s ease;
+}
+
+.modal-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.modal-body {
+    padding: 25px;
+    line-height: 1.6;
+}
+
+.modal-footer {
+    padding: 15px 25px;
+    border-top: 1px solid #e0e0e0;
+    text-align: right;
+    background: #f8f9fa;
+    border-radius: 0 0 12px 12px;
+}
+
+/* Pattern Info Content */
+.pattern-overview {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.pattern-phases {
+    margin: 20px 0;
+}
+
+.phase-item {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-left: 4px solid #007bff;
+}
+
+.phase-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.phase-title {
+    font-weight: 600;
+    color: #333;
+}
+
+.phase-duration {
+    background: #007bff;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+}
+
+.phase-description {
+    color: #666;
+    font-size: 0.9em;
+}
+
+.technical-specs {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.spec-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.spec-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.spec-label {
+    font-weight: 500;
+    color: #555;
+}
+
+.spec-value {
+    color: #007bff;
+    font-weight: 600;
+}
+
+/* Temperature Widget */
+.temperature-widget {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+    color: white;
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    min-width: 150px;
+    text-align: center;
+    z-index: 999;
+    animation: slideInRight 0.3s ease;
+}
+
+.temperature-widget.hidden {
+    display: none;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(100px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.temp-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 0.9em;
+    margin-bottom: 8px;
+    opacity: 0.9;
+}
+
+.temp-current {
+    font-size: 2em;
+    font-weight: bold;
+    margin: 5px 0;
+}
+
+.temp-max {
+    font-size: 0.8em;
+    opacity: 0.8;
+    margin-bottom: 8px;
+}
+
+.temp-status {
+    font-size: 0.8em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.temp-status.warning {
+    color: #ffd700;
+}
+
+.temp-status.danger {
+    color: #ff4757;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Temperature in Progress Section */
+.progress-temperature {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-top: 10px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #ff6b6b;
+}
+
+.progress-temp-icon {
+    color: #ff6b6b;
+    font-size: 1.2em;
+}
+
+.progress-temp-info {
+    flex: 1;
+}
+
+.progress-temp-current {
+    font-weight: 600;
+    color: #333;
+}
+
+.progress-temp-max {
+    font-size: 0.9em;
+    color: #666;
+}
+
 /* Footer */
 .footer {
     text-align: center;
     padding: 20px;
-    color: var(--secondary-color);
-    font-size: 0.9rem;
-    border-top: 1px solid var(--border-color);
-    margin-top: 30px;
+    color: #666;
+    font-size: 0.9em;
+    border-top: 1px solid #e0e0e0;
+    margin-top: 40px;
 }
 
 /* System Status Banner */
@@ -827,31 +1139,70 @@ body {
 
 /* Installation Progress */
 .installation-progress {
-    background: var(--light-color);
+    background: #1e1e1e;
     border-radius: var(--border-radius);
     padding: 15px;
     margin: 15px 0;
-    font-family: 'Monaco', 'Menlo', monospace;
-    font-size: 0.9rem;
-    color: var(--secondary-color);
-    max-height: 200px;
+    font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+    font-size: 0.85rem;
+    color: #d4d4d4;
+    max-height: 300px;
     overflow-y: auto;
+    border: 1px solid #333;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
 }
 
 .installation-progress .log-line {
-    margin-bottom: 5px;
+    margin-bottom: 3px;
+    padding: 2px 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.installation-progress .log-line.info {
+    color: #569cd6;
+}
+
+.installation-progress .log-line.stdout {
+    color: #4ec9b0;
+}
+
+.installation-progress .log-line.stderr {
+    color: #f44747;
 }
 
 .installation-progress .log-line.success {
-    color: var(--success-color);
+    color: #4caf50;
+    font-weight: bold;
 }
 
 .installation-progress .log-line.error {
-    color: var(--danger-color);
+    color: #f44747;
+    font-weight: bold;
 }
 
 .installation-progress .log-line.warning {
-    color: var(--warning-color);
+    color: #ffb74d;
+    font-weight: bold;
+}
+
+/* Terminal scrollbar styling */
+.installation-progress::-webkit-scrollbar {
+    width: 8px;
+}
+
+.installation-progress::-webkit-scrollbar-track {
+    background: #2d2d2d;
+    border-radius: 4px;
+}
+
+.installation-progress::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+}
+
+.installation-progress::-webkit-scrollbar-thumb:hover {
+    background: #777;
 }
 
 /* Validation Results */
