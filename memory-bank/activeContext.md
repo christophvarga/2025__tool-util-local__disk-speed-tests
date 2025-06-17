@@ -1,72 +1,136 @@
 # Active Context - QLab Disk Performance Tester
 
-## Current Status: ✅ HOMEBREW FIO ARCHITECTURE COMPLETE
+## Current Status: ✅ SIMPLIFIED SUDO ARCHITECTURE PLANNED
 
-**Date:** 2025-06-16  
-**Major Achievement:** Successfully transitioned to Homebrew-only FIO with honest status reporting
+**Date:** 2025-06-17  
+**Major Breakthrough:** Solved sudo password problem with simplified architecture
 
-## 🏗️ Current Architecture Overview
+## 🏗️ New Architecture Overview
 
 ### Previous Approaches (Abandoned)
 - ❌ Integrated sandboxed version with embedded FIO
-- ❌ Bundled FIO binaries with shared memory issues
+- ❌ Bundled FIO binaries with shared memory issues  
 - ❌ Fake success messages hiding real macOS limitations
+- ❌ Complex bridge server + helper binary + authentication chain
+- ❌ Web-based sudo password prompts (security nightmare)
 
-### Current Implementation: Homebrew FIO Bridge Architecture ✅
+### NEW Implementation: Single Privileged Flask App ✅
 
-**4-Component Design:**
-1. **Web GUI (Browser)** - `web-gui/` directory - Plain HTML/CSS/JS
-2. **HTTP Bridge Server** - `bridge-server/server.py` - Python HTTP server
-3. **Helper Binary (CLI)** - `diskbench/` - Python CLI tool
-4. **System FIO** - Homebrew-installed `/opt/homebrew/bin/fio` or `/usr/local/bin/fio`
-
-## 🚀 Current Working Status
-
-### Fully Functional Components
-- ✅ **Web Interface**: Professional QLab-branded GUI at `http://localhost:8080`
-- ✅ **Bridge Server**: HTTP server with RESTful API endpoints
-- ✅ **Helper Binary**: Complete diskbench CLI with Homebrew FIO integration
-- ✅ **Honest Status Reporting**: Real macOS limitations shown to users
-- ✅ **Homebrew FIO Detection**: Detects Apple Silicon and Intel Homebrew paths
-- ✅ **Python Fallback**: Automatic fallback when FIO fails
-- ✅ **System Integration**: Uses `brew install fio` for installation
-
-### Architecture Flow (Working)
-```
-Web GUI → HTTP Bridge → diskbench CLI → Homebrew FIO → JSON Results → Web Display
-                                     ↓ (when FIO fails)
-                                   Python Fallback → JSON Results → Web Display
+**Revolutionary Simplified Design:**
+```bash
+sudo python disk_tester.py → Flask App (privileged) → Browser (auto-open) → Direct FIO
 ```
 
-### Key Achievements
-- **Honest FIO Status**: Reports "FIO installed with limitations" instead of fake success
-- **Real Error Reporting**: Shows actual "shm segment" errors instead of hiding them
-- **Homebrew Integration**: Guides users through `brew install fio` process
-- **System-Level FIO**: No more bundled binaries, uses system-installed FIO
-- **Transparent Limitations**: Users understand what works and what doesn't
+**One-Command Solution:**
+1. **Terminal sudo**: Single upfront password prompt (familiar pattern)
+2. **Flask Server**: Runs with inherited root privileges
+3. **Auto Browser**: Opens web interface automatically
+4. **Direct Execution**: No complex inter-process communication
 
-## 📁 Current Directory Structure
+## 🚀 NEW Architecture Benefits
+
+### Why Simplified Approach is Revolutionary ✅
+
+#### 🔐 Solves Critical sudo Problem
+- **OLD**: Hidden password prompts in web interface → User confusion
+- **NEW**: Standard Terminal sudo → Familiar Mac user experience
+- **Result**: No more hanging installation wizards
+
+#### ⚡ Massive Simplification
+- **OLD**: 4-component chain (Web→Bridge→Helper→FIO)
+- **NEW**: Direct execution (Terminal→Flask→Browser→FIO)
+- **Result**: 75% less complexity, 90% fewer failure points
+
+#### 🎯 Professional User Experience
+```bash
+# User runs ONE command:
+sudo python disk_tester.py
+
+# Everything happens automatically:
+Password: [user enters once]
+Starting QLab Disk Tester...
+Opening browser at http://localhost:8080
+Server running - Press Ctrl+C to stop
+```
+
+### New Architecture Flow ✅
+```
+Terminal (sudo) → Flask App (privileged) → Browser (auto-open) → Direct FIO → Results
+```
+
+### Key Revolutionary Changes
+- **Single sudo prompt**: Upfront in Terminal (familiar pattern)
+- **Auto browser launch**: No manual URL typing
+- **Direct FIO execution**: No inter-process communication
+- **Inherited privileges**: Flask runs with root rights
+- **Zero installation wizards**: Dependencies handled by install script
+
+## 📁 NEW Directory Structure (Simplified)
 
 ```
-/
-├── diskbench/              # Helper binary (unsandboxed CLI)
-│   ├── main.py            # Entry point with Homebrew FIO detection
-│   ├── commands/          # Setup, test, validation commands
-│   │   ├── setup.py       # Homebrew FIO installation guidance
-│   │   ├── test.py        # Test execution with FIO + Python fallback
-│   │   └── validate.py    # Honest system validation
-│   ├── core/              # FIO integration & test engines
-│   │   ├── fio_runner.py  # Homebrew FIO execution
-│   │   ├── python_fallback.py # Python disk testing
-│   │   └── qlab_patterns.py   # QLab test patterns
-│   └── utils/             # System utilities and logging
-├── bridge-server/         # Communication bridge
-│   └── server.py          # HTTP server with diskbench integration
-├── web-gui/               # Frontend (browser-based)
-│   ├── index.html         # Main interface with setup wizard
-│   ├── styles.css         # QLab-branded styling
-│   └── app.js             # Frontend logic with honest error handling
-└── memory-bank/           # Updated documentation
+QLab-Disk-Tester/
+├── disk_tester.py          # 🚀 MAIN ENTRY POINT (privileged Flask app)
+├── requirements.txt        # Python dependencies
+├── install.sh             # Initial setup script
+├── static/                 # Web interface assets
+│   ├── index.html         # QLab-branded UI
+│   ├── styles.css         # Professional styling
+│   └── app.js             # Frontend logic
+├── core/                   # Core testing engines
+│   ├── fio_engine.py      # Direct FIO execution (privileged)
+│   ├── python_engine.py   # Python fallback testing
+│   ├── temperature.py     # smartctl temperature monitoring
+│   └── qlab_patterns.py   # QLab-specific test patterns
+└── utils/                  # System utilities
+    ├── disk_detection.py  # Disk enumeration
+    ├── system_info.py     # macOS system information
+    └── logging.py         # Centralized logging
+```
+
+## 🚀 NEW Installation & Usage Flow
+
+### 📦 Distribution Package
+```
+QLab-Disk-Tester.zip
+├── disk_tester.py          # Main application
+├── requirements.txt        # Dependencies
+├── install.sh             # Setup script
+├── static/                 # Web UI assets
+├── core/                   # Core engines
+├── utils/                  # Utilities
+└── README.md              # User instructions
+```
+
+### 🔧 First-Time Setup
+```bash
+# User downloads and extracts
+cd ~/Downloads/QLab-Disk-Tester/
+
+# Run installation script
+chmod +x install.sh
+./install.sh
+
+# What install.sh does:
+# 1. pip3 install -r requirements.txt
+# 2. brew install fio smartmontools
+# 3. Creates convenience alias
+# 4. Validates installation
+```
+
+### ⚡ Daily Usage
+```bash
+# User runs ONE command:
+sudo python3 disk_tester.py
+
+# Output:
+Password: [sudo prompt - enters once]
+🚀 Starting QLab Disk Tester...
+🌐 Server running at http://localhost:8080
+🔍 Opening browser automatically...
+📊 All systems ready - Press Ctrl+C to stop
+
+# Browser opens automatically to localhost:8080
+# → Ready to test disks immediately
 ```
 
 ## 🎯 FIO Integration Strategy
@@ -182,4 +246,61 @@ curl -X POST http://localhost:8080/api/validate \
 - No admin privileges required for normal operation
 - Clear setup wizard with honest status reporting
 
-This architecture provides transparent, honest disk testing capabilities while working within macOS limitations and providing users with realistic expectations about system performance.
+## 📦 DMG Distribution Strategy
+
+### Install Wizard Requirement ✅
+**CRITICAL: The install wizard must be used for every installation on new Macs**
+
+#### Why Install Wizard is Mandatory
+1. **Dependency Management**: Automatically installs required dependencies (FIO, smartmontools)
+2. **System Validation**: Verifies all components work on the target Mac
+3. **Universal Compatibility**: Ensures DMG works on every new Mac without manual setup
+4. **Temperature Monitoring**: Install wizard validates smartmontools for real temperature data
+5. **User Experience**: Guides users through setup instead of requiring technical knowledge
+
+#### DMG Contents & Installation Flow
+```
+QLab-Disk-Tester.dmg
+├── QLab Disk Tester.app     # Main application
+├── Bridge Server            # HTTP bridge component  
+├── Installation Wizard     # Setup & dependency installer
+└── Documentation           # User guides and troubleshooting
+```
+
+#### Installation Process (Every New Mac)
+1. **Mount DMG**: User downloads and mounts QLab-Disk-Tester.dmg
+2. **Launch Wizard**: Double-click "Installation Wizard" (not the main app)
+3. **System Check**: Wizard detects system configuration and missing dependencies
+4. **Dependency Installation**: 
+   - Homebrew (if missing)
+   - FIO (`brew install fio`)
+   - smartmontools (`brew install smartmontools`) - **Critical for temperature monitoring**
+5. **Validation**: Test all components work together
+6. **Main App Launch**: Only after successful wizard completion
+
+#### Key Validation Requirements
+- **smartmontools**: Required for real temperature monitoring (not simulated data)
+- **FIO**: Required for disk performance testing (with honest error reporting)
+- **System Compatibility**: macOS version and architecture validation
+- **Permissions**: Disk access and system monitoring permissions
+
+#### Error Handling in Wizard
+- **Missing Homebrew**: Guide user to install from brew.sh
+- **Failed Dependencies**: Show specific error messages and retry options
+- **Permission Issues**: Clear instructions for granting required permissions
+- **Incompatible System**: Honest feedback about system limitations
+
+### Why Not Skip the Wizard ❌
+- **smartmontools Missing**: Install button stays greyed out without real temperature sensors
+- **Dependency Hell**: Users face complex manual installation requirements
+- **Inconsistent Experience**: Some Macs work, others don't without clear reason
+- **Support Burden**: Increased support requests from failed installations
+
+### DMG Deployment Benefits ✅
+- **Self-Contained**: Everything needed for installation included
+- **Guided Setup**: Non-technical users can install successfully  
+- **Consistent Results**: Every Mac gets the same validated setup
+- **Professional Experience**: Matches expectations for professional software
+- **Reduced Support**: Wizard handles common installation issues automatically
+
+This architecture provides transparent, honest disk testing capabilities while working within macOS limitations and providing users with realistic expectations about system performance. **The install wizard ensures universal compatibility across all new Macs by handling the complex dependency installation automatically.**

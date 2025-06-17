@@ -19,7 +19,7 @@ class QLabTestPatterns:
         return {
             'quick_max_speed': {
                 'name': 'Quick Max Speed Test',
-                'description': 'Maximum performance test in 3 minutes',
+                'description': 'Maximum read speed test in 3 minutes (continuous single job)',
                 'duration': 180,  # 3 minutes
                 'fio_template': self._get_quick_max_speed_config()
             },
@@ -114,15 +114,23 @@ class QLabTestPatterns:
         return analysis
     
     def _generate_fio_config(self, template: str, disk_path: str, test_size_gb: int) -> str:
-        """Generate FIO config from template with substitutions."""
+        """Generate FIO config from template with substitutions - filesystem-based only."""
         config = template
         
-        # Determine test file path
-        if disk_path.startswith('/dev/'):
-            # For raw devices, create test file in /tmp
+        # Always use filesystem-based test files for realistic QLab performance
+        # QLab reads files from mounted volumes, not raw devices
+        if disk_path.startswith('/Volumes/'):
+            # External/mounted volume
+            test_file = f'{disk_path}/qlab_test_file_{test_size_gb}G'
+        elif disk_path == '/' or disk_path == '/System/Volumes/Data':
+            # System volume - use /tmp for safety
+            test_file = f'/tmp/qlab_test_file_{test_size_gb}G'
+        elif disk_path.startswith('/dev/'):
+            # Legacy raw device path - convert to filesystem path
+            # This shouldn't happen anymore with updated disk detection
             test_file = f'/tmp/qlab_test_file_{test_size_gb}G'
         else:
-            # For mounted volumes, create test file on the volume
+            # Other mounted filesystem
             test_file = f'{disk_path}/qlab_test_file_{test_size_gb}G'
         
         # Substitutions
@@ -139,7 +147,7 @@ class QLabTestPatterns:
         return config
     
     def _get_quick_max_speed_config(self) -> str:
-        """Get FIO config for 3-minute maximum speed test - macOS compatible."""
+        """Get FIO config for 3-minute maximum read speed test - single continuous job."""
         return """
 [global]
 ioengine=sync
@@ -154,37 +162,12 @@ disable_clat=1
 disable_slat=1
 unified_rw_reporting=1
 
-[max_sequential_read]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=2M
-rw=read
-numjobs=1
-iodepth=1
-
-[max_sequential_write]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=2M
-rw=write
-numjobs=1
-iodepth=1
-
-[max_random_read]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=4k
-rw=randread
-numjobs=2
-iodepth=1
-
-[max_mixed_load]
+[quick_max_read_speed]
 filename=${TEST_FILE}
 size=${TEST_SIZE}
 bs=1M
-rw=randrw
-rwmixread=70
-numjobs=1
+rw=read
+numjobs=4
 iodepth=1
 """
     
@@ -353,22 +336,21 @@ thinktime=30000000
 """
     
     def _analyze_quick_max_speed(self, summary: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze quick max speed test results."""
+        """Analyze quick max speed test results (read-only test)."""
         read_bw = summary.get('total_read_bw', 0) / 1024  # Convert to MB/s
-        write_bw = summary.get('total_write_bw', 0) / 1024  # Convert to MB/s
         read_iops = summary.get('total_read_iops', 0)
         avg_latency = summary.get('avg_read_latency', 0)
         
         analysis = {}
         
-        # Maximum performance assessment
-        if read_bw > 1000 and write_bw > 500:
+        # Maximum read performance assessment for QLab video playback
+        if read_bw > 1000:
             analysis['overall_performance'] = 'excellent'
             analysis['video_playback_capability'] = 'multiple_4k_streams'
-        elif read_bw > 500 and write_bw > 250:
+        elif read_bw > 500:
             analysis['overall_performance'] = 'good'
             analysis['video_playback_capability'] = 'single_4k_stream'
-        elif read_bw > 200 and write_bw > 100:
+        elif read_bw > 200:
             analysis['overall_performance'] = 'fair'
             analysis['video_playback_capability'] = 'hd_streams_only'
         else:
@@ -380,7 +362,6 @@ thinktime=30000000
         
         analysis['performance_scores'] = {
             'max_read_mb_s': read_bw,
-            'max_write_mb_s': write_bw,
             'max_read_iops': read_iops,
             'min_latency_ms': avg_latency
         }

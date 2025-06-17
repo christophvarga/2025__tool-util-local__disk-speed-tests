@@ -212,6 +212,7 @@ class ValidateCommand:
                 'details': str(e)
             }
     
+    
     def _check_disk_access(self) -> Dict[str, Any]:
         """Check disk access capabilities."""
         try:

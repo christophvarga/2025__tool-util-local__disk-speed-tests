@@ -624,14 +624,3 @@ class PythonDiskEngine:
                     print(f"Cleaned up test file: {file_path}")
         except Exception as e:
             print(f"Error during cleanup: {e}")
-
-if __name__ == "__main__":
-    # Example usage
-    engine = PythonDiskEngine()
-    
-    print("--- Running Python Disk Test on /tmp ---")
-    results = engine.execute_disk_test("setup_check", "/tmp", 1)
-    if results:
-        print(json.dumps(results, indent=2))
-    
-    engine.cleanup_test_files("/tmp")

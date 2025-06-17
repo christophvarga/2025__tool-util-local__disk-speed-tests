@@ -238,13 +238,16 @@
                         </button>
                         
                         <button id="stopTest" class="btn btn-danger hidden">
-                            <i class="fas fa-stop"></i> Stop Test
+                            <i class="fas fa-stop-circle"></i> Stop Test
                         </button>
-                        
-                        <button id="exportResults" class="btn btn-success hidden">
+                        <button id="stopAllTests" class="btn btn-danger hidden">
+                            <i class="fas fa-stop-circle"></i> Stop All Tests
+                        </button>
+                        <button id="exportResults" class="btn btn-secondary hidden">
                             <i class="fas fa-download"></i> Export Results
                         </button>
                     </div>
+                </div>
                 </div>
             </div>
         </div>
@@ -304,22 +307,6 @@
         </div>
     </div>
 
-    <!-- Temperature Monitor Widget -->
-    <div id="temperatureWidget" class="temperature-widget hidden">
-        <div class="temp-header">
-            <i class="fas fa-thermometer-half"></i>
-            <span>SSD Temperature</span>
-        </div>
-        <div class="temp-current">
-            <span id="currentTemp">--</span>°C
-        </div>
-        <div class="temp-max">
-            Max: <span id="maxTemp">--</span>°C
-        </div>
-        <div class="temp-status" id="tempStatus">
-            <i class="fas fa-circle"></i> Normal
-        </div>
-    </div>
 
     <script src="app.js"></script>
 </body>

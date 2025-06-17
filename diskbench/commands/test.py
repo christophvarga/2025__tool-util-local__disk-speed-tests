@@ -23,9 +23,13 @@ class TestCommand:
         self.fio_runner = FioRunner()
         self.qlab_patterns = QLabTestPatterns()
     
+    def stop_test(self):
+        """Stop the currently running FIO test."""
+        return self.fio_runner.stop_fio_test()
+    
     def execute_builtin_test(self, disk_path: str, test_mode: str, test_size_gb: int,
                            output_file: str, show_progress: bool = False,
-                           json_output: bool = False) -> Optional[Dict[str, Any]]:
+                           json_output: bool = False, estimated_duration: int = 0) -> Optional[Dict[str, Any]]:
         """
         Execute a built-in test pattern.
         
@@ -68,10 +72,14 @@ class TestCommand:
             if show_progress:
                 progress_callback = self._progress_callback
             
+            # Get estimated duration from config
+            estimated_duration = config.get('estimated_duration', 0) # Default to 0 if not found
+            
             # Run FIO test
             fio_results = self.fio_runner.run_fio_test(
                 config['fio_config'],
                 test_directory,
+                estimated_duration, # Pass estimated duration
                 progress_callback
             )
             
@@ -107,7 +115,7 @@ class TestCommand:
     
     def execute_custom_test(self, disk_path: str, config_file: str, test_size_gb: int,
                           output_file: str, show_progress: bool = False,
-                          json_output: bool = False) -> Optional[Dict[str, Any]]:
+                          json_output: bool = False, estimated_duration: int = 0) -> Optional[Dict[str, Any]]:
         """
         Execute a custom FIO configuration test.
         
@@ -158,10 +166,17 @@ class TestCommand:
             if show_progress:
                 progress_callback = self._progress_callback
             
+            # Get estimated duration for custom tests (if available in config)
+            # For custom tests, we might not have a predefined duration, so we'll pass 0
+            # or try to parse it from the config if a specific field is used.
+            # For now, we'll assume 0 for custom tests unless specified otherwise.
+            estimated_duration = 0 
+            
             # Run FIO test
             fio_results = self.fio_runner.run_fio_test(
                 processed_config,
                 test_directory,
+                estimated_duration, # Pass estimated duration
                 progress_callback
             )
             

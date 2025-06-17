@@ -43,17 +43,17 @@ class ListDisksCommand:
                 if enhanced_disk:
                     enhanced_disks.append(enhanced_disk)
             
-            # Add raw device information
-            raw_devices = self._get_raw_devices()
-            enhanced_disks.extend(raw_devices)
+            # NOTE: Raw devices removed for QLab testing - we only test filesystem performance
+            # QLab reads files from mounted volumes, not raw devices
             
-            # Sort disks by type and name
+            # Sort disks by type and name - prioritize mounted volumes
             enhanced_disks.sort(key=lambda x: (x.get('type', 'unknown'), x.get('name', '')))
             
             result = {
                 'disks': enhanced_disks,
                 'count': len(enhanced_disks),
-                'timestamp': self._get_timestamp()
+                'timestamp': self._get_timestamp(),
+                'note': 'Showing mounted filesystems only - tests realistic QLab performance'
             }
             
             return result

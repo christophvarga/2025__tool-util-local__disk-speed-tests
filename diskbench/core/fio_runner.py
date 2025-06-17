@@ -8,6 +8,7 @@ import os
 import json
 import tempfile
 import shutil
+import signal
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 
@@ -21,19 +22,25 @@ class FioRunner:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.fio_path = self._find_fio_binary()
+        self.fio_process = None # Initialize fio_process to None
     
     def _find_fio_binary(self) -> Optional[str]:
-        """Find system-installed FIO binary (Homebrew only)."""
+        """Find optimal FIO binary - prioritizing no-SHM version for macOS compatibility."""
         
-        # Homebrew FIO paths (Apple Silicon and Intel)
-        homebrew_paths = [
-            '/opt/homebrew/bin/fio',  # Apple Silicon Homebrew
-            '/usr/local/bin/fio',     # Intel Homebrew
+        # Priority order: no-SHM version first to avoid shared memory issues
+        fio_candidates = [
+            '/usr/local/bin/fio-nosmh',   # Compiled no-SHM version (HIGHEST priority)
+            '/usr/local/bin/fio-noshm',   # Alternative no-SHM name
+            '/opt/homebrew/bin/fio',      # Apple Silicon Homebrew (standard)
+            '/usr/local/bin/fio',         # Intel Homebrew (standard)
         ]
         
-        for fio_path in homebrew_paths:
+        for fio_path in fio_candidates:
             if os.path.exists(fio_path) and os.access(fio_path, os.X_OK):
-                self.logger.info(f"Found Homebrew FIO at: {fio_path}")
+                if 'nosmh' in fio_path or 'noshm' in fio_path:
+                    self.logger.info(f"✅ Found macOS-compatible no-SHM FIO at: {fio_path}")
+                else:
+                    self.logger.info(f"⚠️ Found standard FIO at: {fio_path} (may have SHM issues)")
                 return fio_path
         
         # System PATH FIO (backup for other installations)
@@ -42,13 +49,15 @@ class FioRunner:
             if result.returncode == 0:
                 fio_path = result.stdout.strip()
                 # Only accept if it's not already checked above
-                if fio_path not in homebrew_paths:
+                if fio_path not in fio_candidates:
                     self.logger.info(f"Found system FIO at: {fio_path}")
                     return fio_path
         except Exception:
             pass
         
-        self.logger.error("FIO not found. Install with: brew install fio")
+        self.logger.error("❌ FIO not found. Options:")
+        self.logger.error("  1. Install standard FIO: brew install fio")
+        self.logger.error("  2. Use bridge server to compile no-SHM version for better macOS compatibility")
         return None
     
     def get_fio_status(self) -> Dict[str, Any]:
@@ -87,128 +96,9 @@ class FioRunner:
             'version': None
         }
     
-    def run_simple_fio_test(self, test_type: str, target_path: str, 
-                           progress_callback=None) -> Optional[Dict[str, Any]]:
-        """
-        Run simple FIO test with basic, reliable configuration.
-        
-        Args:
-            test_type: Type of test (read, write, randread, randwrite, mixed)
-            target_path: Path to test (disk or directory)
-            progress_callback: Optional callback for progress updates
-        
-        Returns:
-            Test results or None on error
-        """
-        if not self.fio_path:
-            self.logger.error("FIO binary not available")
-            return None
-        
-        # Create safe test directory
-        test_directory = get_safe_test_directory()
-        
-        try:
-            # Create test directory
-            os.makedirs(test_directory, exist_ok=True)
-            
-            # Simple, reliable FIO command
-            output_file = os.path.join(test_directory, 'fio_output.json')
-            
-            # Basic FIO command that works on macOS - sync engine, no shared memory
-            cmd = [
-                self.fio_path,
-                '--name=diskbench_test',
-                f'--rw={test_type}',
-                '--size=100M',
-                '--ioengine=sync',
-                '--direct=0',
-                '--numjobs=1',
-                '--iodepth=1',
-                '--runtime=30',
-                '--time_based',
-                '--output-format=json',
-                f'--output={output_file}',
-                f'--directory={test_directory}'
-            ]
-            
-            # Validate command parameters
-            safe_cmd = validate_fio_parameters(cmd)
-            if len(safe_cmd) != len(cmd):
-                self.logger.warning("Some FIO parameters were filtered for security")
-            
-            self.logger.info(f"Running FIO command: {' '.join(safe_cmd)}")
-            
-            # Run FIO with clean environment - no sandbox workarounds
-            env = os.environ.copy()
-            
-            process = subprocess.Popen(
-                safe_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                env=env,
-                cwd=test_directory
-            )
-            
-            # Monitor progress if callback provided
-            if progress_callback:
-                self._monitor_progress(process, progress_callback)
-            
-            stdout, stderr = process.communicate()
-            
-            if process.returncode != 0:
-                error_msg = f"FIO failed with return code {process.returncode}"
-                if stderr:
-                    error_msg += f". Error: {stderr}"
-                
-                # No fallback - report honest FIO error
-                self.logger.error(f"FIO failed with shared memory error: {stderr}")
-                
-                self.logger.error(error_msg)
-                return {
-                    'error': error_msg,
-                    'fio_stdout': stdout,
-                    'fio_stderr': stderr,
-                    'return_code': process.returncode
-                }
-            
-            # Parse results
-            if os.path.exists(output_file):
-                with open(output_file, 'r') as f:
-                    fio_results = json.load(f)
-                
-                # Process and enhance results
-                processed_results = self._process_fio_results(fio_results)
-                processed_results['test_type'] = test_type
-                processed_results['target_path'] = target_path
-                processed_results['engine'] = 'homebrew_fio'
-                return processed_results
-            else:
-                error_msg = "FIO output file not found"
-                self.logger.error(error_msg)
-                return {
-                    'error': error_msg,
-                    'fio_stdout': stdout,
-                    'fio_stderr': stderr
-                }
-                
-        except Exception as e:
-            error_msg = f"Error running FIO test: {e}"
-            self.logger.error(error_msg)
-            return {
-                'error': error_msg,
-                'exception': str(e)
-            }
-        finally:
-            # Cleanup
-            try:
-                if os.path.exists(test_directory):
-                    shutil.rmtree(test_directory)
-            except Exception as e:
-                self.logger.warning(f"Failed to cleanup test directory: {e}")
     
     def run_fio_test(self, config_content: str, test_directory: str, 
-                     progress_callback=None) -> Optional[Dict[str, Any]]:
+                     estimated_duration: int, progress_callback=None) -> Optional[Dict[str, Any]]:
         """
         Run FIO test with given configuration.
         
@@ -252,23 +142,24 @@ class FioRunner:
             # Run FIO with clean environment - no sandbox workarounds
             env = os.environ.copy()
             
-            process = subprocess.Popen(
+            self.fio_process = subprocess.Popen(
                 safe_cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
                 env=env,
-                cwd=test_directory
+                cwd=test_directory,
+                start_new_session=True # Start in a new process group
             )
             
             # Monitor progress if callback provided
             if progress_callback:
-                self._monitor_progress(process, progress_callback)
+                self._monitor_progress(self.fio_process, estimated_duration, progress_callback)
             
-            stdout, stderr = process.communicate()
+            stdout, stderr = self.fio_process.communicate()
             
-            if process.returncode != 0:
-                error_msg = f"FIO failed with return code {process.returncode}"
+            if self.fio_process.returncode != 0:
+                error_msg = f"FIO failed with return code {self.fio_process.returncode}"
                 if stderr:
                     error_msg += f". Error: {stderr}"
                 
@@ -277,7 +168,7 @@ class FioRunner:
                     'error': error_msg,
                     'fio_stdout': stdout,
                     'fio_stderr': stderr,
-                    'return_code': process.returncode
+                    'return_code': self.fio_process.returncode
                 }
             
             # Parse results
@@ -311,19 +202,47 @@ class FioRunner:
                     shutil.rmtree(test_directory)
             except Exception as e:
                 self.logger.warning(f"Failed to cleanup test directory: {e}")
+            self.fio_process = None # Clear the process reference
     
-    def _monitor_progress(self, process, progress_callback):
+    def stop_fio_test(self):
+        """Terminates the running FIO process."""
+        if self.fio_process and self.fio_process.poll() is None:
+            self.logger.info(f"Attempting to stop FIO process (PID: {self.fio_process.pid})")
+            try:
+                # Send SIGTERM to the process group
+                os.killpg(self.fio_process.pid, signal.SIGTERM)
+                self.fio_process.wait(timeout=5) # Wait for graceful exit
+                self.logger.info(f"FIO process {self.fio_process.pid} terminated gracefully.")
+            except subprocess.TimeoutExpired:
+                self.logger.warning(f"FIO process {self.fio_process.pid} did not terminate gracefully, force killing.")
+                # Send SIGKILL to the process group
+                os.killpg(self.fio_process.pid, signal.SIGKILL)
+                self.fio_process.wait()
+                self.logger.info(f"FIO process {self.fio_process.pid} force killed.")
+            except ProcessLookupError:
+                self.logger.warning(f"FIO process {self.fio_process.pid} already gone.")
+            except Exception as e:
+                self.logger.error(f"Error stopping FIO process {self.fio_process.pid}: {e}")
+            finally:
+                self.fio_process = None # Clear the process reference
+                return True
+        self.logger.info("No FIO process to stop.")
+        return False
+
+    def _monitor_progress(self, process, estimated_duration: int, progress_callback):
         """Monitor FIO progress and call callback."""
         try:
-            # Simple progress monitoring
             import time
             start_time = time.time()
             
             while process.poll() is None:
                 elapsed = time.time() - start_time
-                # Estimate progress based on time (very rough)
-                estimated_duration = 60  # Assume 60 seconds for basic test
-                progress = min(elapsed / estimated_duration * 100, 95)
+                
+                # Calculate progress based on actual estimated duration
+                if estimated_duration > 0:
+                    progress = min((elapsed / estimated_duration) * 100, 99) # Cap at 99% until complete
+                else:
+                    progress = 0 # Cannot estimate progress without duration
                 
                 progress_callback({
                     'progress': progress,
@@ -333,7 +252,7 @@ class FioRunner:
                 
                 time.sleep(1)
             
-            # Final progress update
+            # Final progress update (ensure 100% on completion)
             progress_callback({
                 'progress': 100,
                 'elapsed_time': time.time() - start_time,

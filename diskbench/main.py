@@ -16,11 +16,15 @@ import os
 import argparse
 import json
 import logging
+import signal
 from pathlib import Path
 
 # Add the current directory to Python path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
+
+# Global variable to hold the currently running test command for signal handling
+current_test_command = None
 
 # Import modules with error handling
 try:
@@ -37,6 +41,20 @@ except ImportError as e:
     sys.exit(1)
 
 __version__ = "1.0.0"
+
+def signal_handler(signum, frame):
+    """Handle termination signals by stopping the current test."""
+    global current_test_command
+    if current_test_command:
+        logger = logging.getLogger(__name__)
+        logger.info(f"Received signal {signum}, stopping FIO test...")
+        current_test_command.stop_test()
+        logger.info("FIO test stop signal sent")
+    sys.exit(0)
+
+# Set up signal handlers
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
 
 def create_parser():
     """Create the command-line argument parser."""
@@ -128,6 +146,13 @@ Examples:
         type=str,
         metavar='FILE',
         help='Output file for JSON results'
+    )
+    
+    parser.add_argument(
+        '--estimated-duration',
+        type=int,
+        default=0,
+        help='Estimated duration of the test in seconds (for progress reporting)'
     )
     
     # Output format options
@@ -288,7 +313,9 @@ def main():
         
         # Handle test commands
         if args.test or args.custom_config:
+            global current_test_command
             test_cmd = TestCommand()
+            current_test_command = test_cmd  # Store for signal handling
             
             # Prepare test parameters
             test_params = {
@@ -296,15 +323,19 @@ def main():
                 'test_size_gb': args.size,
                 'output_file': args.output,
                 'show_progress': args.progress,
-                'json_output': args.json
+                'json_output': args.json,
+                'estimated_duration': args.estimated_duration # Pass estimated duration
             }
             
-            if args.test:
-                test_params['test_mode'] = args.test
-                result = test_cmd.execute_builtin_test(**test_params)
-            else:
-                test_params['config_file'] = args.custom_config
-                result = test_cmd.execute_custom_test(**test_params)
+            try:
+                if args.test:
+                    test_params['test_mode'] = args.test
+                    result = test_cmd.execute_builtin_test(**test_params)
+                else:
+                    test_params['config_file'] = args.custom_config
+                    result = test_cmd.execute_custom_test(**test_params)
+            finally:
+                current_test_command = None  # Clear after test completes
             
             if result is None:
                 logger.error("Test execution failed")

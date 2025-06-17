@@ -12,13 +12,7 @@ class DiskBenchApp {
         this.testSize = 10;
         this.isTestRunning = false;
         this.testResults = null;
-        this.progressInterval = null;
-        
-        // Temperature monitoring
-        this.temperatureInterval = null;
-        this.currentTemperature = null;
-        this.maxTemperature = null;
-        this.temperatureHistory = [];
+        this.currentTestId = null; // Added to track the running test ID
         
         // Setup wizard state
         this.currentTab = 'testing';
@@ -109,6 +103,10 @@ class DiskBenchApp {
             this.stopTest();
         });
         
+        document.getElementById('stopAllTests').addEventListener('click', () => {
+            this.stopAllTests();
+        });
+
         document.getElementById('exportResults').addEventListener('click', () => {
             this.exportResults();
         });
@@ -224,10 +222,13 @@ class DiskBenchApp {
         
         if (canStartTest) {
             startButton.innerHTML = '<i class="fas fa-play"></i> Start Test';
+            document.getElementById('stopAllTests').classList.add('hidden'); // Hide stop all button when not running
         } else if (this.isTestRunning) {
             startButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...';
+            document.getElementById('stopAllTests').classList.remove('hidden'); // Show stop all button when running
         } else {
             startButton.innerHTML = '<i class="fas fa-play"></i> Select Disk First';
+            document.getElementById('stopAllTests').classList.add('hidden'); // Hide stop all button when not running
         }
     }
     
@@ -244,10 +245,10 @@ class DiskBenchApp {
         document.getElementById('resultsSection').classList.add('hidden');
         document.getElementById('startTest').classList.add('hidden');
         document.getElementById('stopTest').classList.remove('hidden');
+        document.getElementById('stopAllTests').classList.remove('hidden'); // Show stop all button
         document.getElementById('exportResults').classList.add('hidden');
         
-        // Start temperature monitoring
-        await this.startTemperatureMonitoring();
+        // Temperature monitoring removed - no longer needed
         
         // Reset progress
         this.updateProgress(0, 'Preparing test...');
@@ -270,14 +271,8 @@ class DiskBenchApp {
             this.updateProgress(5, 'Starting FIO test...');
             this.updateProgressDetails(`Command: diskbench ${command.join(' ')}`);
             
-            // Start progress simulation
-            this.startProgressSimulation();
-            
             // Execute test
             const result = await this.executeDiskBenchCommand(command);
-            
-            // Stop progress simulation
-            this.stopProgressSimulation();
             
             if (result) {
                 this.updateProgress(100, 'Test completed successfully!');
@@ -289,88 +284,315 @@ class DiskBenchApp {
             
         } catch (error) {
             console.error('Test failed:', error);
-            this.stopProgressSimulation();
             this.updateProgress(0, `Test failed: ${error.message}`);
             this.updateProgressDetails(`Error: ${error.message}`);
         } finally {
             this.isTestRunning = false;
             
-            // Stop temperature monitoring
-            this.stopTemperatureMonitoring();
-            
             this.updateUI();
             document.getElementById('startTest').classList.remove('hidden');
             document.getElementById('stopTest').classList.add('hidden');
+            document.getElementById('stopAllTests').classList.add('hidden'); // Hide stop all button
         }
     }
     
-    stopTest() {
-        if (!this.isTestRunning) {
+    async stopTest() {
+        if (!this.isTestRunning || !this.currentTestId) {
             return;
         }
         
-        // In a real implementation, this would send a signal to stop the test
-        this.stopProgressSimulation();
+        try {
+            // Actually call the bridge server to stop the test
+            const result = await this.callBridgeAPI(`/api/test/stop/${this.currentTestId}`, {
+                method: 'POST'
+            });
+            
+            if (result.success) {
+                this.handleTestStopped('Test stopped by user');
+            } else {
+                throw new Error(result.error || 'Failed to stop test');
+            }
+        } catch (error) {
+            console.error('Stop test failed:', error);
+            this.handleTestStopped(`Stop failed: ${error.message}`);
+        }
+    }
+    
+    handleTestStopped(message) {
         this.isTestRunning = false;
-        this.updateProgress(0, 'Test stopped by user');
+        this.currentTestId = null; // Clear the test ID
+        this.updateProgress(0, message);
         this.updateUI();
         
         document.getElementById('startTest').classList.remove('hidden');
         document.getElementById('stopTest').classList.add('hidden');
+        document.getElementById('stopAllTests').classList.add('hidden'); // Hide stop all button too
     }
     
-    startProgressSimulation() {
-        let progress = 5;
-        const phases = [
-            { end: 20, message: 'Initializing test environment...' },
-            { end: 40, message: 'Running sequential read tests...' },
-            { end: 60, message: 'Running sequential write tests...' },
-            { end: 80, message: 'Running random read tests...' },
-            { end: 95, message: 'Running random write tests...' },
-            { end: 100, message: 'Analyzing results...' }
-        ];
-        
-        let phaseIndex = 0;
-        
-        this.progressInterval = setInterval(() => {
-            if (phaseIndex < phases.length) {
-                const phase = phases[phaseIndex];
-                
-                if (progress < phase.end) {
-                    progress += Math.random() * 2;
-                    this.updateProgress(Math.min(progress, phase.end), phase.message);
-                } else {
-                    phaseIndex++;
-                }
+    async stopAllTests() {
+        if (!this.isTestRunning) {
+            return;
+        }
+
+        try {
+            const result = await this.callBridgeAPI('/api/test/stop-all', {
+                method: 'POST'
+            });
+
+            if (result.success) {
+                this.handleTestStopped('All tests stopped by user');
+            } else {
+                throw new Error(result.error || 'Failed to stop all tests');
             }
-        }, 500);
-    }
-    
-    stopProgressSimulation() {
-        if (this.progressInterval) {
-            clearInterval(this.progressInterval);
-            this.progressInterval = null;
+        } catch (error) {
+            console.error('Stop all tests failed:', error);
+            this.handleTestStopped(`Stop all failed: ${error.message}`);
         }
     }
+
     
     updateProgress(percentage, message) {
-        document.getElementById('progressFill').style.width = `${percentage}%`;
+        // Fix progress bar jumping by ensuring valid percentage
+        const validPercentage = Math.max(0, Math.min(100, percentage));
+        
+        document.getElementById('progressFill').style.width = `${validPercentage}%`;
         document.getElementById('progressText').textContent = message;
+        
+        // Store last valid progress to prevent jumping
+        this.lastValidProgress = validPercentage;
     }
     
     updateProgressDetails(details) {
         document.getElementById('progressDetails').textContent = details;
     }
     
+    updateEnhancedProgress(testInfo) {
+        /**
+         * Enhanced Progress Update with QLab Metrics and Live Performance Data
+         */
+        if (!testInfo) return;
+        
+        const progress = testInfo.progress || 0;
+        const elapsedTime = testInfo.elapsed_time || 0;
+        const remainingTime = testInfo.remaining_time || 0;
+        const liveMetrics = testInfo.live_metrics || {};
+        const qlabAnalysis = testInfo.qlab_analysis || {};
+        
+        // Update main progress bar (fix jumping)
+        const validProgress = Math.max(0, Math.min(100, progress));
+        if (Math.abs(validProgress - (this.lastValidProgress || 0)) > 0.5) {
+            this.updateProgress(validProgress, this.formatProgressMessage(testInfo));
+        }
+        
+        // Update enhanced temperature widget with QLab metrics
+        this.updateEnhancedTemperatureWidget(testInfo);
+        
+        // Update progress details with timing info
+        this.updateProgressTiming(elapsedTime, remainingTime, testInfo.estimated_duration);
+    }
+    
+    formatProgressMessage(testInfo) {
+        /**
+         * Generate informative progress message based on test phase
+         */
+        const progress = testInfo.progress || 0;
+        const qlabAnalysis = testInfo.qlab_analysis || {};
+        
+        if (progress < 5) {
+            return 'Initializing test environment...';
+        } else if (progress < 25) {
+            return 'Warming up disk - measuring baseline performance...';
+        } else if (progress < 75) {
+            const status = qlabAnalysis.status_message || 'Running main test...';
+            return `Main test phase - ${status}`;
+        } else if (progress < 95) {
+            return 'Analyzing performance consistency...';
+        } else if (progress < 100) {
+            return 'Finalizing results...';
+        } else {
+            return 'Test completed successfully!';
+        }
+    }
+    
+    updateEnhancedTemperatureWidget(testInfo) {
+        /**
+         * Update temperature widget with enhanced QLab performance metrics
+         */
+        const widget = document.getElementById('temperatureWidget');
+        if (!widget || widget.classList.contains('hidden')) return;
+        
+        const liveMetrics = testInfo.live_metrics || {};
+        const qlabAnalysis = testInfo.qlab_analysis || {};
+        const elapsedTime = testInfo.elapsed_time || 0;
+        const remainingTime = testInfo.remaining_time || 0;
+        
+        // Create enhanced content if not already exists
+        let enhancedContent = widget.querySelector('.enhanced-metrics');
+        if (!enhancedContent) {
+            enhancedContent = document.createElement('div');
+            enhancedContent.className = 'enhanced-metrics';
+            widget.appendChild(enhancedContent);
+        }
+        
+        // Format timing display
+        const elapsedStr = this.formatDuration(elapsedTime);
+        const remainingStr = this.formatDuration(remainingTime);
+        const totalStr = this.formatDuration((testInfo.estimated_duration || 0));
+        
+        // Create enhanced metrics display
+        enhancedContent.innerHTML = `
+            <div class="metrics-separator"></div>
+            
+            <div class="progress-section">
+                <h4><i class="fas fa-clock"></i> Test Progress</h4>
+                <div class="progress-timing">
+                    <div class="timing-item">
+                        <span class="timing-label">Elapsed:</span>
+                        <span class="timing-value">${elapsedStr}</span>
+                    </div>
+                    <div class="timing-item">
+                        <span class="timing-label">Remaining:</span>
+                        <span class="timing-value">${remainingStr}</span>
+                    </div>
+                    <div class="timing-item">
+                        <span class="timing-label">Total:</span>
+                        <span class="timing-value">${totalStr}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="metrics-separator"></div>
+            
+            <div class="performance-section">
+                <h4><i class="fas fa-tachometer-alt"></i> Live Performance</h4>
+                <div class="performance-grid">
+                    <div class="perf-metric">
+                        <span class="perf-value">${liveMetrics.throughput_mbps || '--'}</span>
+                        <span class="perf-unit">MB/s</span>
+                        <span class="perf-label">Current</span>
+                    </div>
+                    <div class="perf-metric">
+                        <span class="perf-value">${liveMetrics.min_throughput_mbps || '--'}</span>
+                        <span class="perf-unit">MB/s</span>
+                        <span class="perf-label">Minimum</span>
+                    </div>
+                    <div class="perf-metric">
+                        <span class="perf-value">${liveMetrics.iops || '--'}</span>
+                        <span class="perf-unit">IOPS</span>
+                        <span class="perf-label">Current</span>
+                    </div>
+                    <div class="perf-metric">
+                        <span class="perf-value">${liveMetrics.latency_ms || '--'}</span>
+                        <span class="perf-unit">ms</span>
+                        <span class="perf-label">Latency</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="metrics-separator"></div>
+            
+            <div class="qlab-section">
+                <h4><i class="fas fa-theater-masks"></i> QLab Reliability</h4>
+                <div class="qlab-metrics">
+                    <div class="qlab-status ${this.getQLabStatusClass(qlabAnalysis.status)}">
+                        ${qlabAnalysis.status_message || 'Analyzing...'}
+                    </div>
+                    <div class="reliability-grid">
+                        <div class="reliability-item">
+                            <span class="reliability-label">Stutters:</span>
+                            <span class="reliability-value ${this.getReliabilityClass('stutters', liveMetrics.stutters_detected)}">${liveMetrics.stutters_detected || 0}</span>
+                        </div>
+                        <div class="reliability-item">
+                            <span class="reliability-label">Dropouts:</span>
+                            <span class="reliability-value ${this.getReliabilityClass('dropouts', liveMetrics.dropouts_detected)}">${liveMetrics.dropouts_detected || 0}</span>
+                        </div>
+                        <div class="reliability-item">
+                            <span class="reliability-label">Consistency:</span>
+                            <span class="reliability-value ${this.getReliabilityClass('consistency', qlabAnalysis.consistency_score)}">${qlabAnalysis.consistency_score || '--'}%</span>
+                        </div>
+                        <div class="reliability-item">
+                            <span class="reliability-label">Show Ready:</span>
+                            <span class="reliability-value ${qlabAnalysis.show_ready ? 'good' : 'warning'}">${qlabAnalysis.show_ready ? '✅' : '⚠️'}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    formatDuration(seconds) {
+        /**
+         * Format duration in human-readable format
+         */
+        if (!seconds || seconds < 0) return '--:--';
+        
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
+        
+        if (hours > 0) {
+            return `${hours}h ${minutes}m`;
+        } else if (minutes > 0) {
+            return `${minutes}m ${secs}s`;
+        } else {
+            return `${secs}s`;
+        }
+    }
+    
+    getQLabStatusClass(status) {
+        /**
+         * Get CSS class for QLab status
+         */
+        switch (status) {
+            case 'excellent': return 'status-excellent';
+            case 'good': return 'status-good';
+            case 'fair': return 'status-fair';
+            case 'poor': return 'status-poor';
+            default: return 'status-unknown';
+        }
+    }
+    
+    getReliabilityClass(type, value) {
+        /**
+         * Get CSS class for reliability metrics
+         */
+        switch (type) {
+            case 'stutters':
+                if (value === 0) return 'good';
+                if (value <= 2) return 'warning';
+                return 'danger';
+            case 'dropouts':
+                return value === 0 ? 'good' : 'danger';
+            case 'consistency':
+                if (value >= 95) return 'good';
+                if (value >= 85) return 'warning';
+                return 'danger';
+            default:
+                return '';
+        }
+    }
+    
+    updateProgressTiming(elapsed, remaining, total) {
+        /**
+         * Update progress details with timing information
+         */
+        const progressDetails = document.getElementById('progressDetails');
+        if (!progressDetails) return;
+        
+        const elapsedStr = this.formatDuration(elapsed);
+        const remainingStr = this.formatDuration(remaining);
+        const totalStr = this.formatDuration(total);
+        
+        progressDetails.innerHTML = `
+            <div class="timing-summary">
+                Progress: ${elapsedStr} / ${totalStr} (${remainingStr} remaining)
+            </div>
+        `;
+    }
+    
     showResults(results) {
         document.getElementById('resultsSection').classList.remove('hidden');
         document.getElementById('exportResults').classList.remove('hidden');
-        
-        // Add temperature data to results
-        const tempSummary = this.getTemperatureSummary();
-        if (tempSummary) {
-            results.temperature_monitoring = tempSummary;
-        }
         
         // Render QLab analysis
         this.renderQLabAnalysis(results.qlab_analysis || results.analysis);
@@ -565,7 +787,7 @@ class DiskBenchApp {
     }
     
     async callBridgeAPI(endpoint, options = {}) {
-        const baseURL = 'http://localhost:8080';
+        const baseURL = 'http://localhost:8765';
         const url = `${baseURL}${endpoint}`;
         
         const response = await fetch(url, {
@@ -618,13 +840,17 @@ class DiskBenchApp {
                 throw new Error(startResult.error || 'Failed to start test');
             }
             
-            const testId = startResult.test_id;
+                const testId = startResult.test_id;
+                this.currentTestId = testId; // Store for stopping
             
             // Poll for test completion
-            return await this.pollTestCompletion(testId);
+            const testResult = await this.pollTestCompletion(testId);
+            this.currentTestId = null; // Clear test ID on completion
+            return testResult;
             
         } catch (error) {
             console.error('Real test error:', error);
+            this.currentTestId = null; // Clear test ID on error
             throw error;
         }
     }
@@ -652,6 +878,10 @@ class DiskBenchApp {
                     return testInfo.result;
                 } else if (testInfo.status === 'failed') {
                     throw new Error(testInfo.error || 'Test failed');
+                } else if (testInfo.status === 'stopped' || testInfo.status === 'timeout') {
+                    // Test was stopped or timed out by the backend
+                    this.handleTestStopped(`Test ${testInfo.status} by backend`);
+                    throw new Error(`Test ${testInfo.status}`);
                 }
                 
                 // Wait before next poll
@@ -694,10 +924,15 @@ class DiskBenchApp {
         this.updateSystemStatus('checking', 'Checking system status...');
         
         try {
-            // Check if bridge server is available
-            const status = await this.callBridgeAPI('/api/status');
+            // Add timeout and better error handling
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Timeout after 10 seconds')), 10000)
+            );
             
-            if (status.success && status.status) {
+            const statusPromise = this.callBridgeAPI('/api/status');
+            const status = await Promise.race([statusPromise, timeoutPromise]);
+            
+            if (status && status.success && status.status) {
                 const sysStatus = status.status;
                 this.setupState.fioAvailable = sysStatus.fio_available || false;
                 this.setupState.fioWorking = sysStatus.fio_working || false;
@@ -720,15 +955,20 @@ class DiskBenchApp {
                     this.updateSystemStatus('warning', '⚠️ System setup required - Click "Setup & Diagnostics" tab');
                 }
             } else {
-                throw new Error('Bridge server not responding');
+                throw new Error('Invalid response from bridge server');
             }
         } catch (error) {
             console.error('System status check failed:', error);
             this.setupState.systemStatus = 'error';
-            this.updateSystemStatus('error', '❌ System setup required - Bridge server unavailable');
+            this.updateSystemStatus('error', `❌ Status check failed: ${error.message} - <button onclick="app.retryStatusCheck()" style="background: none; border: none; color: inherit; text-decoration: underline; cursor: pointer;">Retry</button>`);
         }
         
+        // Always call this to update the setup wizard
         this.updateSetupStep1();
+    }
+    
+    retryStatusCheck() {
+        this.checkSystemStatus();
     }
     
     updateSystemStatus(type, message) {
@@ -781,7 +1021,7 @@ class DiskBenchApp {
     }
     
     initializeSetupWizard() {
-        // Reset setup wizard to step 1
+        // Reset setup wizard to 1
         this.setupState.setupStep = 1;
         this.updateSetupStep1();
     }
@@ -931,11 +1171,21 @@ class DiskBenchApp {
         validationResults.innerHTML = '';
         
         try {
-            // Call real validation API
-            const validationResult = await this.callBridgeAPI('/api/validate', {
+            // System validation only - temperature monitoring removed
+            const result = await this.callBridgeAPI('/api/validate', {
                 method: 'POST',
                 body: { action: 'run_all_tests' }
             });
+            
+            let allResults = [];
+            if (result.success && result.tests) {
+                allResults = result.tests;
+            }
+            
+            const validationResult = {
+                success: true,
+                tests: allResults
+            };
             
             if (validationResult.success && validationResult.tests) {
                 // Show real validation results
@@ -1313,156 +1563,6 @@ class DiskBenchApp {
         };
     }
     
-    // Temperature Monitoring Functions
-    async startTemperatureMonitoring() {
-        if (this.temperatureInterval) {
-            return; // Already monitoring
-        }
-        
-        // Reset temperature tracking
-        this.currentTemperature = null;
-        this.maxTemperature = null;
-        this.temperatureHistory = [];
-        
-        // Show temperature widget
-        const widget = document.getElementById('temperatureWidget');
-        widget.classList.remove('hidden');
-        
-        // Start monitoring
-        this.temperatureInterval = setInterval(async () => {
-            try {
-                const tempData = await this.callBridgeAPI('/api/temperature');
-                if (tempData.success && tempData.temperature !== undefined) {
-                    this.updateTemperatureDisplay(tempData.temperature);
-                }
-            } catch (error) {
-                console.warn('Temperature monitoring error:', error);
-                // Continue monitoring despite errors
-            }
-        }, 5000); // Update every 5 seconds
-        
-        // Initial temperature reading
-        try {
-            const tempData = await this.callBridgeAPI('/api/temperature');
-            if (tempData.success && tempData.temperature !== undefined) {
-                this.updateTemperatureDisplay(tempData.temperature);
-            }
-        } catch (error) {
-            console.warn('Initial temperature reading failed:', error);
-        }
-    }
-    
-    stopTemperatureMonitoring() {
-        if (this.temperatureInterval) {
-            clearInterval(this.temperatureInterval);
-            this.temperatureInterval = null;
-        }
-        
-        // Hide temperature widget
-        const widget = document.getElementById('temperatureWidget');
-        widget.classList.add('hidden');
-    }
-    
-    updateTemperatureDisplay(temperature) {
-        this.currentTemperature = temperature;
-        
-        // Update max temperature
-        if (this.maxTemperature === null || temperature > this.maxTemperature) {
-            this.maxTemperature = temperature;
-        }
-        
-        // Add to history
-        this.temperatureHistory.push({
-            timestamp: Date.now(),
-            temperature: temperature
-        });
-        
-        // Keep only last 100 readings
-        if (this.temperatureHistory.length > 100) {
-            this.temperatureHistory.shift();
-        }
-        
-        // Update widget display
-        const currentTempEl = document.getElementById('currentTemp');
-        const maxTempEl = document.getElementById('maxTemp');
-        const statusEl = document.getElementById('tempStatus');
-        
-        if (currentTempEl) currentTempEl.textContent = Math.round(temperature);
-        if (maxTempEl) maxTempEl.textContent = Math.round(this.maxTemperature);
-        
-        // Update status based on temperature
-        if (statusEl) {
-            if (temperature < 50) {
-                statusEl.innerHTML = '<i class="fas fa-circle"></i> Normal';
-                statusEl.className = 'temp-status';
-            } else if (temperature < 70) {
-                statusEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Warm';
-                statusEl.className = 'temp-status warning';
-            } else {
-                statusEl.innerHTML = '<i class="fas fa-fire"></i> Hot';
-                statusEl.className = 'temp-status danger';
-            }
-        }
-        
-        // Update progress section if test is running
-        if (this.isTestRunning) {
-            this.updateProgressTemperature(temperature, this.maxTemperature);
-        }
-    }
-    
-    updateProgressTemperature(current, max) {
-        const progressSection = document.getElementById('progressSection');
-        if (!progressSection || progressSection.classList.contains('hidden')) {
-            return;
-        }
-        
-        // Check if temperature display already exists
-        let tempDisplay = progressSection.querySelector('.progress-temperature');
-        if (!tempDisplay) {
-            // Create temperature display in progress section
-            tempDisplay = document.createElement('div');
-            tempDisplay.className = 'progress-temperature';
-            tempDisplay.innerHTML = `
-                <div class="progress-temp-icon">
-                    <i class="fas fa-thermometer-half"></i>
-                </div>
-                <div class="progress-temp-info">
-                    <div class="progress-temp-current">Current: <span id="progressCurrentTemp">--</span>°C</div>
-                    <div class="progress-temp-max">Maximum: <span id="progressMaxTemp">--</span>°C</div>
-                </div>
-            `;
-            
-            // Insert after progress details
-            const progressDetails = document.getElementById('progressDetails');
-            if (progressDetails) {
-                progressDetails.parentNode.insertBefore(tempDisplay, progressDetails.nextSibling);
-            }
-        }
-        
-        // Update temperature values
-        const currentEl = tempDisplay.querySelector('#progressCurrentTemp');
-        const maxEl = tempDisplay.querySelector('#progressMaxTemp');
-        
-        if (currentEl) currentEl.textContent = Math.round(current);
-        if (maxEl) maxEl.textContent = Math.round(max);
-    }
-    
-    getTemperatureSummary() {
-        if (!this.temperatureHistory.length) {
-            return null;
-        }
-        
-        const temperatures = this.temperatureHistory.map(entry => entry.temperature);
-        const avgTemp = temperatures.reduce((sum, temp) => sum + temp, 0) / temperatures.length;
-        
-        return {
-            current: this.currentTemperature,
-            maximum: this.maxTemperature,
-            average: avgTemp,
-            readings: this.temperatureHistory.length,
-            thermal_throttling_risk: this.maxTemperature > 70
-        };
-    }
 }
 
 // Global functions for modal (called from HTML onclick)
@@ -1485,3 +1585,5 @@ document.addEventListener('DOMContentLoaded', () => {
     // Make app globally available for modal functions
     window.app = app;
 });
+
+

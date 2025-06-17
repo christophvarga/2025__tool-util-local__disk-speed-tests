@@ -7,6 +7,20 @@ echo "🚀 Starting QLab Disk Performance Tester"
 echo "=========================================="
 echo
 
+# Check if running with sudo (required for disk testing and dependency installation)
+if [ "$EUID" -ne 0 ]; then
+    echo "🔐 Administrator privileges required for:"
+    echo "   • Direct disk performance testing"
+    echo "   • Temperature monitoring via smartctl (optional)"
+    echo "   • Installing missing dependencies (FIO)"
+    echo
+    echo "💡 Please run with: sudo ./start-qlab-tester.sh"
+    exit 1
+fi
+
+echo "✅ Administrator privileges confirmed"
+echo
+
 # Check if Python 3 is available
 if ! command -v python3 &> /dev/null; then
     echo "❌ Python 3 is required but not found"
@@ -23,12 +37,12 @@ fi
 # Start the bridge server
 echo "🌉 Starting bridge server..."
 echo "   This will:"
-echo "   • Start the HTTP bridge server on localhost:8080"
+echo "   • Start the HTTP bridge server on localhost:8765"
 echo "   • Serve the web GUI interface"
 echo "   • Bridge communication with the diskbench helper binary"
 echo
 echo "📱 Once started, open your web browser and go to:"
-echo "   http://localhost:8080"
+echo "   http://localhost:8765"
 echo
 echo "⚠️  The setup wizard will guide you through FIO installation if needed"
 echo

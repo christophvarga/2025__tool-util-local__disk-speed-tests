@@ -765,111 +765,6 @@ h2 {
     font-weight: 600;
 }
 
-/* Temperature Widget */
-.temperature-widget {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
-    color: white;
-    padding: 15px;
-    border-radius: 12px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    min-width: 150px;
-    text-align: center;
-    z-index: 999;
-    animation: slideInRight 0.3s ease;
-}
-
-.temperature-widget.hidden {
-    display: none;
-}
-
-@keyframes slideInRight {
-    from {
-        opacity: 0;
-        transform: translateX(100px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
-
-.temp-header {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-size: 0.9em;
-    margin-bottom: 8px;
-    opacity: 0.9;
-}
-
-.temp-current {
-    font-size: 2em;
-    font-weight: bold;
-    margin: 5px 0;
-}
-
-.temp-max {
-    font-size: 0.8em;
-    opacity: 0.8;
-    margin-bottom: 8px;
-}
-
-.temp-status {
-    font-size: 0.8em;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-}
-
-.temp-status.warning {
-    color: #ffd700;
-}
-
-.temp-status.danger {
-    color: #ff4757;
-    animation: pulse 1s infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-}
-
-/* Temperature in Progress Section */
-.progress-temperature {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    margin-top: 10px;
-    padding: 10px;
-    background: #f8f9fa;
-    border-radius: 8px;
-    border-left: 4px solid #ff6b6b;
-}
-
-.progress-temp-icon {
-    color: #ff6b6b;
-    font-size: 1.2em;
-}
-
-.progress-temp-info {
-    flex: 1;
-}
-
-.progress-temp-current {
-    font-weight: 600;
-    color: #333;
-}
-
-.progress-temp-max {
-    font-size: 0.9em;
-    color: #666;
-}
 
 /* Footer */
 .footer {
@@ -1345,6 +1240,243 @@ h2 {
     animation: fadeIn 0.5s ease-out;
 }
 
+/* Enhanced Metrics Styles for QLab Performance Monitoring */
+.enhanced-metrics {
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-top: 15px;
+    border: 1px solid #e9ecef;
+}
+
+.metrics-separator {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #dee2e6, transparent);
+    margin: 15px 0;
+}
+
+.progress-section,
+.performance-section,
+.qlab-section {
+    padding: 15px;
+}
+
+.progress-section h4,
+.performance-section h4,
+.qlab-section h4 {
+    margin: 0 0 12px 0;
+    color: #495057;
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.progress-section h4 i {
+    color: #007bff;
+}
+
+.performance-section h4 i {
+    color: #28a745;
+}
+
+.qlab-section h4 i {
+    color: #6f42c1;
+}
+
+/* Progress Timing Grid */
+.progress-timing {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.timing-item {
+    background: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    text-align: center;
+}
+
+.timing-label {
+    display: block;
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.timing-value {
+    display: block;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #495057;
+}
+
+/* Performance Metrics Grid */
+.performance-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.perf-metric {
+    background: white;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    text-align: center;
+}
+
+.perf-value {
+    display: block;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #28a745;
+    margin-bottom: 2px;
+}
+
+.perf-unit {
+    display: block;
+    font-size: 0.7rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.perf-label {
+    display: block;
+    font-size: 0.75rem;
+    color: #495057;
+    font-weight: 500;
+}
+
+/* QLab Status and Reliability */
+.qlab-metrics {
+    margin-top: 8px;
+}
+
+.qlab-status {
+    background: white;
+    padding: 10px 15px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    text-align: center;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.qlab-status.status-excellent {
+    background: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+}
+
+.qlab-status.status-good {
+    background: #d1ecf1;
+    border-color: #bee5eb;
+    color: #0c5460;
+}
+
+.qlab-status.status-fair {
+    background: #fff3cd;
+    border-color: #ffeaa7;
+    color: #856404;
+}
+
+.qlab-status.status-poor {
+    background: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+}
+
+.qlab-status.status-unknown {
+    background: #e2e3e5;
+    border-color: #d6d8db;
+    color: #383d41;
+}
+
+.reliability-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.reliability-item {
+    background: white;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.reliability-label {
+    font-size: 0.8rem;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.reliability-value {
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.reliability-value.good {
+    color: #28a745;
+}
+
+.reliability-value.warning {
+    color: #ffc107;
+}
+
+.reliability-value.danger {
+    color: #dc3545;
+}
+
+/* Progress Details Enhancement */
+.timing-summary {
+    text-align: center;
+    font-size: 0.9rem;
+    color: #495057;
+    font-weight: 500;
+    padding: 8px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+}
+
+
+/* Responsive Enhancements for Enhanced Metrics */
+@media (max-width: 768px) {
+    .progress-timing {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .performance-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .reliability-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .enhanced-metrics {
+        margin-top: 10px;
+    }
+    
+    .progress-section,
+    .performance-section,
+    .qlab-section {
+        padding: 12px;
+    }
+}
+
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
     :root {
@@ -1370,5 +1502,139 @@ h2 {
     .metric-card,
     .implementation-details {
         background: #4a5568;
+    }
+    
+    /* Enhanced Metrics Dark Mode */
+    .enhanced-metrics {
+        background: #374151;
+        border-color: #4b5563;
+    }
+    
+    .timing-item,
+    .perf-metric,
+    .reliability-item,
+    .qlab-status {
+        background: #4b5563;
+        border-color: #6b7280;
+        color: #e5e7eb;
+    }
+    
+    .timing-summary {
+        background: #374151;
+        border-color: #4b5563;
+        color: #e5e7eb;
+    }
+}
+
+/* Live Metrics Display for Enhanced Progress */
+.progress-live-metrics {
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-top: 15px;
+    border: 1px solid #e9ecef;
+    padding: 15px;
+    border-left: 4px solid #28a745;
+}
+
+.live-metrics-header {
+    font-weight: 600;
+    color: #495057;
+    font-size: 1rem;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.live-metrics-header i {
+    color: #28a745;
+}
+
+.live-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.live-metric {
+    background: white;
+    padding: 12px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.live-metric:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+.live-metric .metric-label {
+    display: block;
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.live-metric .metric-value {
+    display: block;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #28a745;
+    margin-bottom: 2px;
+}
+
+/* Enhanced Progress Text Styling */
+.progress-text {
+    text-align: center;
+    font-weight: 500;
+    color: var(--dark-color);
+    white-space: pre-line;
+    line-height: 1.4;
+    margin: 10px 0;
+}
+
+/* Responsive Design for Live Metrics */
+@media (max-width: 768px) {
+    .live-metrics-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .progress-live-metrics {
+        margin-top: 10px;
+        padding: 12px;
+    }
+    
+    .live-metric .metric-value {
+        font-size: 1.1rem;
+    }
+}
+
+/* Dark Mode Support for Live Metrics */
+@media (prefers-color-scheme: dark) {
+    .progress-live-metrics {
+        background: #374151;
+        border-color: #4b5563;
+    }
+    
+    .live-metrics-header {
+        color: #e5e7eb;
+    }
+    
+    .live-metric {
+        background: #4b5563;
+        border-color: #6b7280;
+    }
+    
+    .live-metric .metric-label {
+        color: #9ca3af;
+    }
+    
+    .live-metric .metric-value {
+        color: #34d399;
     }
 }
