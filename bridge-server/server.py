@@ -14,6 +14,7 @@ import subprocess
 import sys
 import threading
 import time
+import fcntl
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
@@ -30,7 +31,251 @@ class DiskBenchBridge:
         self.running_tests = {}
         self.running_processes = {}  # Track actual subprocess objects
         self.logger = logging.getLogger(__name__)
+        self.state_file = '/tmp/diskbench_bridge_state.json'
         
+        # Load persistent state on startup
+        self._load_persistent_state()
+        
+        # Discover and cleanup orphaned processes on startup
+        self._discover_orphaned_processes()
+    
+    def _load_persistent_state(self):
+        """Load persistent test state from disk."""
+        try:
+            if os.path.exists(self.state_file):
+                with open(self.state_file, 'r') as f:
+                    state_data = json.load(f)
+                
+                # Restore running tests state
+                self.running_tests = state_data.get('running_tests', {})
+                
+                # Mark all previously running tests as 'disconnected' since we lost the process handles
+                for test_id, test_info in self.running_tests.items():
+                    if test_info.get('status') == 'running':
+                        test_info['status'] = 'disconnected'
+                        test_info['disconnected_time'] = datetime.now().isoformat()
+                
+                self.logger.info(f"Loaded persistent state: {len(self.running_tests)} tests")
+                
+                # Save updated state
+                self._save_persistent_state()
+            else:
+                self.logger.info("No persistent state file found - starting fresh")
+                
+        except Exception as e:
+            self.logger.error(f"Failed to load persistent state: {e}")
+            self.running_tests = {}
+    
+    def _save_persistent_state(self):
+        """Save current test state to disk."""
+        try:
+            state_data = {
+                'running_tests': self.running_tests,
+                'last_updated': datetime.now().isoformat()
+            }
+            
+            with open(self.state_file, 'w') as f:
+                json.dump(state_data, f, indent=2)
+                
+        except Exception as e:
+            self.logger.error(f"Failed to save persistent state: {e}")
+    
+    def _discover_orphaned_processes(self):
+        """Discover and handle orphaned FIO processes on startup."""
+        try:
+            self.logger.info("Discovering orphaned processes on startup...")
+            
+            # Find any disconnected tests
+            disconnected_tests = [tid for tid, info in self.running_tests.items() 
+                                 if info.get('status') == 'disconnected']
+            
+            if disconnected_tests:
+                self.logger.warning(f"Found {len(disconnected_tests)} disconnected tests: {disconnected_tests}")
+                
+                # Try to find corresponding FIO processes
+                orphaned_pids = self.cleanup_fio_processes()
+                
+                if orphaned_pids:
+                    self.logger.info(f"Cleaned up {len(orphaned_pids)} orphaned FIO processes")
+                    
+                    # Mark disconnected tests as stopped
+                    for test_id in disconnected_tests:
+                        self.running_tests[test_id]['status'] = 'stopped'
+                        self.running_tests[test_id]['error'] = f'Process orphaned during server restart - cleaned up {len(orphaned_pids)} FIO processes'
+                        self.running_tests[test_id]['end_time'] = datetime.now().isoformat()
+                else:
+                    # No orphaned processes found - tests may have completed
+                    for test_id in disconnected_tests:
+                        self.running_tests[test_id]['status'] = 'unknown'
+                        self.running_tests[test_id]['error'] = 'Test status unknown after server restart'
+                        self.running_tests[test_id]['end_time'] = datetime.now().isoformat()
+                
+                # Save updated state
+                self._save_persistent_state()
+            else:
+                self.logger.info("No disconnected tests found")
+                
+        except Exception as e:
+            self.logger.error(f"Error discovering orphaned processes: {e}")
+    
+    def get_background_tests_status(self):
+        """Get status of all background/disconnected tests."""
+        try:
+            background_tests = []
+            
+            for test_id, test_info in self.running_tests.items():
+                if test_info.get('status') in ['disconnected', 'unknown']:
+                    background_tests.append({
+                        'test_id': test_id,
+                        'status': test_info.get('status'),
+                        'start_time': test_info.get('start_time'),
+                        'disconnected_time': test_info.get('disconnected_time'),
+                        'test_type': test_info.get('diskbench_test_type'),
+                        'disk_path': test_info.get('params', {}).get('disk_path'),
+                        'error': test_info.get('error')
+                    })
+            
+            return {
+                'success': True,
+                'background_tests': background_tests,
+                'count': len(background_tests)
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def cleanup_background_test(self, test_id):
+        """Clean up a specific background/disconnected test."""
+        try:
+            if test_id not in self.running_tests:
+                return {
+                    'success': False,
+                    'error': 'Test not found'
+                }
+            
+            test_info = self.running_tests[test_id]
+            
+            if test_info.get('status') not in ['disconnected', 'unknown']:
+                return {
+                    'success': False,
+                    'error': f'Test is not in background state (status: {test_info.get("status")})'
+                }
+            
+            # Try to find and kill any related FIO processes
+            killed_pids = self.cleanup_fio_processes(test_id)
+            
+            # Remove from running tests
+            del self.running_tests[test_id]
+            
+            # Save state
+            self._save_persistent_state()
+            
+            message = f'Background test {test_id} cleaned up'
+            if killed_pids:
+                message += f' (killed {len(killed_pids)} FIO processes)'
+            
+            return {
+                'success': True,
+                'message': message,
+                'killed_pids': killed_pids
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def cleanup_all_background_tests(self):
+        """Clean up all background/disconnected tests."""
+        try:
+            background_test_ids = [tid for tid, info in self.running_tests.items() 
+                                  if info.get('status') in ['disconnected', 'unknown']]
+            
+            if not background_test_ids:
+                return {
+                    'success': True,
+                    'message': 'No background tests to clean up',
+                    'cleaned_tests': []
+                }
+            
+            cleaned_tests = []
+            total_killed_pids = []
+            
+            for test_id in background_test_ids:
+                result = self.cleanup_background_test(test_id)
+                if result.get('success'):
+                    cleaned_tests.append(test_id)
+                    if result.get('killed_pids'):
+                        total_killed_pids.extend(result['killed_pids'])
+            
+            # Run final FIO cleanup
+            final_killed_pids = self.cleanup_fio_processes()
+            total_killed_pids.extend(final_killed_pids)
+            
+            message = f'Cleaned up {len(cleaned_tests)} background tests'
+            if total_killed_pids:
+                message += f' and {len(total_killed_pids)} FIO processes'
+            
+            return {
+                'success': True,
+                'message': message,
+                'cleaned_tests': cleaned_tests,
+                'killed_pids': total_killed_pids
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+    def _extract_json_from_output(self, output):
+        """Extract JSON from mixed output (logs + JSON)."""
+        try:
+            # Find the first line that starts with '{' - this should be the JSON
+            lines = output.split('\n')
+            json_start = -1
+            
+            for i, line in enumerate(lines):
+                stripped = line.strip()
+                if stripped.startswith('{'):
+                    json_start = i
+                    break
+            
+            if json_start >= 0:
+                # Join all lines from the JSON start
+                json_lines = lines[json_start:]
+                json_text = '\n'.join(json_lines)
+                
+                # Try to find the end of the JSON by counting braces
+                brace_count = 0
+                json_end = 0
+                
+                for i, char in enumerate(json_text):
+                    if char == '{':
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            json_end = i + 1
+                            break
+                
+                if json_end > 0:
+                    return json_text[:json_end]
+                else:
+                    return json_text
+            else:
+                # No JSON found, return original output
+                return output
+                
+        except Exception as e:
+            self.logger.warning(f"Failed to extract JSON from output: {e}")
+            return output
+
     def execute_diskbench_command(self, args, estimated_duration: int = 0, log_callback=None):
         """Execute a diskbench command and return the result."""
         try:
@@ -48,7 +293,8 @@ class DiskBenchBridge:
                 log_callback('info', f"Working directory: {self.diskbench_path}")
                 log_callback('info', f"Process context: Unsandboxed bridge server (PID: {os.getpid()})")
             
-            self.logger.info(f"Executing: {cmd_str} in {self.diskbench_path}")
+            # Only log to file/console, not to stdout that might contaminate JSON
+            self.logger.debug(f"Executing: {cmd_str} in {self.diskbench_path}")
             
             # Set up environment for unsandboxed FIO execution
             env = os.environ.copy()
@@ -95,16 +341,19 @@ class DiskBenchBridge:
                 self.logger.info(f"STDERR: {result.stderr}")
             
             if result.returncode == 0:
+                # Clean stdout by extracting only the JSON part
+                stdout_clean = self._extract_json_from_output(result.stdout)
+                
                 # Try to parse as JSON if possible
                 try:
-                    json_result = json.loads(result.stdout)
+                    json_result = json.loads(stdout_clean)
                     # If JSON parsing succeeds, use the JSON result
                     return json_result
                 except json.JSONDecodeError:
                     # If not JSON, return as text
                     return {
                         'success': True,
-                        'output': result.stdout,
+                        'output': stdout_clean,
                         'stderr': result.stderr,
                         'command': cmd_str,
                         'returncode': result.returncode
@@ -191,10 +440,14 @@ class DiskBenchBridge:
             estimated_duration = 0
             if diskbench_test_type == 'quick_max_speed':
                 estimated_duration = 180  # 3 minutes
-            elif 'show' in diskbench_test_type:
+            elif diskbench_test_type == 'qlab_prores_422_show':
+                estimated_duration = 9900  # 2.75 hours
+            elif diskbench_test_type == 'qlab_prores_hq_show':
                 estimated_duration = 9900  # 2.75 hours
             elif diskbench_test_type == 'max_sustained':
                 estimated_duration = 5400  # 1.5 hours
+            else:
+                estimated_duration = 180  # Default to 3 minutes for unknown tests
 
             # Store test info
             self.running_tests[test_id] = {
@@ -441,10 +694,12 @@ class DiskBenchBridge:
             }
     
     def _run_test_thread(self, test_id, args, estimated_duration: int):
-        """Run test in background thread with proper process tracking and estimated duration."""
+        """Run test in background thread with enhanced live progress monitoring."""
         process = None
         try:
             self.running_tests[test_id]['status'] = 'running'
+            self.running_tests[test_id]['live_metrics'] = {}
+            self.running_tests[test_id]['current_phase'] = 'initializing'
             self.logger.info(f"Starting test {test_id} with args: {args}, estimated_duration: {estimated_duration}s")
             
             # Build command
@@ -472,20 +727,10 @@ class DiskBenchBridge:
             self.logger.info(f"Test {test_id} started with PID: {process.pid}")
             
             # Wait for completion with timeout based on test type
-            timeout_seconds = 300  # Default 5 minutes
-            if '--test' in args:
-                test_idx = args.index('--test')
-                if test_idx + 1 < len(args):
-                    test_type = args[test_idx + 1]
-                    if 'quick' in test_type:
-                        timeout_seconds = 240   # 4 minutes for quick tests (3 min + buffer)
-                    elif 'show' in test_type:
-                        timeout_seconds = 11000  # 3+ hours for show tests
-                    elif 'max_sustained' in test_type:
-                        timeout_seconds = 6000   # 1.7 hours for sustained tests
+            timeout_seconds = estimated_duration + 120  # Add a 2-minute buffer
             
             try:
-                stdout, stderr = process.communicate()
+                stdout, stderr = process.communicate(timeout=timeout_seconds)
                 
                 # Process completed successfully
                 result = {
@@ -514,9 +759,12 @@ class DiskBenchBridge:
                     
                     self.running_tests[test_id]['status'] = 'completed'
                     self.running_tests[test_id]['progress'] = 100
+                    self.running_tests[test_id]['current_phase'] = 'completed'
+                    self._save_persistent_state()
                 else:
                     self.running_tests[test_id]['status'] = 'failed'
                     self.running_tests[test_id]['error'] = stderr or stdout or 'Unknown error'
+                    self.running_tests[test_id]['current_phase'] = 'failed'
                     self.logger.error(f"Test {test_id} failed: {stderr}")
                 
             except subprocess.TimeoutExpired:
@@ -532,10 +780,12 @@ class DiskBenchBridge:
                 
                 self.running_tests[test_id]['status'] = 'timeout'
                 self.running_tests[test_id]['error'] = f'Test timed out after {timeout_seconds} seconds'
+                self.running_tests[test_id]['current_phase'] = 'timeout'
                 
         except Exception as e:
             self.running_tests[test_id]['status'] = 'failed'
             self.running_tests[test_id]['error'] = str(e)
+            self.running_tests[test_id]['current_phase'] = 'failed'
             self.logger.error(f"Exception in test {test_id}: {e}")
             
             # Ensure process is terminated on exception
@@ -558,6 +808,7 @@ class DiskBenchBridge:
             self.running_tests[test_id]['end_time'] = datetime.now().isoformat()
             self.logger.info(f"Test {test_id} thread completed")
     
+    
     def get_test_status(self, test_id):
         """Get enhanced status of a running test with QLab metrics."""
         if test_id not in self.running_tests:
@@ -576,14 +827,16 @@ class DiskBenchBridge:
             test_type = test_info.get('diskbench_test_type', 'quick_max_speed')
             
             # Calculate accurate progress and remaining time
-            if 'show' in test_type:
-                estimated_duration = 9900  # 2.75 hours for show tests
-            elif 'max_sustained' in test_type:
+            if test_type == 'qlab_prores_422_show':
+                estimated_duration = 9900  # 2.75 hours for ProRes 422 show tests
+            elif test_type == 'qlab_prores_hq_show':
+                estimated_duration = 9900  # 2.75 hours for ProRes HQ show tests
+            elif test_type == 'max_sustained':
                 estimated_duration = 5400  # 1.5 hours for sustained tests
-            elif 'quick' in test_type:
+            elif test_type == 'quick_max_speed':
                 estimated_duration = 180   # 3 minutes for quick tests
             else:
-                estimated_duration = 60    # 1 minute default
+                estimated_duration = 180   # Default to 3 minutes for unknown tests
             
             progress = min(95, (elapsed / estimated_duration) * 100)
             remaining_time = max(0, estimated_duration - elapsed)
@@ -1766,6 +2019,8 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
                 self._handle_detect_fio_shm()
             elif path == '/api/fio/auto-fix':
                 self._handle_auto_fix_fio()
+            elif path == '/api/background-tests':
+                self._handle_background_tests_status()
             elif path.startswith('/api/test/'):
                 test_id = path.split('/')[-1]
                 self._handle_test_status(test_id)
@@ -1816,18 +2071,53 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
     
     def _send_json_response(self, data, status_code=200):
-        """Send JSON response."""
+        """Send JSON response with improved error handling."""
         try:
             self.send_response(status_code)
             self.send_header('Content-Type', 'application/json')
             self._send_cors_headers()
             self.end_headers()
             
-            json_data = json.dumps(data, indent=2)
-            self.wfile.write(json_data.encode('utf-8'))
+            # Ensure data is JSON serializable
+            try:
+                json_data = json.dumps(data, indent=2, default=self._json_serializer)
+                self.wfile.write(json_data.encode('utf-8'))
+            except (TypeError, ValueError) as e:
+                # Fallback for non-serializable data
+                error_response = {
+                    'success': False,
+                    'error': f'JSON serialization error: {str(e)}',
+                    'data_type': str(type(data))
+                }
+                json_data = json.dumps(error_response, indent=2)
+                self.wfile.write(json_data.encode('utf-8'))
+                
         except (BrokenPipeError, ConnectionResetError):
             # Client closed connection early - this is normal, don't log as error
             pass
+        except Exception as e:
+            # Last resort error handling
+            try:
+                error_response = {
+                    'success': False,
+                    'error': f'Response generation failed: {str(e)}'
+                }
+                json_data = json.dumps(error_response)
+                self.wfile.write(json_data.encode('utf-8'))
+            except:
+                # If even this fails, send minimal response
+                self.wfile.write(b'{"success": false, "error": "Critical response error"}')
+    
+    def _json_serializer(self, obj):
+        """Custom JSON serializer for non-standard objects."""
+        if hasattr(obj, 'isoformat'):  # datetime objects
+            return obj.isoformat()
+        elif hasattr(obj, '__dict__'):  # Custom objects
+            return obj.__dict__
+        elif isinstance(obj, bytes):
+            return obj.decode('utf-8', errors='replace')
+        else:
+            return str(obj)
     
     def _send_error(self, status_code, message):
         """Send error response."""
@@ -1897,6 +2187,10 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
         result = self.bridge.auto_fix_fio_shm()
         self._send_json_response(result)
     
+    def _handle_background_tests_status(self):
+        """Handle background tests status request."""
+        result = self.bridge.get_background_tests_status()
+        self._send_json_response(result)
     
     def _handle_start_test(self):
         """Handle test start request."""
@@ -2039,12 +2333,14 @@ def create_request_handler(bridge):
 
 def main():
     """Main server function."""
-    print("� QLab Disk Performance Tester Bridge Server starting...")
+    print("🚀 QLab Disk Performance Tester Bridge Server starting...")
     
-    # Setup logging
+    # Setup logging to stderr only (not stdout) to avoid contaminating JSON responses
+    import sys
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        stream=sys.stderr  # Force logging to stderr, not stdout
     )
     
     logger = logging.getLogger(__name__)

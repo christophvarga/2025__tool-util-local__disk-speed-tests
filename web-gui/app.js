@@ -375,201 +375,23 @@ class DiskBenchApp {
         const progress = testInfo.progress || 0;
         const elapsedTime = testInfo.elapsed_time || 0;
         const remainingTime = testInfo.remaining_time || 0;
-        const liveMetrics = testInfo.live_metrics || {};
-        const qlabAnalysis = testInfo.qlab_analysis || {};
+        const estimatedDuration = testInfo.estimated_duration || 0;
         
-        // Update main progress bar (fix jumping)
+        // Fix duration calculations - ensure we have valid numbers
+        const validElapsed = Math.max(0, elapsedTime);
+        const validRemaining = Math.max(0, remainingTime);
+        const validEstimated = Math.max(0, estimatedDuration);
+        
+        // Update main progress bar with enhanced phase information
         const validProgress = Math.max(0, Math.min(100, progress));
         if (Math.abs(validProgress - (this.lastValidProgress || 0)) > 0.5) {
-            this.updateProgress(validProgress, this.formatProgressMessage(testInfo));
+            // Use the enhanced test phase name from backend
+            const phaseMessage = testInfo.test_phase_name || `Test running... ${validProgress.toFixed(1)}%`;
+            this.updateProgress(validProgress, phaseMessage);
         }
-        
-        // Update enhanced temperature widget with QLab metrics
-        this.updateEnhancedTemperatureWidget(testInfo);
         
         // Update progress details with timing info
-        this.updateProgressTiming(elapsedTime, remainingTime, testInfo.estimated_duration);
-    }
-    
-    formatProgressMessage(testInfo) {
-        /**
-         * Generate informative progress message based on test phase
-         */
-        const progress = testInfo.progress || 0;
-        const qlabAnalysis = testInfo.qlab_analysis || {};
-        
-        if (progress < 5) {
-            return 'Initializing test environment...';
-        } else if (progress < 25) {
-            return 'Warming up disk - measuring baseline performance...';
-        } else if (progress < 75) {
-            const status = qlabAnalysis.status_message || 'Running main test...';
-            return `Main test phase - ${status}`;
-        } else if (progress < 95) {
-            return 'Analyzing performance consistency...';
-        } else if (progress < 100) {
-            return 'Finalizing results...';
-        } else {
-            return 'Test completed successfully!';
-        }
-    }
-    
-    updateEnhancedTemperatureWidget(testInfo) {
-        /**
-         * Update temperature widget with enhanced QLab performance metrics
-         */
-        const widget = document.getElementById('temperatureWidget');
-        if (!widget || widget.classList.contains('hidden')) return;
-        
-        const liveMetrics = testInfo.live_metrics || {};
-        const qlabAnalysis = testInfo.qlab_analysis || {};
-        const elapsedTime = testInfo.elapsed_time || 0;
-        const remainingTime = testInfo.remaining_time || 0;
-        
-        // Create enhanced content if not already exists
-        let enhancedContent = widget.querySelector('.enhanced-metrics');
-        if (!enhancedContent) {
-            enhancedContent = document.createElement('div');
-            enhancedContent.className = 'enhanced-metrics';
-            widget.appendChild(enhancedContent);
-        }
-        
-        // Format timing display
-        const elapsedStr = this.formatDuration(elapsedTime);
-        const remainingStr = this.formatDuration(remainingTime);
-        const totalStr = this.formatDuration((testInfo.estimated_duration || 0));
-        
-        // Create enhanced metrics display
-        enhancedContent.innerHTML = `
-            <div class="metrics-separator"></div>
-            
-            <div class="progress-section">
-                <h4><i class="fas fa-clock"></i> Test Progress</h4>
-                <div class="progress-timing">
-                    <div class="timing-item">
-                        <span class="timing-label">Elapsed:</span>
-                        <span class="timing-value">${elapsedStr}</span>
-                    </div>
-                    <div class="timing-item">
-                        <span class="timing-label">Remaining:</span>
-                        <span class="timing-value">${remainingStr}</span>
-                    </div>
-                    <div class="timing-item">
-                        <span class="timing-label">Total:</span>
-                        <span class="timing-value">${totalStr}</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="metrics-separator"></div>
-            
-            <div class="performance-section">
-                <h4><i class="fas fa-tachometer-alt"></i> Live Performance</h4>
-                <div class="performance-grid">
-                    <div class="perf-metric">
-                        <span class="perf-value">${liveMetrics.throughput_mbps || '--'}</span>
-                        <span class="perf-unit">MB/s</span>
-                        <span class="perf-label">Current</span>
-                    </div>
-                    <div class="perf-metric">
-                        <span class="perf-value">${liveMetrics.min_throughput_mbps || '--'}</span>
-                        <span class="perf-unit">MB/s</span>
-                        <span class="perf-label">Minimum</span>
-                    </div>
-                    <div class="perf-metric">
-                        <span class="perf-value">${liveMetrics.iops || '--'}</span>
-                        <span class="perf-unit">IOPS</span>
-                        <span class="perf-label">Current</span>
-                    </div>
-                    <div class="perf-metric">
-                        <span class="perf-value">${liveMetrics.latency_ms || '--'}</span>
-                        <span class="perf-unit">ms</span>
-                        <span class="perf-label">Latency</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="metrics-separator"></div>
-            
-            <div class="qlab-section">
-                <h4><i class="fas fa-theater-masks"></i> QLab Reliability</h4>
-                <div class="qlab-metrics">
-                    <div class="qlab-status ${this.getQLabStatusClass(qlabAnalysis.status)}">
-                        ${qlabAnalysis.status_message || 'Analyzing...'}
-                    </div>
-                    <div class="reliability-grid">
-                        <div class="reliability-item">
-                            <span class="reliability-label">Stutters:</span>
-                            <span class="reliability-value ${this.getReliabilityClass('stutters', liveMetrics.stutters_detected)}">${liveMetrics.stutters_detected || 0}</span>
-                        </div>
-                        <div class="reliability-item">
-                            <span class="reliability-label">Dropouts:</span>
-                            <span class="reliability-value ${this.getReliabilityClass('dropouts', liveMetrics.dropouts_detected)}">${liveMetrics.dropouts_detected || 0}</span>
-                        </div>
-                        <div class="reliability-item">
-                            <span class="reliability-label">Consistency:</span>
-                            <span class="reliability-value ${this.getReliabilityClass('consistency', qlabAnalysis.consistency_score)}">${qlabAnalysis.consistency_score || '--'}%</span>
-                        </div>
-                        <div class="reliability-item">
-                            <span class="reliability-label">Show Ready:</span>
-                            <span class="reliability-value ${qlabAnalysis.show_ready ? 'good' : 'warning'}">${qlabAnalysis.show_ready ? '✅' : '⚠️'}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    formatDuration(seconds) {
-        /**
-         * Format duration in human-readable format
-         */
-        if (!seconds || seconds < 0) return '--:--';
-        
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = Math.floor(seconds % 60);
-        
-        if (hours > 0) {
-            return `${hours}h ${minutes}m`;
-        } else if (minutes > 0) {
-            return `${minutes}m ${secs}s`;
-        } else {
-            return `${secs}s`;
-        }
-    }
-    
-    getQLabStatusClass(status) {
-        /**
-         * Get CSS class for QLab status
-         */
-        switch (status) {
-            case 'excellent': return 'status-excellent';
-            case 'good': return 'status-good';
-            case 'fair': return 'status-fair';
-            case 'poor': return 'status-poor';
-            default: return 'status-unknown';
-        }
-    }
-    
-    getReliabilityClass(type, value) {
-        /**
-         * Get CSS class for reliability metrics
-         */
-        switch (type) {
-            case 'stutters':
-                if (value === 0) return 'good';
-                if (value <= 2) return 'warning';
-                return 'danger';
-            case 'dropouts':
-                return value === 0 ? 'good' : 'danger';
-            case 'consistency':
-                if (value >= 95) return 'good';
-                if (value >= 85) return 'warning';
-                return 'danger';
-            default:
-                return '';
-        }
+        this.updateProgressTiming(validElapsed, validRemaining, validEstimated);
     }
     
     updateProgressTiming(elapsed, remaining, total) {
@@ -588,6 +410,25 @@ class DiskBenchApp {
                 Progress: ${elapsedStr} / ${totalStr} (${remainingStr} remaining)
             </div>
         `;
+    }
+
+    formatDuration(seconds) {
+        /**
+         * Format duration in human-readable format
+         */
+        if (!seconds || seconds < 0) return '--:--';
+        
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
+        
+        if (hours > 0) {
+            return `${hours}h ${minutes}m`;
+        } else if (minutes > 0) {
+            return `${minutes}m ${secs}s`;
+        } else {
+            return `${secs}s`;
+        }
     }
     
     showResults(results) {
@@ -856,7 +697,7 @@ class DiskBenchApp {
     }
     
     async pollTestCompletion(testId) {
-        const maxAttempts = 120; // 10 minutes max (5 second intervals)
+        const maxAttempts = 720; // 60 minutes max (5 second intervals) - increased for long tests
         let attempts = 0;
         
         while (attempts < maxAttempts) {
@@ -869,9 +710,9 @@ class DiskBenchApp {
                 
                 const testInfo = statusResult.test_info;
                 
-                // Update progress if we have it
+                // Update progress with enhanced live data
                 if (testInfo.progress !== undefined) {
-                    this.updateProgress(testInfo.progress, `Test running... ${testInfo.status}`);
+                    this.updateEnhancedProgress(testInfo);
                 }
                 
                 if (testInfo.status === 'completed') {
@@ -884,8 +725,8 @@ class DiskBenchApp {
                     throw new Error(`Test ${testInfo.status}`);
                 }
                 
-                // Wait before next poll
-                await new Promise(resolve => setTimeout(resolve, 5000));
+                // Wait before next poll - shorter interval for more responsive updates
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 attempts++;
                 
             } catch (error) {
@@ -1585,5 +1426,3 @@ document.addEventListener('DOMContentLoaded', () => {
     // Make app globally available for modal functions
     window.app = app;
 });
-
-

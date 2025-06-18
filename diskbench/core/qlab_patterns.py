@@ -147,28 +147,26 @@ class QLabTestPatterns:
         return config
     
     def _get_quick_max_speed_config(self) -> str:
-        """Get FIO config for 3-minute maximum read speed test - single continuous job."""
+        """Get FIO config for 3-minute maximum read speed test - fixed for macOS compatibility."""
         return """
 [global]
-ioengine=sync
+ioengine=posixaio
 direct=0
-ramp_time=10
 runtime=180
 time_based=1
-group_reporting=1
 thread=1
-disable_lat=1
-disable_clat=1
-disable_slat=1
-unified_rw_reporting=1
+log_avg_msec=1000
+write_bw_log=quick_max_bw
+write_lat_log=quick_max_lat
+write_iops_log=quick_max_iops
 
-[quick_max_read_speed]
+[quick_max_read]
 filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=1M
+size=10G
+bs=4M
 rw=read
-numjobs=4
-iodepth=1
+numjobs=1
+iodepth=64
 """
     
     def _get_prores_422_show_config(self) -> str:

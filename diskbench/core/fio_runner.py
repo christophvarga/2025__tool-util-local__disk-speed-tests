@@ -152,10 +152,6 @@ class FioRunner:
                 start_new_session=True # Start in a new process group
             )
             
-            # Monitor progress if callback provided
-            if progress_callback:
-                self._monitor_progress(self.fio_process, estimated_duration, progress_callback)
-            
             stdout, stderr = self.fio_process.communicate()
             
             if self.fio_process.returncode != 0:
@@ -171,14 +167,55 @@ class FioRunner:
                     'return_code': self.fio_process.returncode
                 }
             
-            # Parse results
+            # Parse results with robust error handling
             if os.path.exists(output_file):
-                with open(output_file, 'r') as f:
-                    fio_results = json.load(f)
-                
-                # Process and enhance results
-                processed_results = self._process_fio_results(fio_results)
-                return processed_results
+                try:
+                    with open(output_file, 'r') as f:
+                        content = f.read()
+                        self.logger.debug(f"Raw FIO output length: {len(content)} chars")
+                        
+                        # Log first few lines for debugging
+                        lines = content.split('\n')[:5]
+                        self.logger.debug(f"First 5 lines: {lines}")
+                        
+                        fio_results = json.loads(content)
+                    
+                    # Process and enhance results
+                    processed_results = self._process_fio_results(fio_results)
+                    return processed_results
+                    
+                except json.JSONDecodeError as e:
+                    self.logger.error(f"JSON parse error at line {e.lineno}, column {e.colno}")
+                    self.logger.error(f"Error message: {e.msg}")
+                    
+                    # Try to clean and retry
+                    try:
+                        cleaned_content = self._clean_json_output(content)
+                        self.logger.info("Attempting to parse cleaned JSON content")
+                        fio_results = json.loads(cleaned_content)
+                        processed_results = self._process_fio_results(fio_results)
+                        return processed_results
+                    except Exception as clean_error:
+                        self.logger.error(f"Cleaned JSON parsing also failed: {clean_error}")
+                        
+                        # Return error with diagnostic info
+                        return {
+                            'error': f'JSON parsing failed: {e.msg}',
+                            'json_error_line': e.lineno,
+                            'json_error_column': e.colno,
+                            'fio_stdout': stdout,
+                            'fio_stderr': stderr,
+                            'raw_output_preview': content[:1000] if content else 'No content'
+                        }
+                        
+                except Exception as e:
+                    error_msg = f"Error reading FIO output file: {e}"
+                    self.logger.error(error_msg)
+                    return {
+                        'error': error_msg,
+                        'fio_stdout': stdout,
+                        'fio_stderr': stderr
+                    }
             else:
                 error_msg = "FIO output file not found"
                 self.logger.error(error_msg)
@@ -229,38 +266,6 @@ class FioRunner:
         self.logger.info("No FIO process to stop.")
         return False
 
-    def _monitor_progress(self, process, estimated_duration: int, progress_callback):
-        """Monitor FIO progress and call callback."""
-        try:
-            import time
-            start_time = time.time()
-            
-            while process.poll() is None:
-                elapsed = time.time() - start_time
-                
-                # Calculate progress based on actual estimated duration
-                if estimated_duration > 0:
-                    progress = min((elapsed / estimated_duration) * 100, 99) # Cap at 99% until complete
-                else:
-                    progress = 0 # Cannot estimate progress without duration
-                
-                progress_callback({
-                    'progress': progress,
-                    'elapsed_time': elapsed,
-                    'status': 'running'
-                })
-                
-                time.sleep(1)
-            
-            # Final progress update (ensure 100% on completion)
-            progress_callback({
-                'progress': 100,
-                'elapsed_time': time.time() - start_time,
-                'status': 'completed'
-            })
-            
-        except Exception as e:
-            self.logger.warning(f"Progress monitoring failed: {e}")
     
     def _process_fio_results(self, fio_results: Dict[str, Any]) -> Dict[str, Any]:
         """Process raw FIO results into structured format."""
@@ -362,3 +367,48 @@ class FioRunner:
             summary['avg_write_latency'] = sum(write_latencies) / len(write_latencies) / 1000000  # Convert to ms
         
         return summary
+    
+    def _clean_json_output(self, content: str) -> str:
+        """Clean FIO JSON output of common contamination issues."""
+        try:
+            lines = content.split('\n')
+            json_lines = []
+            in_json = False
+            brace_count = 0
+            
+            for line in lines:
+                stripped = line.strip()
+                
+                # Skip empty lines and obvious non-JSON content
+                if not stripped:
+                    continue
+                    
+                # Skip FIO status/error messages that might contaminate JSON
+                if any(skip_pattern in stripped.lower() for skip_pattern in [
+                    'fio-', 'starting', 'jobs:', 'run status', 'error:', 'warning:'
+                ]):
+                    continue
+                
+                # Start collecting when we see opening brace
+                if stripped.startswith('{') and not in_json:
+                    in_json = True
+                    brace_count = 0
+                
+                if in_json:
+                    json_lines.append(line)
+                    
+                    # Count braces to detect end of JSON
+                    brace_count += stripped.count('{') - stripped.count('}')
+                    
+                    # Stop when we've closed all braces
+                    if brace_count == 0 and stripped.endswith('}'):
+                        break
+            
+            cleaned_content = '\n'.join(json_lines)
+            self.logger.debug(f"Cleaned JSON content length: {len(cleaned_content)} chars")
+            
+            return cleaned_content
+            
+        except Exception as e:
+            self.logger.error(f"Error cleaning JSON output: {e}")
+            return content  # Return original if cleaning fails

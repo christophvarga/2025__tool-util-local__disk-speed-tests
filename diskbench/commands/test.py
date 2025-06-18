@@ -67,6 +67,10 @@ class TestCommand:
             self.logger.info(f"Running {test_mode} test on {disk_path}")
             self.logger.info(f"Test directory: {test_directory}")
             
+            # Print test directory for bridge server to capture
+            if show_progress:
+                print(f"TEST_DIR:{test_directory}")
+            
             # Progress callback
             progress_callback = None
             if show_progress:

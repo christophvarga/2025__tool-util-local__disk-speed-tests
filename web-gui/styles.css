@@ -1638,3 +1638,235 @@ h2 {
         color: #34d399;
     }
 }
+
+/* Live Metrics Container for Enhanced Progress Display */
+.live-metrics-container {
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-top: 15px;
+    border: 1px solid #e9ecef;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+}
+
+.metrics-section {
+    padding: 15px 20px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.metrics-section:last-child {
+    border-bottom: none;
+}
+
+.metrics-section h4 {
+    margin: 0 0 12px 0;
+    color: #495057;
+    font-size: 0.95rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.timing-section {
+    background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+}
+
+.performance-section {
+    background: linear-gradient(135deg, #e8f5e8 0%, #f1f8e9 100%);
+}
+
+.phase-section {
+    background: linear-gradient(135deg, #fff3e0 0%, #fce4ec 100%);
+}
+
+.timing-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.timing-item {
+    background: rgba(255, 255, 255, 0.8);
+    padding: 8px 12px;
+    border-radius: 6px;
+    text-align: center;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+
+.timing-label {
+    display: block;
+    font-size: 0.7rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.timing-value {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #495057;
+}
+
+.performance-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.perf-metric {
+    background: rgba(255, 255, 255, 0.8);
+    padding: 10px 8px;
+    border-radius: 6px;
+    text-align: center;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+
+.perf-value {
+    display: block;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #28a745;
+    margin-bottom: 2px;
+}
+
+.perf-unit {
+    display: block;
+    font-size: 0.65rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.perf-label {
+    display: block;
+    font-size: 0.7rem;
+    color: #495057;
+    font-weight: 500;
+}
+
+.phase-info {
+    background: rgba(255, 255, 255, 0.8);
+    padding: 12px 15px;
+    border-radius: 6px;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+
+.phase-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 6px;
+    line-height: 1.3;
+}
+
+.phase-details {
+    font-size: 0.75rem;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+/* Responsive Design for Live Metrics */
+@media (max-width: 768px) {
+    .timing-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .performance-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+    }
+    
+    .metrics-section {
+        padding: 12px 15px;
+    }
+    
+    .perf-metric {
+        padding: 8px 6px;
+    }
+    
+    .perf-value {
+        font-size: 0.9rem;
+    }
+    
+    .phase-info {
+        padding: 10px 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .performance-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .timing-item,
+    .perf-metric {
+        padding: 6px 8px;
+    }
+    
+    .timing-value,
+    .perf-value {
+        font-size: 0.85rem;
+    }
+}
+
+/* Dark Mode Support for Enhanced Live Metrics */
+@media (prefers-color-scheme: dark) {
+    .live-metrics-container {
+        background: #374151;
+        border-color: #4b5563;
+    }
+    
+    .metrics-section {
+        border-color: #4b5563;
+    }
+    
+    .timing-section {
+        background: linear-gradient(135deg, #1e3a8a 0%, #7c3aed 100%);
+    }
+    
+    .performance-section {
+        background: linear-gradient(135deg, #065f46 0%, #166534 100%);
+    }
+    
+    .phase-section {
+        background: linear-gradient(135deg, #92400e 0%, #be185d 100%);
+    }
+    
+    .timing-item,
+    .perf-metric,
+    .phase-info {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+    
+    .timing-label,
+    .perf-unit,
+    .phase-details {
+        color: #d1d5db;
+    }
+    
+    .timing-value,
+    .perf-label,
+    .phase-name {
+        color: #f3f4f6;
+    }
+    
+    .perf-value {
+        color: #34d399;
+    }
+    
+    .metrics-section h4 {
+        color: #f3f4f6;
+    }
+}
