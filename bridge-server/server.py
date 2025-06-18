@@ -15,6 +15,7 @@ import sys
 import threading
 import time
 import fcntl
+import signal
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
@@ -472,7 +473,8 @@ class DiskBenchBridge:
                 'success': True,
                 'test_id': test_id,
                 'status': 'started',
-                'diskbench_test_type': diskbench_test_type
+                'diskbench_test_type': diskbench_test_type,
+                'estimated_duration': estimated_duration
             }
             
         except Exception as e:
@@ -565,30 +567,27 @@ class DiskBenchBridge:
             if test_id in self.running_processes:
                 process = self.running_processes[test_id]
                 
-                self.logger.info(f"Stopping test {test_id} (PID: {process.pid})")
+                self.logger.info(f"Stopping test {test_id} (PID: {process.pid}, PGID: {os.getpgid(process.pid)})")
                 
                 try:
-                    # First try graceful termination
-                    process.terminate()
-                    
-                    # Wait up to 5 seconds for graceful shutdown
-                    try:
-                        process.wait(timeout=5)
-                        self.logger.info(f"Test {test_id} terminated gracefully")
-                        process_killed = True
-                    except subprocess.TimeoutExpired:
-                        # Force kill if graceful termination didn't work
-                        self.logger.warning(f"Force killing test {test_id}")
-                        process.kill()
-                        process.wait()
-                        self.logger.info(f"Test {test_id} force killed")
-                        process_killed = True
-                    
-                    # Clean up process tracking
-                    del self.running_processes[test_id]
-                    
+                    # Kill the entire process group to ensure fio is terminated
+                    os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                    time.sleep(2) # Give it time to die
+                    # Check if it's still alive
+                    os.killpg(os.getpgid(process.pid), 0)
+                    # If it is, kill it with fire
+                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                    self.logger.info(f"Force-killed process group for test {test_id}")
+                    process_killed = True
+                except (ProcessLookupError, OSError):
+                    # Process group is already gone
+                    self.logger.info(f"Process group for test {test_id} terminated gracefully.")
+                    process_killed = True
                 except Exception as e:
-                    self.logger.error(f"Error stopping tracked process for test {test_id}: {e}")
+                    self.logger.error(f"Error stopping process group for test {test_id}: {e}")
+
+                # Clean up process tracking
+                del self.running_processes[test_id]
             
             # Always run FIO cleanup to catch any orphaned processes
             self.logger.info(f"Running FIO cleanup for test {test_id}...")
@@ -808,7 +807,17 @@ class DiskBenchBridge:
             self.running_tests[test_id]['end_time'] = datetime.now().isoformat()
             self.logger.info(f"Test {test_id} thread completed")
     
-    
+    def get_current_test(self):
+        """Get the currently running or disconnected test, if any."""
+        for test_id, test_info in self.running_tests.items():
+            if test_info.get('status') in ['running', 'disconnected']:
+                return {
+                    'success': True,
+                    'test_running': True,
+                    'test_info': self.get_test_status(test_id).get('test_info')
+                }
+        return {'success': True, 'test_running': False}
+
     def get_test_status(self, test_id):
         """Get enhanced status of a running test with QLab metrics."""
         if test_id not in self.running_tests:
@@ -2021,6 +2030,8 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
                 self._handle_auto_fix_fio()
             elif path == '/api/background-tests':
                 self._handle_background_tests_status()
+            elif path == '/api/test/current':
+                self._handle_current_test()
             elif path.startswith('/api/test/'):
                 test_id = path.split('/')[-1]
                 self._handle_test_status(test_id)
@@ -2210,6 +2221,11 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
     def _handle_test_status(self, test_id):
         """Handle test status request."""
         result = self.bridge.get_test_status(test_id)
+        self._send_json_response(result)
+
+    def _handle_current_test(self):
+        """Handle request for the current running test."""
+        result = self.bridge.get_current_test()
         self._send_json_response(result)
     
     def _handle_stop_test(self, test_id):

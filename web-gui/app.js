@@ -13,6 +13,7 @@ class DiskBenchApp {
         this.isTestRunning = false;
         this.testResults = null;
         this.currentTestId = null; // Added to track the running test ID
+        this.currentTestDuration = 0; // To store the duration of the current test
         
         // Setup wizard state
         this.currentTab = 'testing';
@@ -32,6 +33,7 @@ class DiskBenchApp {
         this.setupEventListeners();
         this.checkSystemStatus();
         this.loadAvailableDisks();
+        this.checkForActiveTest();
         this.updateUI();
     }
     
@@ -239,6 +241,7 @@ class DiskBenchApp {
         
         this.isTestRunning = true;
         this.testResults = null;
+        this.currentTestDuration = 0; // Reset duration at the start of a new test
         
         // Show progress section
         document.getElementById('progressSection').classList.remove('hidden');
@@ -375,7 +378,11 @@ class DiskBenchApp {
         const progress = testInfo.progress || 0;
         const elapsedTime = testInfo.elapsed_time || 0;
         const remainingTime = testInfo.remaining_time || 0;
-        const estimatedDuration = testInfo.estimated_duration || 0;
+        const estimatedDuration = testInfo.estimated_duration || this.currentTestDuration;
+        
+        if (testInfo.estimated_duration) {
+            this.currentTestDuration = testInfo.estimated_duration;
+        }
         
         // Fix duration calculations - ensure we have valid numbers
         const validElapsed = Math.max(0, elapsedTime);
@@ -680,9 +687,15 @@ class DiskBenchApp {
             if (!startResult.success) {
                 throw new Error(startResult.error || 'Failed to start test');
             }
+
+            const testId = startResult.test_id;
+            this.currentTestId = testId; // Store for stopping
             
-                const testId = startResult.test_id;
-                this.currentTestId = testId; // Store for stopping
+            // Set the duration immediately from the start response
+            if (startResult.estimated_duration) {
+                this.currentTestDuration = startResult.estimated_duration;
+                this.updateProgressTiming(0, startResult.estimated_duration, startResult.estimated_duration);
+            }
             
             // Poll for test completion
             const testResult = await this.pollTestCompletion(testId);
@@ -696,6 +709,35 @@ class DiskBenchApp {
         }
     }
     
+    async checkForActiveTest() {
+        try {
+            const result = await this.callBridgeAPI('/api/test/current');
+            if (result.success && result.test_running) {
+                const testInfo = result.test_info;
+                console.log('Found active test on load:', testInfo);
+
+                this.isTestRunning = true;
+                this.currentTestId = testInfo.test_id;
+                this.selectedTestType = testInfo.diskbench_test_type;
+                // We might not have the full disk info, but the device path is enough to proceed
+                this.selectedDisk = { device: testInfo.params.disk_path }; 
+
+                // Update UI to reflect the running test
+                document.getElementById('progressSection').classList.remove('hidden');
+                document.getElementById('resultsSection').classList.add('hidden');
+                document.getElementById('startTest').classList.add('hidden');
+                document.getElementById('stopTest').classList.remove('hidden');
+                document.getElementById('stopAllTests').classList.remove('hidden');
+                this.updateUI();
+
+                // Start polling
+                this.pollTestCompletion(this.currentTestId);
+            }
+        } catch (error) {
+            console.error('Error checking for active test:', error);
+        }
+    }
+
     async pollTestCompletion(testId) {
         const maxAttempts = 720; // 60 minutes max (5 second intervals) - increased for long tests
         let attempts = 0;
