@@ -18,27 +18,27 @@ class QLabTestPatterns:
         """Initialize realistic QLab test patterns."""
         return {
             'quick_max_speed': {
-                'name': 'Quick Max Speed Test',
-                'description': 'Maximum read speed test in 3 minutes (continuous single job)',
+                'name': 'Test 1: Quick Max Read Test',
+                'description': 'Maximum sequential read performance - 3 minutes',
                 'duration': 180,  # 3 minutes
                 'fio_template': self._get_quick_max_speed_config()
             },
             'qlab_prores_422_show': {
-                'name': 'QLab ProRes 422 Show Pattern',
-                'description': 'Realistic show pattern: 1x4K + 3xHD ProRes 422 with crossfades',
-                'duration': 9900,  # 2.75 hours = 9900 seconds
+                'name': 'Test 2: ProRes 422 Production Test',
+                'description': 'Scenario: 1x 4K ProRes 422 + 3x HD ProRes 422 @ 50fps - 2.5 hours',
+                'duration': 9000,  # 2.5 hours = 9000 seconds
                 'fio_template': self._get_prores_422_show_config()
             },
             'qlab_prores_hq_show': {
-                'name': 'QLab ProRes HQ Show Pattern',
-                'description': 'Realistic show pattern: 1x4K + 3xHD ProRes HQ with crossfades',
-                'duration': 9900,  # 2.75 hours = 9900 seconds
+                'name': 'Test 3: ProRes HQ Production Test',
+                'description': 'Scenario: 1x 4K ProRes HQ + 3x HD ProRes HQ @ 50fps - 2.5 hours',
+                'duration': 9000,  # 2.5 hours = 9000 seconds
                 'fio_template': self._get_prores_hq_show_config()
             },
             'max_sustained': {
-                'name': 'Maximum Sustained Performance',
-                'description': 'Continuous maximum load for 1.5 hours (thermal testing)',
-                'duration': 5400,  # 1.5 hours = 5400 seconds
+                'name': 'Test 4: Max Sustained Read',
+                'description': 'Find reliable minimum speed under maximum stress - 1 hour',
+                'duration': 3600,  # 1 hour = 3600 seconds
                 'fio_template': self._get_max_sustained_config()
             }
         }
@@ -170,35 +170,7 @@ iodepth=64
 """
     
     def _get_prores_422_show_config(self) -> str:
-        """Get FIO config for realistic ProRes 422 show pattern - 2.75 hours with 3 phases, macOS sync engine."""
-        return """
-[global]
-ioengine=sync
-direct=0
-time_based=1
-group_reporting=1
-thread=1
-disable_lat=1
-disable_clat=1
-disable_slat=1
-unified_rw_reporting=1
-
-# Complete 2.75h Show Simulation (9900 seconds total)
-[qlab_prores_422_show_complete]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=1M
-rw=randrw
-rwmixread=95
-numjobs=1
-iodepth=1
-runtime=9900
-ramp_time=60
-rate=600M
-"""
-    
-    def _get_prores_hq_show_config(self) -> str:
-        """Get FIO config for realistic ProRes HQ show pattern - 2.75 hours with 3 phases."""
+        """Get FIO config for realistic ProRes 422 show pattern - 2.5 hours with 3 phases."""
         return """
 [global]
 ioengine=posixaio
@@ -209,128 +181,229 @@ thread=1
 norandommap=1
 randrepeat=0
 log_avg_msec=1000
-write_bw_log=show_hq_bw
-write_lat_log=show_hq_lat
+write_bw_log=p422_show_bw
+write_lat_log=p422_show_lat
 lat_percentiles=1
 
-# Phase 1: Show Preparation (30 min = 1800s)
-# Medien-Preload, Soundcheck-Level - HQ requires more bandwidth
-[show_prep_hq]
+# Phase 1: ProRes 422 Warmup + Asset Cache (30 min = 1800s)
+[p422_warmup]
 filename=${TEST_FILE}
 size=${TEST_SIZE}
-bs=2M
-rw=read
-numjobs=3
-iodepth=24
-runtime=1800
-ramp_time=30
-rate=800M
-
-# Phase 2: Normal Show Load (90 min = 5400s)  
-# 1x 4K 50p + 3x HD 50p ProRes HQ with crossfades every 3min
-[normal_show_hq]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=2M
+bs=1M,64K,4K
 rw=randrw
-rwmixread=98
-numjobs=6
-iodepth=32
-runtime=5400
-rate=1400M
-rate_process=poisson
-thinktime=180000000
-startdelay=1800
-
-# Random access for masks and graphics (parallel to show) - HQ needs more
-[graphics_access_hq]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=128k
-rw=randread
-numjobs=3
-iodepth=12
-runtime=5400
-rate=100M
-startdelay=1800
-
-# Phase 3: Show Finale (30 min = 1800s)
-# Intensive crossfades, maximum load - HQ peak performance
-[show_finale_hq]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=4M
-rw=read
-numjobs=12
-iodepth=48
+rwmixread=93
+numjobs=4
 runtime=1800
-rate=2800M
+rate=400M,50M
+iodepth=24
+ramp_time=30
+
+# Phase 2: ProRes 422 Show + Continuous Asset Access (90 min = 5400s)
+[p422_show_with_assets]
+filename=${TEST_FILE}
+size=${TEST_SIZE}
+bs=1M,256K,16K
+rw=randrw
+rwmixread=96
+numjobs=6
+runtime=5400
+rate=700M,100M
 rate_process=poisson
+iodepth=32
+thinktime=12000000
+thinktime_spin=3000000
+startdelay=1800
+
+# Phase 3: ProRes 422 Peak + Heavy Asset Load (30 min = 1800s)
+[p422_peak_assets]
+filename=${TEST_FILE}
+size=${TEST_SIZE}
+bs=2M,128K,8K
+rw=randrw
+rwmixread=94
+numjobs=8
+runtime=1800
+rate=2000M,200M
+rate_process=poisson
+iodepth=48
 startdelay=7200
+
+# Cue Response Time Test (5 min = 300s)
+[cue_response]
+filename=${TEST_FILE}
+size=${TEST_SIZE}
+bs=4K,64K,1M
+rw=randread
+numjobs=12
+runtime=300
+iodepth=1
+startdelay=9000
 """
     
-    def _get_max_sustained_config(self) -> str:
-        """Get FIO config for 1.5-hour maximum sustained performance test (thermal testing)."""
+    def _get_prores_hq_show_config(self) -> str:
+        """Get FIO config for realistic ProRes HQ show pattern - 2.5 hours with 3 phases."""
         return """
 [global]
 ioengine=posixaio
 direct=0
-ramp_time=60
+time_based=1
+group_reporting=0
+thread=1
+norandommap=1
+randrepeat=0
+log_avg_msec=1000
+write_bw_log=hq_show_bw
+write_lat_log=hq_show_lat
+lat_percentiles=1
+
+# Phase 1: ProRes HQ Warmup & Asset Loading (30 min = 1800s)
+[hq_warmup]
+filename=${TEST_FILE}
+size=${TEST_SIZE}
+bs=1M,256K
+rw=randrw
+rwmixread=95
+numjobs=3
+runtime=1800
+rate=600M
+iodepth=16
+ramp_time=30
+
+# Phase 2: ProRes HQ Normal Show Operations (90 min = 5400s)
+[hq_normal_show]
+filename=${TEST_FILE}
+size=${TEST_SIZE}
+bs=2M,512K
+rw=randrw
+rwmixread=97
+numjobs=6
 runtime=5400
+rate=1400M
+rate_process=poisson
+iodepth=32
+thinktime=8000000
+thinktime_spin=2000000
+startdelay=1800
+
+# Phase 3: ProRes HQ Peak Performance & Multiple Crossfades (30 min = 1800s)
+[hq_peak_crossfades]
+filename=${TEST_FILE}
+size=${TEST_SIZE}
+bs=4M
+rw=read
+numjobs=10
+runtime=1800
+rate=4000M
+rate_process=poisson
+iodepth=64
+startdelay=7200
+"""
+    
+    def _get_max_sustained_config(self) -> str:
+        """Get FIO config for 1-hour maximum sustained performance test (thermal testing)."""
+        return """
+[global]
+ioengine=posixaio
+direct=0
 time_based=1
 group_reporting=0
 thread=1
 log_avg_msec=1000
-write_bw_log=max_sustained_bw
-write_lat_log=max_sustained_lat
+write_bw_log=sustained_bw
+write_lat_log=sustained_lat
 lat_percentiles=1
 
-# Continuous maximum sequential read load
-[max_sustained_seq_read]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=4M
-rw=read
-numjobs=6
-iodepth=64
+# Graduated load tests to find performance ceiling
+# Test rates: 500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000, 3500, 4000, 4500, 5000, 6000 MB/s
+# Each rate tested for 4 minutes (240s) for reliable measurement
 
-# Continuous maximum sequential write load
-[max_sustained_seq_write]
+[sustained_500M]
 filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=4M
-rw=write
-numjobs=3
-iodepth=32
-
-# Continuous maximum random read load
-[max_sustained_rand_read]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=4k
-rw=randread
-numjobs=12
-iodepth=128
-
-# Mixed workload for thermal stress
-[max_sustained_mixed]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=1M
-rw=randrw
-rwmixread=75
-numjobs=8
-iodepth=64
-
-# Burst pattern to stress thermal limits
-[thermal_stress_burst]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
+size=50G
 bs=8M
 rw=read
 numjobs=4
-iodepth=32
-thinktime=30000000
+runtime=240
+rate=500M
+iodepth=64
+
+[sustained_750M]
+filename=${TEST_FILE}
+size=50G
+bs=8M
+rw=read
+numjobs=4
+runtime=240
+rate=750M
+iodepth=64
+startdelay=240
+
+[sustained_1000M]
+filename=${TEST_FILE}
+size=50G
+bs=8M
+rw=read
+numjobs=4
+runtime=240
+rate=1000M
+iodepth=64
+startdelay=480
+
+[sustained_1250M]
+filename=${TEST_FILE}
+size=50G
+bs=8M
+rw=read
+numjobs=4
+runtime=240
+rate=1250M
+iodepth=64
+startdelay=720
+
+[sustained_1500M]
+filename=${TEST_FILE}
+size=50G
+bs=8M
+rw=read
+numjobs=4
+runtime=240
+rate=1500M
+iodepth=64
+startdelay=960
+
+[sustained_1750M]
+filename=${TEST_FILE}
+size=50G
+bs=8M
+rw=read
+numjobs=4
+runtime=240
+rate=1750M
+iodepth=64
+startdelay=1200
+
+[sustained_2000M]
+filename=${TEST_FILE}
+size=50G
+bs=8M
+rw=read
+numjobs=4
+runtime=240
+rate=2000M
+iodepth=64
+startdelay=1440
+
+# Final validation at reliable speed (15 minutes)
+[final_validation]
+filename=${TEST_FILE}
+size=50G
+bs=8M
+rw=read
+numjobs=4
+runtime=900
+rate=1500M
+iodepth=64
+startdelay=1680
 """
     
     def _analyze_quick_max_speed(self, summary: Dict[str, Any]) -> Dict[str, Any]:

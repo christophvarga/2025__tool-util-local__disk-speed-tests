@@ -1,0 +1,2 @@
+# No external dependencies required - uses Python standard library only
+# Compatible with fresh macOS installs without pip/homebrew

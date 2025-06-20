@@ -442,13 +442,23 @@ class DiskBenchApp {
         document.getElementById('resultsSection').classList.remove('hidden');
         document.getElementById('exportResults').classList.remove('hidden');
         
-        // Render QLab analysis
-        this.renderQLabAnalysis(results.qlab_analysis || results.analysis);
+        // Determine which analyzer to use based on test type
+        const testType = this.selectedTestType;
         
-        // Render detailed metrics
-        this.renderDetailedMetrics(results.fio_results);
+        if (testType === 'quick_max_speed') {
+            this.renderTest1Analysis(results);
+        } else if (testType === 'qlab_prores_422_show') {
+            this.renderTest2Analysis(results);
+        } else if (testType === 'qlab_prores_hq_show') {
+            this.renderTest3Analysis(results);
+        } else if (testType === 'max_sustained') {
+            this.renderTest4Analysis(results);
+        } else {
+            // Fallback to generic analysis
+            this.renderGenericAnalysis(results);
+        }
         
-        // Render implementation details
+        // Always render implementation details
         this.renderImplementationDetails(results);
     }
     
@@ -611,6 +621,753 @@ class DiskBenchApp {
         } else {
             return num.toFixed(1);
         }
+    }
+    
+    // ===== TEST-SPECIFIC ANALYZERS =====
+    
+    renderTest1Analysis(results) {
+        /**
+         * Test 1: Quick Max Read Test (3 minutes)
+         * Focus: Maximum sequential read performance for basic QLab capability
+         */
+        const container = document.getElementById('qlabAnalysis');
+        const analysis = results.qlab_analysis || results.analysis || {};
+        const summary = results.fio_results?.summary || {};
+        
+        // Extract key metrics
+        const readBW = (summary.total_read_bw || 0) / 1024; // Convert to MB/s
+        const readIOPS = summary.total_read_iops || 0;
+        const avgLatency = summary.avg_read_latency || 0;
+        const minLatency = summary.min_read_latency || avgLatency;
+        
+        // QLab tier assessment
+        let tier, tierClass, capabilities;
+        if (readBW > 3000) {
+            tier = 'FLAGSHIP';
+            tierClass = 'excellent';
+            capabilities = 'Multiple 4K ProRes HQ streams + complex shows';
+        } else if (readBW > 1500) {
+            tier = 'PROFESSIONAL';
+            tierClass = 'good';
+            capabilities = 'ProRes 422 4K + multiple HD streams';
+        } else if (readBW > 800) {
+            tier = 'STANDARD';
+            tierClass = 'warning';
+            capabilities = 'HD production + basic 4K workflows';
+        } else if (readBW > 300) {
+            tier = 'BASIC';
+            tierClass = 'warning';
+            capabilities = 'HD playback only';
+        } else {
+            tier = 'INSUFFICIENT';
+            tierClass = 'danger';
+            capabilities = 'Not suitable for professional video';
+        }
+        
+        container.innerHTML = `
+            <div class="test-analysis-header">
+                <h3>📊 Test 1: Quick Max Read Analysis</h3>
+                <div class="test-load-info">
+                    <strong>Test Load:</strong> Maximum sequential read performance<br>
+                    <strong>QLab Relevance:</strong> Basic capability for video playback
+                </div>
+                <div class="tier-badge ${tierClass}">🏆 ${tier} TIER</div>
+            </div>
+            
+            <div class="critical-metrics">
+                <h4>🎯 Critical QLab Metrics</h4>
+                <div class="metrics-grid">
+                    <div class="metric-item ${readBW > 1000 ? 'good' : readBW > 500 ? 'warning' : 'danger'}">
+                        <div class="metric-label">Maximum Read Speed</div>
+                        <div class="metric-value">${readBW.toFixed(0)} MB/s</div>
+                        <div class="metric-status">${readBW > 1000 ? '✅ Excellent' : readBW > 500 ? '⚠️ Adequate' : '❌ Limited'}</div>
+                    </div>
+                    <div class="metric-item ${avgLatency < 5 ? 'good' : avgLatency < 10 ? 'warning' : 'danger'}">
+                        <div class="metric-label">Cue Response Latency</div>
+                        <div class="metric-value">${avgLatency.toFixed(1)} ms</div>
+                        <div class="metric-status">${avgLatency < 5 ? '✅ Instant' : avgLatency < 10 ? '⚠️ Good' : '❌ Slow'}</div>
+                    </div>
+                    <div class="metric-item ${readIOPS > 10000 ? 'good' : readIOPS > 5000 ? 'warning' : 'danger'}">
+                        <div class="metric-label">Random Access (IOPS)</div>
+                        <div class="metric-value">${this.formatNumber(readIOPS)}</div>
+                        <div class="metric-status">${readIOPS > 10000 ? '✅ Excellent' : readIOPS > 5000 ? '⚠️ Good' : '❌ Limited'}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="qlab-suitability">
+                <h4>🎬 QLab Show Suitability</h4>
+                <div class="suitability-assessment ${tierClass}">
+                    <div class="suitability-tier">${tier} Performance Level</div>
+                    <div class="suitability-capabilities">${capabilities}</div>
+                </div>
+                
+                <div class="capability-checklist">
+                    <div class="capability-item ${readBW > 100 ? 'supported' : 'not-supported'}">
+                        <span class="capability-icon">${readBW > 100 ? '✅' : '❌'}</span>
+                        Basic Video Playback (>100 MB/s)
+                    </div>
+                    <div class="capability-item ${readBW > 300 ? 'supported' : 'not-supported'}">
+                        <span class="capability-icon">${readBW > 300 ? '✅' : '❌'}</span>
+                        HD Production (>300 MB/s)
+                    </div>
+                    <div class="capability-item ${readBW > 800 ? 'supported' : 'not-supported'}">
+                        <span class="capability-icon">${readBW > 800 ? '✅' : '❌'}</span>
+                        4K ProRes 422 (>800 MB/s)
+                    </div>
+                    <div class="capability-item ${readBW > 1500 ? 'supported' : 'not-supported'}">
+                        <span class="capability-icon">${readBW > 1500 ? '✅' : '❌'}</span>
+                        4K ProRes HQ (>1500 MB/s)
+                    </div>
+                </div>
+            </div>
+            
+            <div class="recommendations">
+                <h4>💡 Recommendations</h4>
+                <div class="recommendation-list">
+                    ${this.generateTest1Recommendations(readBW, avgLatency, tier)}
+                </div>
+            </div>
+        `;
+    }
+    
+    generateTest1Recommendations(readBW, latency, tier) {
+        const recommendations = [];
+        
+        if (tier === 'FLAGSHIP') {
+            recommendations.push('🏆 Excellent for any QLab production including complex ProRes HQ workflows');
+            recommendations.push('🎯 Run Test 2 & 3 to confirm sustained performance for long shows');
+        } else if (tier === 'PROFESSIONAL') {
+            recommendations.push('🥇 Great for ProRes 422 production workflows');
+            recommendations.push('🎯 Test ProRes HQ scenarios with Test 3 before critical shows');
+        } else if (tier === 'STANDARD') {
+            recommendations.push('🥈 Suitable for HD and conservative 4K workflows');
+            recommendations.push('⚠️ Avoid complex crossfades and multiple simultaneous streams');
+        } else if (tier === 'BASIC') {
+            recommendations.push('🥉 Limited to HD production only');
+            recommendations.push('💡 Consider SSD upgrade for 4K workflows');
+        } else {
+            recommendations.push('❌ Not suitable for professional QLab production');
+            recommendations.push('🔧 Storage upgrade required');
+        }
+        
+        if (latency > 10) {
+            recommendations.push('⚠️ High latency detected - may affect cue triggering responsiveness');
+        }
+        
+        recommendations.push('📈 Next: Run Test 2 (ProRes 422 Show) for realistic show simulation');
+        
+        return recommendations.map(rec => `<div class="recommendation-item">${rec}</div>`).join('');
+    }
+    
+    renderTest2Analysis(results) {
+        /**
+         * Test 2: ProRes 422 Production Test (2.5 hours, multi-phase)
+         * Focus: Realistic show simulation with thermal stability assessment
+         */
+        const container = document.getElementById('qlabAnalysis');
+        const analysis = results.qlab_analysis || results.analysis || {};
+        const summary = results.fio_results?.summary || {};
+        
+        // Extract key metrics from multi-phase test
+        const readBW = (summary.total_read_bw || 0) / 1024;
+        const minBW = (summary.min_read_bw || readBW) / 1024;
+        const maxBW = (summary.max_read_bw || readBW) / 1024;
+        const avgLatency = summary.avg_read_latency || 0;
+        const stability = minBW > 0 ? (minBW / readBW) * 100 : 0;
+        
+        // ProRes 422 requirements
+        const requirements = {
+            normal: 656,    // 1x4K + 3xHD ProRes 422
+            peak: 1968      // 3x everything for crossfades
+        };
+        
+        // Tier assessment for ProRes 422
+        let tier, tierClass, showSuitability;
+        if (minBW > requirements.peak * 1.2) {
+            tier = 'PROFESSIONAL+';
+            tierClass = 'excellent';
+            showSuitability = 'Complex shows with headroom';
+        } else if (minBW > requirements.peak) {
+            tier = 'PROFESSIONAL';
+            tierClass = 'good';
+            showSuitability = 'All ProRes 422 shows supported';
+        } else if (minBW > requirements.normal * 1.2) {
+            tier = 'STANDARD+';
+            tierClass = 'warning';
+            showSuitability = 'Normal shows with limited crossfades';
+        } else if (minBW > requirements.normal) {
+            tier = 'STANDARD';
+            tierClass = 'warning';
+            showSuitability = 'Basic ProRes 422 shows only';
+        } else {
+            tier = 'INSUFFICIENT';
+            tierClass = 'danger';
+            showSuitability = 'Not suitable for ProRes 422';
+        }
+        
+        // Thermal stability assessment
+        const thermalStable = stability > 85;
+        const performanceDrop = ((readBW - minBW) / readBW) * 100;
+        
+        container.innerHTML = `
+            <div class="test-analysis-header">
+                <h3>📊 Test 2: ProRes 422 Production Analysis</h3>
+                <div class="test-load-info">
+                    <strong>Test Load:</strong> 1x 4K ProRes 422 + 3x HD ProRes 422 @ 50fps<br>
+                    <strong>Data Rates:</strong> Normal ${requirements.normal}MB/s → Peak ${requirements.peak}MB/s<br>
+                    <strong>Duration:</strong> 2.5 hours with thermal monitoring
+                </div>
+                <div class="tier-badge ${tierClass}">🎬 ${tier}</div>
+            </div>
+            
+            <div class="phase-breakdown">
+                <h4>📈 Multi-Phase Performance</h4>
+                <div class="phase-grid">
+                    <div class="phase-item">
+                        <div class="phase-title">Phase 1: Warmup (30min)</div>
+                        <div class="phase-description">Asset loading + cache building</div>
+                        <div class="phase-status">✅ Completed</div>
+                    </div>
+                    <div class="phase-item">
+                        <div class="phase-title">Phase 2: Normal Show (90min)</div>
+                        <div class="phase-description">Continuous ${requirements.normal}MB/s with crossfades</div>
+                        <div class="phase-status">${minBW > requirements.normal ? '✅ Stable' : '⚠️ Degraded'}</div>
+                    </div>
+                    <div class="phase-item">
+                        <div class="phase-title">Phase 3: Peak Load (30min)</div>
+                        <div class="phase-description">Heavy crossfades up to ${requirements.peak}MB/s</div>
+                        <div class="phase-status">${minBW > requirements.peak ? '✅ Handled' : '❌ Struggled'}</div>
+                    </div>
+                    <div class="phase-item">
+                        <div class="phase-title">Cue Response (5min)</div>
+                        <div class="phase-description">Random access latency test</div>
+                        <div class="phase-status">${avgLatency < 10 ? '✅ Responsive' : '⚠️ Slow'}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="critical-metrics">
+                <h4>🎯 Critical Show Metrics</h4>
+                <div class="metrics-grid">
+                    <div class="metric-item ${minBW > requirements.normal ? 'good' : 'danger'}">
+                        <div class="metric-label">Minimum Sustained</div>
+                        <div class="metric-value">${minBW.toFixed(0)} MB/s</div>
+                        <div class="metric-status">${minBW > requirements.normal ? '✅ Show Ready' : '❌ Insufficient'}</div>
+                    </div>
+                    <div class="metric-item ${thermalStable ? 'good' : 'warning'}">
+                        <div class="metric-label">Thermal Stability</div>
+                        <div class="metric-value">${stability.toFixed(1)}%</div>
+                        <div class="metric-status">${thermalStable ? '✅ Stable' : '⚠️ Throttling'}</div>
+                    </div>
+                    <div class="metric-item ${performanceDrop < 15 ? 'good' : 'warning'}">
+                        <div class="metric-label">Performance Drop</div>
+                        <div class="metric-value">${performanceDrop.toFixed(1)}%</div>
+                        <div class="metric-status">${performanceDrop < 15 ? '✅ Minimal' : '⚠️ Significant'}</div>
+                    </div>
+                    <div class="metric-item ${avgLatency < 10 ? 'good' : 'warning'}">
+                        <div class="metric-label">Cue Latency</div>
+                        <div class="metric-value">${avgLatency.toFixed(1)} ms</div>
+                        <div class="metric-status">${avgLatency < 10 ? '✅ Instant' : '⚠️ Noticeable'}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="show-suitability">
+                <h4>🎭 Show Production Assessment</h4>
+                <div class="suitability-assessment ${tierClass}">
+                    <div class="suitability-tier">${tier} Grade</div>
+                    <div class="suitability-capabilities">${showSuitability}</div>
+                </div>
+                
+                <div class="capability-checklist">
+                    <div class="capability-item ${minBW > requirements.normal ? 'supported' : 'not-supported'}">
+                        <span class="capability-icon">${minBW > requirements.normal ? '✅' : '❌'}</span>
+                        ProRes 422 Normal Shows (${requirements.normal} MB/s)
+                    </div>
+                    <div class="capability-item ${minBW > requirements.normal * 1.5 ? 'supported' : 'not-supported'}">
+                        <span class="capability-icon">${minBW > requirements.normal * 1.5 ? '✅' : '❌'}</span>
+                        Multiple Concurrent Streams
+                    </div>
+                    <div class="capability-item ${minBW > requirements.peak ? 'supported' : 'not-supported'}">
+                        <span class="capability-icon">${minBW > requirements.peak ? '✅' : '❌'}</span>
+                        Complex Crossfades (${requirements.peak} MB/s)
+                    </div>
+                    <div class="capability-item ${thermalStable ? 'supported' : 'not-supported'}">
+                        <span class="capability-icon">${thermalStable ? '✅' : '❌'}</span>
+                        Long Show Stability (2.5h+)
+                    </div>
+                </div>
+            </div>
+            
+            <div class="recommendations">
+                <h4>💡 Production Recommendations</h4>
+                <div class="recommendation-list">
+                    ${this.generateTest2Recommendations(minBW, thermalStable, performanceDrop, tier)}
+                </div>
+            </div>
+        `;
+    }
+    
+    generateTest2Recommendations(minBW, thermalStable, performanceDrop, tier) {
+        const recommendations = [];
+        
+        if (tier === 'PROFESSIONAL+' || tier === 'PROFESSIONAL') {
+            recommendations.push('🎬 Excellent for ProRes 422 production at all complexity levels');
+            recommendations.push('✅ Approved for professional shows with complex crossfades');
+        } else if (tier === 'STANDARD+') {
+            recommendations.push('🎭 Good for standard ProRes 422 shows');
+            recommendations.push('⚠️ Limit complex crossfade sequences during peak moments');
+        } else if (tier === 'STANDARD') {
+            recommendations.push('📹 Basic ProRes 422 capability confirmed');
+            recommendations.push('⚠️ Avoid multiple simultaneous crossfades');
+        } else {
+            recommendations.push('❌ ProRes 422 not recommended for this storage');
+            recommendations.push('💡 Consider storage upgrade or use HD workflows');
+        }
+        
+        if (!thermalStable) {
+            recommendations.push('🌡️ Thermal throttling detected - improve cooling or reduce sustained load');
+        }
+        
+        if (performanceDrop > 20) {
+            recommendations.push('📉 Significant performance degradation over time - monitor during long shows');
+        }
+        
+        recommendations.push('📈 Next: Run Test 3 (ProRes HQ) to test highest quality workflows');
+        
+        return recommendations.map(rec => `<div class="recommendation-item">${rec}</div>`).join('');
+    }
+    
+    renderTest3Analysis(results) {
+        /**
+         * Test 3: ProRes HQ Production Test (2.5 hours, multi-phase)
+         * Focus: High-end show simulation with maximum quality requirements
+         */
+        const container = document.getElementById('qlabAnalysis');
+        const analysis = results.qlab_analysis || results.analysis || {};
+        const summary = results.fio_results?.summary || {};
+        
+        // Extract key metrics from multi-phase test
+        const readBW = (summary.total_read_bw || 0) / 1024;
+        const minBW = (summary.min_read_bw || readBW) / 1024;
+        const maxBW = (summary.max_read_bw || readBW) / 1024;
+        const avgLatency = summary.avg_read_latency || 0;
+        const stability = minBW > 0 ? (minBW / readBW) * 100 : 0;
+        
+        // ProRes HQ requirements
+        const requirements = {
+            normal: 1315,   // 1x4K + 3xHD ProRes HQ
+            peak: 3945      // 3x everything for crossfades
+        };
+        
+        // Tier assessment for ProRes HQ
+        let tier, tierClass, showSuitability;
+        if (minBW > requirements.peak * 1.1) {
+            tier = 'FLAGSHIP';
+            tierClass = 'excellent';
+            showSuitability = 'Premium shows with full headroom';
+        } else if (minBW > requirements.peak) {
+            tier = 'PROFESSIONAL';
+            tierClass = 'good';
+            showSuitability = 'All ProRes HQ shows supported';
+        } else if (minBW > requirements.normal * 1.3) {
+            tier = 'STANDARD+';
+            tierClass = 'warning';
+            showSuitability = 'Normal HQ shows with limited peaks';
+        } else if (minBW > requirements.normal) {
+            tier = 'STANDARD';
+            tierClass = 'warning';
+            showSuitability = 'Basic ProRes HQ shows only';
+        } else {
+            tier = 'INSUFFICIENT';
+            tierClass = 'danger';
+            showSuitability = 'Not suitable for ProRes HQ';
+        }
+        
+        // Thermal stability assessment
+        const thermalStable = stability > 80; // Stricter for HQ
+        const performanceDrop = ((readBW - minBW) / readBW) * 100;
+        
+        container.innerHTML = `
+            <div class="test-analysis-header">
+                <h3>📊 Test 3: ProRes HQ Production Analysis</h3>
+                <div class="test-load-info">
+                    <strong>Test Load:</strong> 1x 4K ProRes HQ + 3x HD ProRes HQ @ 50fps<br>
+                    <strong>Data Rates:</strong> Normal ${requirements.normal}MB/s → Peak ${requirements.peak}MB/s<br>
+                    <strong>Duration:</strong> 2.5 hours with intensive thermal stress
+                </div>
+                <div class="tier-badge ${tierClass}">🎬 ${tier}</div>
+            </div>
+            
+            <div class="phase-breakdown">
+                <h4>📈 High-Quality Multi-Phase Performance</h4>
+                <div class="phase-grid">
+                    <div class="phase-item">
+                        <div class="phase-title">Phase 1: HQ Warmup (30min)</div>
+                        <div class="phase-description">Asset loading + HQ cache building</div>
+                        <div class="phase-status">✅ Completed</div>
+                    </div>
+                    <div class="phase-item">
+                        <div class="phase-title">Phase 2: Normal HQ Show (90min)</div>
+                        <div class="phase-description">Continuous ${requirements.normal}MB/s HQ streams</div>
+                        <div class="phase-status">${minBW > requirements.normal ? '✅ Stable' : '⚠️ Degraded'}</div>
+                    </div>
+                    <div class="phase-item">
+                        <div class="phase-title">Phase 3: Peak HQ Load (30min)</div>
+                        <div class="phase-description">Maximum crossfades up to ${requirements.peak}MB/s</div>
+                        <div class="phase-status">${minBW > requirements.peak ? '✅ Handled' : '❌ Struggled'}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="critical-metrics">
+                <h4>🎯 Critical HQ Show Metrics</h4>
+                <div class="metrics-grid">
+                    <div class="metric-item ${minBW > requirements.normal ? 'good' : 'danger'}">
+                        <div class="metric-label">Minimum HQ Sustained</div>
+                        <div class="metric-value">${minBW.toFixed(0)} MB/s</div>
+                        <div class="metric-status">${minBW > requirements.normal ? '✅ HQ Ready' : '❌ Insufficient'}</div>
+                    </div>
+                    <div class="metric-item ${thermalStable ? 'good' : 'warning'}">
+                        <div class="metric-label">HQ Thermal Stability</div>
+                        <div class="metric-value">${stability.toFixed(1)}%</div>
+                        <div class="metric-status">${thermalStable ? '✅ Stable' : '⚠️ Throttling'}</div>
+                    </div>
+                    <div class="metric-item ${performanceDrop < 20 ? 'good' : 'warning'}">
+                        <div class="metric-label">HQ Performance Drop</div>
+                        <div class="metric-value">${performanceDrop.toFixed(1)}%</div>
+                        <div class="metric-status">${performanceDrop < 20 ? '✅ Minimal' : '⚠️ Significant'}</div>
+                    </div>
+                    <div class="metric-item ${avgLatency < 8 ? 'good' : 'warning'}">
+                        <div class="metric-label">HQ Cue Latency</div>
+                        <div class="metric-value">${avgLatency.toFixed(1)} ms</div>
+                        <div class="metric-status">${avgLatency < 8 ? '✅ Instant' : '⚠️ Noticeable'}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="show-suitability">
+                <h4>🎭 Premium Show Production Assessment</h4>
+                <div class="suitability-assessment ${tierClass}">
+                    <div class="suitability-tier">${tier} Grade</div>
+                    <div class="suitability-capabilities">${showSuitability}</div>
+                </div>
+                
+                <div class="capability-checklist">
+                    <div class="capability-item ${minBW > requirements.normal ? 'supported' : 'not-supported'}">
+                        <span class="capability-icon">${minBW > requirements.normal ? '✅' : '❌'}</span>
+                        ProRes HQ Normal Shows (${requirements.normal} MB/s)
+                    </div>
+                    <div class="capability-item ${minBW > requirements.normal * 1.5 ? 'supported' : 'not-supported'}">
+                        <span class="capability-icon">${minBW > requirements.normal * 1.5 ? '✅' : '❌'}</span>
+                        Multiple HQ Concurrent Streams
+                    </div>
+                    <div class="capability-item ${minBW > requirements.peak ? 'supported' : 'not-supported'}">
+                        <span class="capability-icon">${minBW > requirements.peak ? '✅' : '❌'}</span>
+                        Complex HQ Crossfades (${requirements.peak} MB/s)
+                    </div>
+                    <div class="capability-item ${thermalStable && performanceDrop < 15 ? 'supported' : 'not-supported'}">
+                        <span class="capability-icon">${thermalStable && performanceDrop < 15 ? '✅' : '❌'}</span>
+                        Long Premium Show Stability (2.5h+)
+                    </div>
+                </div>
+            </div>
+            
+            <div class="recommendations">
+                <h4>💡 Premium Production Recommendations</h4>
+                <div class="recommendation-list">
+                    ${this.generateTest3Recommendations(minBW, thermalStable, performanceDrop, tier)}
+                </div>
+            </div>
+        `;
+    }
+    
+    generateTest3Recommendations(minBW, thermalStable, performanceDrop, tier) {
+        const recommendations = [];
+        
+        if (tier === 'FLAGSHIP') {
+            recommendations.push('🏆 Flagship performance - approved for any ProRes HQ production');
+            recommendations.push('✅ Excellent for premium shows with complex effects and crossfades');
+        } else if (tier === 'PROFESSIONAL') {
+            recommendations.push('🥇 Professional grade ProRes HQ capability confirmed');
+            recommendations.push('✅ Suitable for high-end productions and demanding workflows');
+        } else if (tier === 'STANDARD+') {
+            recommendations.push('🥈 Good ProRes HQ performance for standard shows');
+            recommendations.push('⚠️ Monitor performance during complex crossfade sequences');
+        } else if (tier === 'STANDARD') {
+            recommendations.push('📹 Basic ProRes HQ capability - use with caution');
+            recommendations.push('⚠️ Avoid complex shows and multiple simultaneous HQ streams');
+        } else {
+            recommendations.push('❌ ProRes HQ not recommended for this storage');
+            recommendations.push('💡 Use ProRes 422 workflows or upgrade storage');
+        }
+        
+        if (!thermalStable) {
+            recommendations.push('🌡️ Thermal throttling detected under HQ load - improve cooling');
+        }
+        
+        if (performanceDrop > 25) {
+            recommendations.push('📉 Significant HQ performance degradation - not suitable for long shows');
+        }
+        
+        recommendations.push('📈 Next: Run Test 4 (Max Sustained) to determine reliable minimum speed');
+        
+        return recommendations.map(rec => `<div class="recommendation-item">${rec}</div>`).join('');
+    }
+    
+    renderTest4Analysis(results) {
+        /**
+         * Test 4: Max Sustained Read (1 hour, graduated load)
+         * Focus: Find reliable minimum speed under maximum stress
+         */
+        const container = document.getElementById('qlabAnalysis');
+        const analysis = results.qlab_analysis || results.analysis || {};
+        const summary = results.fio_results?.summary || {};
+        
+        // Extract key metrics
+        const readBW = (summary.total_read_bw || 0) / 1024;
+        const minBW = (summary.min_read_bw || readBW) / 1024;
+        const maxBW = (summary.max_read_bw || readBW) / 1024;
+        const avgLatency = summary.avg_read_latency || 0;
+        const reliableSpeed = minBW; // Minimum sustained is the reliable speed
+        
+        // Tier assessment based on reliable sustained speed
+        let tier, tierClass, planningGuidance;
+        if (reliableSpeed > 4000) {
+            tier = 'FLAGSHIP';
+            tierClass = 'excellent';
+            planningGuidance = 'Any professional QLab production';
+        } else if (reliableSpeed > 2000) {
+            tier = 'PROFESSIONAL';
+            tierClass = 'good';
+            planningGuidance = 'ProRes 422 production + selective HQ';
+        } else if (reliableSpeed > 1000) {
+            tier = 'STANDARD';
+            tierClass = 'warning';
+            planningGuidance = 'HD + conservative 4K workflows';
+        } else if (reliableSpeed > 500) {
+            tier = 'BASIC';
+            tierClass = 'warning';
+            planningGuidance = 'HD production only';
+        } else {
+            tier = 'INSUFFICIENT';
+            tierClass = 'danger';
+            planningGuidance = 'Storage upgrade required';
+        }
+        
+        // Calculate safe operating margins
+        const safeProRes422 = Math.floor(reliableSpeed / 656); // Number of ProRes 422 streams
+        const safeProResHQ = Math.floor(reliableSpeed / 1315); // Number of ProRes HQ streams
+        const safetyMargin = ((reliableSpeed - 656) / 656) * 100;
+        
+        container.innerHTML = `
+            <div class="test-analysis-header">
+                <h3>📊 Test 4: Max Sustained Performance Analysis</h3>
+                <div class="test-load-info">
+                    <strong>Test Load:</strong> Graduated load tests to find performance ceiling<br>
+                    <strong>Method:</strong> Continuous maximum stress over 1 hour<br>
+                    <strong>Purpose:</strong> Determine reliable minimum speed for production planning
+                </div>
+                <div class="tier-badge ${tierClass}">⚡ ${tier} TIER</div>
+            </div>
+            
+            <div class="sustained-performance">
+                <h4>🎯 Sustained Performance Results</h4>
+                <div class="performance-summary">
+                    <div class="performance-main">
+                        <div class="performance-value">${reliableSpeed.toFixed(0)} MB/s</div>
+                        <div class="performance-label">Reliable Sustained Speed</div>
+                        <div class="performance-note">Guaranteed minimum under maximum stress</div>
+                    </div>
+                    <div class="performance-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Peak Performance:</span>
+                            <span class="detail-value">${maxBW.toFixed(0)} MB/s</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Performance Ceiling:</span>
+                            <span class="detail-value">${readBW > maxBW ? readBW.toFixed(0) : maxBW.toFixed(0)} MB/s</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Thermal Stability:</span>
+                            <span class="detail-value">${reliableSpeed > readBW * 0.8 ? 'Stable' : 'Throttling'}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="planning-metrics">
+                <h4>📋 Production Planning Metrics</h4>
+                <div class="metrics-grid">
+                    <div class="metric-item ${safeProRes422 > 0 ? 'good' : 'danger'}">
+                        <div class="metric-label">ProRes 422 Streams</div>
+                        <div class="metric-value">${safeProRes422}</div>
+                        <div class="metric-status">Concurrent streams supported</div>
+                    </div>
+                    <div class="metric-item ${safeProResHQ > 0 ? 'good' : 'warning'}">
+                        <div class="metric-label">ProRes HQ Streams</div>
+                        <div class="metric-value">${safeProResHQ}</div>
+                        <div class="metric-status">Concurrent HQ streams supported</div>
+                    </div>
+                    <div class="metric-item ${safetyMargin > 100 ? 'good' : safetyMargin > 0 ? 'warning' : 'danger'}">
+                        <div class="metric-label">Safety Margin</div>
+                        <div class="metric-value">${safetyMargin.toFixed(0)}%</div>
+                        <div class="metric-status">${safetyMargin > 100 ? 'Excellent' : safetyMargin > 0 ? 'Adequate' : 'Insufficient'}</div>
+                    </div>
+                    <div class="metric-item ${avgLatency < 10 ? 'good' : 'warning'}">
+                        <div class="metric-label">Sustained Latency</div>
+                        <div class="metric-value">${avgLatency.toFixed(1)} ms</div>
+                        <div class="metric-status">${avgLatency < 10 ? 'Responsive' : 'Elevated'}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="production-capabilities">
+                <h4>🎬 Production Capability Matrix</h4>
+                <div class="capability-matrix">
+                    <div class="capability-row">
+                        <div class="capability-type">Basic Video Playback</div>
+                        <div class="capability-requirement">100 MB/s</div>
+                        <div class="capability-status ${reliableSpeed > 100 ? 'supported' : 'not-supported'}">
+                            ${reliableSpeed > 100 ? '✅ Supported' : '❌ Not Supported'}
+                        </div>
+                    </div>
+                    <div class="capability-row">
+                        <div class="capability-type">HD Production</div>
+                        <div class="capability-requirement">300 MB/s</div>
+                        <div class="capability-status ${reliableSpeed > 300 ? 'supported' : 'not-supported'}">
+                            ${reliableSpeed > 300 ? '✅ Supported' : '❌ Not Supported'}
+                        </div>
+                    </div>
+                    <div class="capability-row">
+                        <div class="capability-type">ProRes 422 Normal</div>
+                        <div class="capability-requirement">656 MB/s</div>
+                        <div class="capability-status ${reliableSpeed > 656 ? 'supported' : 'not-supported'}">
+                            ${reliableSpeed > 656 ? '✅ Supported' : '❌ Not Supported'}
+                        </div>
+                    </div>
+                    <div class="capability-row">
+                        <div class="capability-type">ProRes HQ Normal</div>
+                        <div class="capability-requirement">1315 MB/s</div>
+                        <div class="capability-status ${reliableSpeed > 1315 ? 'supported' : 'not-supported'}">
+                            ${reliableSpeed > 1315 ? '✅ Supported' : '❌ Not Supported'}
+                        </div>
+                    </div>
+                    <div class="capability-row">
+                        <div class="capability-type">ProRes 422 Peak</div>
+                        <div class="capability-requirement">1968 MB/s</div>
+                        <div class="capability-status ${reliableSpeed > 1968 ? 'supported' : 'not-supported'}">
+                            ${reliableSpeed > 1968 ? '✅ Supported' : '❌ Not Supported'}
+                        </div>
+                    </div>
+                    <div class="capability-row">
+                        <div class="capability-type">ProRes HQ Peak</div>
+                        <div class="capability-requirement">3945 MB/s</div>
+                        <div class="capability-status ${reliableSpeed > 3945 ? 'supported' : 'not-supported'}">
+                            ${reliableSpeed > 3945 ? '✅ Supported' : '❌ Not Supported'}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="recommendations">
+                <h4>💡 Production Planning Recommendations</h4>
+                <div class="recommendation-list">
+                    ${this.generateTest4Recommendations(reliableSpeed, safetyMargin, tier)}
+                </div>
+            </div>
+        `;
+    }
+    
+    generateTest4Recommendations(reliableSpeed, safetyMargin, tier) {
+        const recommendations = [];
+        
+        // Primary tier recommendation
+        if (tier === 'FLAGSHIP') {
+            recommendations.push('🏆 Flagship sustained performance - approved for any professional QLab production');
+            recommendations.push('✅ Reliable for the most demanding shows including ProRes HQ workflows');
+        } else if (tier === 'PROFESSIONAL') {
+            recommendations.push('🥇 Professional sustained performance - excellent for ProRes 422 production');
+            recommendations.push('🎯 Test ProRes HQ scenarios individually for complex shows');
+        } else if (tier === 'STANDARD') {
+            recommendations.push('🥈 Standard sustained performance - good for HD and conservative 4K');
+            recommendations.push('⚠️ Monitor performance closely during demanding sequences');
+        } else if (tier === 'BASIC') {
+            recommendations.push('🥉 Basic sustained capability - HD production only');
+            recommendations.push('💡 Consider storage upgrade for 4K workflows');
+        } else {
+            recommendations.push('❌ Insufficient sustained performance - storage upgrade required');
+            recommendations.push('🔧 Current storage not suitable for professional video production');
+        }
+        
+        // Safety margin recommendations
+        if (safetyMargin > 200) {
+            recommendations.push('🛡️ Excellent safety margin - reliable for demanding productions');
+        } else if (safetyMargin > 50) {
+            recommendations.push('⚖️ Good safety margin - suitable for most productions');
+        } else if (safetyMargin > 0) {
+            recommendations.push('⚠️ Limited safety margin - monitor performance closely during shows');
+        } else {
+            recommendations.push('❌ No safety margin - performance at the limit');
+        }
+        
+        // Operating guidelines
+        const maxRecommended = Math.floor(reliableSpeed * 0.8);
+        recommendations.push(`📊 Recommended maximum operating load: ${maxRecommended} MB/s (80% of sustained)`);
+        recommendations.push('🎭 Always test with actual content before critical shows');
+        
+        return recommendations.map(rec => `<div class="recommendation-item">${rec}</div>`).join('');
+    }
+    
+    renderGenericAnalysis(results) {
+        /**
+         * Fallback generic analysis for unknown test types
+         */
+        const container = document.getElementById('qlabAnalysis');
+        const analysis = results.qlab_analysis || results.analysis || {};
+        const summary = results.fio_results?.summary || {};
+        
+        container.innerHTML = `
+            <div class="test-analysis-header">
+                <h3>📊 Generic Performance Analysis</h3>
+                <div class="test-load-info">
+                    <strong>Test Type:</strong> ${this.selectedTestType}<br>
+                    <strong>Status:</strong> Analysis not available for this test type
+                </div>
+            </div>
+            
+            <div class="generic-metrics">
+                <h4>📈 Basic Performance Metrics</h4>
+                <div class="metrics-grid">
+                    <div class="metric-item">
+                        <div class="metric-label">Read Bandwidth</div>
+                        <div class="metric-value">${((summary.total_read_bw || 0) / 1024).toFixed(0)} MB/s</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">Write Bandwidth</div>
+                        <div class="metric-value">${((summary.total_write_bw || 0) / 1024).toFixed(0)} MB/s</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">Read IOPS</div>
+                        <div class="metric-value">${this.formatNumber(summary.total_read_iops || 0)}</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">Average Latency</div>
+                        <div class="metric-value">${(summary.avg_read_latency || 0).toFixed(1)} ms</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="recommendations">
+                <h4>💡 General Recommendations</h4>
+                <div class="recommendation-list">
+                    <div class="recommendation-item">📊 Use specific test analyzers for detailed QLab assessment</div>
+                    <div class="recommendation-item">🎯 Run Test 1 (Quick Max Speed) for basic capability check</div>
+                    <div class="recommendation-item">🎬 Run Test 2 or 3 for realistic show simulation</div>
+                </div>
+            </div>
+        `;
     }
     
     async executeDiskBenchCommand(args) {

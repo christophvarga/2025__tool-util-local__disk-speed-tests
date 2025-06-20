@@ -1870,3 +1870,558 @@ h2 {
         color: #f3f4f6;
     }
 }
+
+/* ===== TEST-SPECIFIC ANALYZER STYLES ===== */
+
+/* Test Analysis Header */
+.test-analysis-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 8px 8px 0 0;
+    margin: -25px -25px 20px -25px;
+}
+
+.test-analysis-header h3 {
+    margin: 0 0 10px 0;
+    font-size: 1.4rem;
+    font-weight: 700;
+}
+
+.test-load-info {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    opacity: 0.9;
+    margin-bottom: 15px;
+}
+
+.tier-badge {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.tier-badge.excellent {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+}
+
+.tier-badge.good {
+    background: linear-gradient(135deg, #007bff 0%, #6610f2 100%);
+    color: white;
+}
+
+.tier-badge.warning {
+    background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+    color: #212529;
+}
+
+.tier-badge.danger {
+    background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%);
+    color: white;
+}
+
+/* Critical Metrics Section */
+.critical-metrics {
+    margin-bottom: 25px;
+}
+
+.critical-metrics h4 {
+    color: #495057;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.metric-item {
+    background: white;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 15px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.metric-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.metric-item.good {
+    border-color: #28a745;
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+}
+
+.metric-item.warning {
+    border-color: #ffc107;
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+}
+
+.metric-item.danger {
+    border-color: #dc3545;
+    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+}
+
+.metric-label {
+    font-size: 0.8rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+}
+
+.metric-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #495057;
+    margin-bottom: 5px;
+}
+
+.metric-status {
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.8);
+}
+
+/* QLab Suitability Section */
+.qlab-suitability, .show-suitability {
+    margin-bottom: 25px;
+}
+
+.qlab-suitability h4, .show-suitability h4 {
+    color: #495057;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.suitability-assessment {
+    background: white;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.suitability-assessment.excellent {
+    border-color: #28a745;
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+}
+
+.suitability-assessment.good {
+    border-color: #007bff;
+    background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+}
+
+.suitability-assessment.warning {
+    border-color: #ffc107;
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+}
+
+.suitability-assessment.danger {
+    border-color: #dc3545;
+    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+}
+
+.suitability-tier {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #495057;
+    margin-bottom: 8px;
+}
+
+.suitability-capabilities {
+    font-size: 0.9rem;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+/* Capability Checklist */
+.capability-checklist {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 10px;
+}
+
+.capability-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.capability-item.supported {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border-color: #28a745;
+    color: #155724;
+}
+
+.capability-item.not-supported {
+    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+    border-color: #dc3545;
+    color: #721c24;
+}
+
+.capability-icon {
+    margin-right: 10px;
+    font-size: 1.1rem;
+}
+
+/* Phase Breakdown Section */
+.phase-breakdown {
+    margin-bottom: 25px;
+}
+
+.phase-breakdown h4 {
+    color: #495057;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.phase-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.phase-item {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 15px;
+    border-left: 4px solid #007bff;
+}
+
+.phase-title {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 5px;
+}
+
+.phase-description {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+.phase-status {
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 12px;
+    background: #f8f9fa;
+    display: inline-block;
+}
+
+/* Sustained Performance Section */
+.sustained-performance {
+    margin-bottom: 25px;
+}
+
+.sustained-performance h4 {
+    color: #495057;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.performance-summary {
+    background: white;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: center;
+}
+
+.performance-main {
+    text-align: center;
+}
+
+.performance-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #28a745;
+    margin-bottom: 5px;
+}
+
+.performance-label {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 5px;
+}
+
+.performance-note {
+    font-size: 0.8rem;
+    color: #6c757d;
+    font-style: italic;
+}
+
+.performance-details {
+    display: grid;
+    gap: 8px;
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.detail-item:last-child {
+    border-bottom: none;
+}
+
+.detail-label {
+    font-size: 0.9rem;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.detail-value {
+    font-size: 0.9rem;
+    color: #495057;
+    font-weight: 600;
+}
+
+/* Planning Metrics Section */
+.planning-metrics {
+    margin-bottom: 25px;
+}
+
+.planning-metrics h4 {
+    color: #495057;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+/* Production Capabilities Matrix */
+.production-capabilities {
+    margin-bottom: 25px;
+}
+
+.production-capabilities h4 {
+    color: #495057;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.capability-matrix {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.capability-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    align-items: center;
+    padding: 12px 15px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.capability-row:last-child {
+    border-bottom: none;
+}
+
+.capability-row:nth-child(even) {
+    background: #f8f9fa;
+}
+
+.capability-type {
+    font-weight: 500;
+    color: #495057;
+}
+
+.capability-requirement {
+    font-size: 0.9rem;
+    color: #6c757d;
+    text-align: center;
+}
+
+.capability-status {
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.capability-status.supported {
+    color: #28a745;
+}
+
+.capability-status.not-supported {
+    color: #dc3545;
+}
+
+/* Recommendations Section */
+.recommendations {
+    margin-bottom: 25px;
+}
+
+.recommendations h4 {
+    color: #495057;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.recommendation-list {
+    display: grid;
+    gap: 10px;
+}
+
+.recommendation-item {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 12px 15px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    border-left: 4px solid #007bff;
+}
+
+/* Generic Analysis Section */
+.generic-metrics {
+    margin-bottom: 25px;
+}
+
+.generic-metrics h4 {
+    color: #495057;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+/* Responsive Design for Test Analyzers */
+@media (max-width: 768px) {
+    .test-analysis-header {
+        margin: -20px -20px 15px -20px;
+        padding: 15px;
+    }
+    
+    .test-analysis-header h3 {
+        font-size: 1.2rem;
+    }
+    
+    .metrics-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .capability-checklist {
+        grid-template-columns: 1fr;
+    }
+    
+    .phase-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .performance-summary {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .performance-value {
+        font-size: 2rem;
+    }
+    
+    .capability-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        text-align: center;
+    }
+    
+    .capability-requirement,
+    .capability-status {
+        text-align: center;
+    }
+}
+
+/* Dark Mode Support for Test Analyzers */
+@media (prefers-color-scheme: dark) {
+    .test-analysis-header {
+        background: linear-gradient(135deg, #4c51bf 0%, #553c9a 100%);
+    }
+    
+    .metric-item,
+    .suitability-assessment,
+    .capability-item,
+    .phase-item,
+    .performance-summary,
+    .capability-matrix,
+    .recommendation-item {
+        background: #374151;
+        border-color: #4b5563;
+        color: #e5e7eb;
+    }
+    
+    .metric-item.good,
+    .suitability-assessment.excellent,
+    .capability-item.supported {
+        background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+        border-color: #10b981;
+    }
+    
+    .metric-item.warning,
+    .suitability-assessment.warning {
+        background: linear-gradient(135deg, #92400e 0%, #b45309 100%);
+        border-color: #f59e0b;
+    }
+    
+    .metric-item.danger,
+    .suitability-assessment.danger,
+    .capability-item.not-supported {
+        background: linear-gradient(135deg, #991b1b 0%, #b91c1c 100%);
+        border-color: #ef4444;
+    }
+    
+    .metric-label,
+    .detail-label,
+    .capability-requirement {
+        color: #9ca3af;
+    }
+    
+    .metric-value,
+    .performance-value,
+    .suitability-tier,
+    .capability-type,
+    .detail-value {
+        color: #f3f4f6;
+    }
+    
+    .performance-value {
+        color: #34d399;
+    }
+    
+    .capability-row:nth-child(even) {
+        background: #4b5563;
+    }
+}
