@@ -32,7 +32,7 @@ class DiskBenchBridge:
         self.running_tests = {}
         self.running_processes = {}  # Track actual subprocess objects
         self.logger = logging.getLogger(__name__)
-        self.state_file = '/tmp/diskbench_bridge_state.json'
+        self.state_file = 'memory-bank/diskbench_bridge_state.json'
         
         # Load persistent state on startup
         self._load_persistent_state()
@@ -440,15 +440,15 @@ class DiskBenchBridge:
             # Determine estimated duration based on test type
             estimated_duration = 0
             if diskbench_test_type == 'quick_max_speed':
-                estimated_duration = 180  # 3 minutes
+                estimated_duration = 60   # 1 minute
             elif diskbench_test_type == 'qlab_prores_422_show':
-                estimated_duration = 9900  # 2.75 hours
+                estimated_duration = 9300  # 2.5 hours
             elif diskbench_test_type == 'qlab_prores_hq_show':
-                estimated_duration = 9900  # 2.75 hours
+                estimated_duration = 9300  # 2.5 hours
             elif diskbench_test_type == 'max_sustained':
                 estimated_duration = 5400  # 1.5 hours
             else:
-                estimated_duration = 180  # Default to 3 minutes for unknown tests
+                estimated_duration = 60   # Default to 1 minute for unknown tests
 
             # Store test info
             self.running_tests[test_id] = {
@@ -837,15 +837,15 @@ class DiskBenchBridge:
             
             # Calculate accurate progress and remaining time
             if test_type == 'qlab_prores_422_show':
-                estimated_duration = 9900  # 2.75 hours for ProRes 422 show tests
+                estimated_duration = 9300  # 2.5 hours for ProRes 422 show tests
             elif test_type == 'qlab_prores_hq_show':
-                estimated_duration = 9900  # 2.75 hours for ProRes HQ show tests
+                estimated_duration = 9300  # 2.5 hours for ProRes HQ show tests
             elif test_type == 'max_sustained':
                 estimated_duration = 5400  # 1.5 hours for sustained tests
             elif test_type == 'quick_max_speed':
-                estimated_duration = 180   # 3 minutes for quick tests
+                estimated_duration = 60    # 1 minute for quick tests
             else:
-                estimated_duration = 180   # Default to 3 minutes for unknown tests
+                estimated_duration = 60    # Default to 1 minute for unknown tests
             
             progress = min(95, (elapsed / estimated_duration) * 100)
             remaining_time = max(0, estimated_duration - elapsed)

@@ -63,12 +63,30 @@ def get_system_info() -> Dict[str, Any]:
     
     return info
 
-def get_disk_info() -> Dict[str, Any]:
+def _parse_size_fallback(size_str: str) -> int:
     """
-    Get disk information using system_profiler.
-    
-    Returns:
-        Dict containing disk information
+    Parse size string from df -h to bytes.
+    Handles G, T, M suffixes.
+    """
+    try:
+        size_str = size_str.strip().upper()
+        if size_str.endswith('T'):
+            return int(float(size_str[:-1]) * (1024**4))
+        elif size_str.endswith('G'):
+            return int(float(size_str[:-1]) * (1024**3))
+        elif size_str.endswith('M'):
+            return int(float(size_str[:-1]) * (1024**2))
+        elif size_str.endswith('K'):
+            return int(float(size_str[:-1]) * 1024)
+        else:
+            # Assume bytes if no suffix, or if it's a number
+            return int(size_str)
+    except ValueError:
+        return 0 # Return 0 if parsing fails
+
+def _get_disk_info_fallback() -> Dict[str, Any]:
+    """
+    Get disk information using df and diskutil as a fallback.
     """
     disk_info = {
         'disks': [],
@@ -76,9 +94,72 @@ def get_disk_info() -> Dict[str, Any]:
     }
     
     try:
-        # Get storage information
+        # Use df -h to get mounted volumes
+        result_df = subprocess.run(['df', '-h'], capture_output=True, text=True, timeout=5)
+        if result_df.returncode != 0:
+            raise RuntimeError("df command failed")
+        
+        lines_df = result_df.stdout.strip().split('\n')
+        
+        # Parse df output (skip header)
+        for line in lines_df[1:]:
+            parts = line.split()
+            if len(parts) >= 6:
+                device = parts[0]
+                size_str = parts[1]
+                free_space_str = parts[3]
+                mount_point = parts[5]
+                # file_system is not reliably available from df -h
+                file_system = 'Unknown' 
+                
+                # Basic check for suitability
+                if mount_point and mount_point != '/' and mount_point != '/System/Volumes/Data' and size_str != '-':
+                    
+                    size_bytes = _parse_size_fallback(size_str)
+                    free_space_bytes = _parse_size_fallback(free_space_str)
+                    
+                    # Replicate logic from _is_suitable_for_testing in list_disks.py
+                    is_suitable = True
+                    if not True: # writable - assume true for mounted volumes
+                        is_suitable = False
+                    if free_space_bytes < 1024 * 1024 * 1024:  # 1GB minimum free space
+                        is_suitable = False
+                    if mount_point in ['/System', '/usr', '/bin', '/sbin']: # Avoid system mounts
+                        is_suitable = False
+                    
+                    if is_suitable:
+                        disk_info['disks'].append({
+                            'name': os.path.basename(mount_point) or mount_point,
+                            'size': size_str, # Keep as string for display
+                            'size_bytes': size_bytes,
+                            'free_space': free_space_str, # Keep as string for display
+                            'free_space_bytes': free_space_bytes,
+                            'mount_point': mount_point,
+                            'file_system': file_system,
+                            'writable': True,
+                            'removable': False, # Cannot determine reliably
+                            'suitable_for_testing': True
+                        })
+                        
+    except Exception as e:
+        disk_info['error'] = f"Fallback failed: {str(e)}"
+        
+    return disk_info
+
+def get_disk_info() -> Dict[str, Any]:
+    """
+    Get disk information using system_profiler, with a fallback.
+    """
+    disk_info = {
+        'disks': [],
+        'error': None
+    }
+    
+    try:
+        # Get storage information with reduced timeout
         result = subprocess.run(['system_profiler', 'SPStorageDataType', '-json'], 
-                              capture_output=True, text=True, timeout=30)
+                              capture_output=True, text=True, timeout=10) # Reduced timeout
+        
         if result.returncode == 0:
             storage_data = json.loads(result.stdout)
             if 'SPStorageDataType' in storage_data:
@@ -92,8 +173,24 @@ def get_disk_info() -> Dict[str, Any]:
                         'writable': storage.get('writable', False),
                         'removable': storage.get('removable_media', False)
                     })
+        else:
+            # If system_profiler failed (non-zero return code), try fallback
+            raise subprocess.SubprocessError("system_profiler failed with return code: " + str(result.returncode))
+            
     except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError, json.JSONDecodeError) as e:
-        disk_info['error'] = str(e)
+        # If system_profiler timed out or failed, use fallback
+        error_message = f"system_profiler failed ({str(e)}). Trying fallback..."
+        disk_info['error'] = error_message
+        
+        fallback_result = _get_disk_info_fallback()
+        disk_info['disks'] = fallback_result.get('disks', [])
+        
+        # If fallback also failed, use its error message
+        if fallback_result.get('error'):
+            disk_info['error'] = fallback_result.get('error')
+        elif not disk_info['disks']: # If fallback returned no disks and no error, indicate that
+             disk_info['error'] = disk_info['error'] + " Fallback also returned no disks."
+
     
     return disk_info
 

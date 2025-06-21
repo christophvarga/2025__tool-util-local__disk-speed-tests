@@ -1,13 +1,13 @@
 # Technical Context
 
-## Current Architecture: Web GUI + HTTP Bridge + Homebrew FIO
+## Current Architecture: Web GUI + HTTP Bridge + CLI Helper (MVP)
 
-**CRITICAL CORRECTION**: The project uses a simple Web GUI + Python HTTP Bridge + System FIO architecture. No React, no Flask, no bundled binaries.
+**MVP IMPLEMENTATION**: The project uses a simple Web GUI + Python HTTP Bridge + CLI Helper architecture. Plain HTML/CSS/JS, no React, no Flask, no bundled binaries.
 
 ```mermaid
 graph TB
     A[Web GUI<br/>HTML/CSS/JS] --> B[HTTP Bridge<br/>Python Server]
-    B --> C[diskbench Helper<br/>Python CLI]
+    B --> C[diskbench CLI<br/>Python Tool]
     C --> D[Homebrew FIO<br/>/opt/homebrew/bin/fio]
     D --> F[Real Disk Testing]
     F --> G[JSON Results]
@@ -17,7 +17,7 @@ graph TB
     
     subgraph "Browser"
         A
-        H[localhost:8080]
+        H[localhost:8765]
     end
     
     subgraph "HTTP Bridge Server"
@@ -32,14 +32,14 @@ graph TB
     end
 ```
 
-## Technology Stack
+## Technology Stack (MVP)
 
 ### Frontend Layer
 - **Technology**: Plain HTML5 + CSS3 + Vanilla JavaScript
 - **Location**: `web-gui/` directory
-- **Communication**: HTTP fetch() to localhost:8080
+- **Communication**: HTTP fetch() to localhost:8765
 - **No Framework**: No React, no build process, no bundling
-- **Real-time Updates**: Polling HTTP endpoints for progress
+- **Real-time Updates**: HTTP polling for progress updates
 
 ### HTTP Bridge Layer
 - **Technology**: Python 3 + built-in http.server
@@ -62,21 +62,21 @@ graph TB
 - **No Bundling**: No embedded FIO binaries
 - **No Sandbox**: Runs in normal system context
 
-## Core Components
+## Core Components (MVP)
 
 ### 1. Web GUI (`web-gui/`)
 ```
 web-gui/
 ├── index.html                    # Main interface
-├── styles.css                   # Styling
+├── styles.css                   # Professional styling
 └── app.js                       # JavaScript logic
 ```
 
 **Key Features:**
 - Disk selection dropdown
-- Test pattern selection
-- Progress monitoring
-- Results display
+- Test pattern selection (4 QLab patterns)
+- Progress monitoring with real-time updates
+- Results display with QLab analysis
 - Setup wizard integration
 
 ### 2. HTTP Bridge (`bridge-server/`)
@@ -113,7 +113,7 @@ diskbench/
     └── system_info.py          # System detection
 ```
 
-## FIO Integration Strategy
+## FIO Integration Strategy (MVP)
 
 ### ✅ Correct Approach: Homebrew FIO Only
 
@@ -141,7 +141,7 @@ brew install fio
 4. **Report honest errors when FIO fails**
 5. **Report honest status about FIO limitations**
 
-## Data Flow Architecture
+## Data Flow Architecture (MVP)
 
 ### 1. System Setup Flow
 ```
@@ -180,7 +180,7 @@ Error message shows: "FIO failed: error: failed to setup shm segment"
 User understands system limitations and next steps
 ```
 
-## Security Architecture
+## Security Architecture (MVP)
 
 ### Input Validation
 - **Disk Paths**: Validate against system disk enumeration
@@ -200,7 +200,7 @@ User understands system limitations and next steps
 - **File Access**: Uses user-accessible disk paths
 - **No Elevation**: No sudo or admin authentication needed
 
-## macOS Integration
+## macOS Integration (MVP)
 
 ### Homebrew Integration
 ```bash
@@ -235,7 +235,7 @@ df -h
 shutil.which('fio')
 ```
 
-## Testing Strategy
+## Testing Strategy (MVP)
 
 ### FIO Testing Approach
 1. **Simple configurations first**: Basic read/write tests
@@ -250,7 +250,7 @@ shutil.which('fio')
 3. **User guidance**: Clear next steps when issues occur
 4. **Performance expectations**: Realistic benchmarks for macOS
 
-## Deployment Architecture
+## Deployment Architecture (MVP)
 
 ### Current Structure
 ```
@@ -272,7 +272,49 @@ project/
 2. Install Homebrew (if not present)
 3. Run `brew install fio`
 4. Start bridge server: `python bridge-server/server.py`
-5. Open `web-gui/index.html` in browser
+5. Open `web-gui/index.html` in browser or go to localhost:8765
 6. Follow setup wizard for validation
 
-This architecture provides honest, transparent disk testing capabilities while respecting macOS limitations and avoiding complex distribution challenges.
+## QLab Test Patterns (MVP)
+
+### Implemented Test Patterns
+1. **Quick Max Speed** (3 minutes)
+   - Maximum sequential read/write performance
+   - Basic system capability assessment
+
+2. **QLab ProRes 422 Show** (2.75 hours)
+   - Realistic show pattern: 1x4K + 3xHD ProRes 422
+   - Crossfades every 3 minutes
+   - Thermal performance testing
+
+3. **QLab ProRes HQ Show** (2.75 hours)
+   - Realistic show pattern: 1x4K + 3xHD ProRes HQ
+   - Higher bandwidth requirements
+   - Extended thermal testing
+
+4. **Max Sustained** (1.5 hours)
+   - Continuous maximum performance
+   - Thermal throttling detection
+   - Long-term stability assessment
+
+### QLab Analysis Features
+- **Stream Capacity**: Calculate concurrent 4K stream capacity
+- **Crossfade Performance**: Assess ability to handle overlapping streams
+- **Show Suitability**: Rate disk for different show types
+- **Thermal Analysis**: Monitor performance degradation over time
+
+## Legacy Components (Not Used in MVP)
+
+### Archived/Not Used ❌
+- `qlab_disk_tester/` - PyQt6 GUI components (legacy)
+- `disk_tester.py` - Flask app approach (not implemented)
+- React components mentioned in old docs (never existed)
+- DMG packaging scripts (not needed for MVP)
+
+### MVP Implementation Only ✅
+- `web-gui/` - HTML/CSS/JS interface
+- `bridge-server/` - Python HTTP server
+- `diskbench/` - CLI helper tool
+- `memory-bank/` - Documentation
+
+This architecture provides honest, transparent disk testing capabilities while respecting macOS limitations and avoiding complex distribution challenges. The MVP focuses on core functionality with a simple, reliable implementation.

@@ -18,27 +18,27 @@ class QLabTestPatterns:
         """Initialize realistic QLab test patterns."""
         return {
             'quick_max_speed': {
-                'name': 'Test 1: Quick Max Read Test',
-                'description': 'Maximum sequential read performance - 3 minutes',
-                'duration': 180,  # 3 minutes
+                'name': 'Test 1: Quick Speed Test',
+                'description': 'Basic disk speed measurement - 1 minute',
+                'duration': 60,  # 1 minute
                 'fio_template': self._get_quick_max_speed_config()
             },
             'qlab_prores_422_show': {
                 'name': 'Test 2: ProRes 422 Production Test',
-                'description': 'Scenario: 1x 4K ProRes 422 + 3x HD ProRes 422 @ 50fps - 2.5 hours',
-                'duration': 9000,  # 2.5 hours = 9000 seconds
+                'description': 'QLab scenario: 1x 4K ProRes 422 + 3x HD ProRes 422 @ 50fps with crossfades and random access - 2.5 hours',
+                'duration': 9300,  # 2.5 hours = 9300 seconds (1800+5400+1800+300)
                 'fio_template': self._get_prores_422_show_config()
             },
             'qlab_prores_hq_show': {
                 'name': 'Test 3: ProRes HQ Production Test',
-                'description': 'Scenario: 1x 4K ProRes HQ + 3x HD ProRes HQ @ 50fps - 2.5 hours',
-                'duration': 9000,  # 2.5 hours = 9000 seconds
+                'description': 'QLab scenario: 1x 4K ProRes HQ + 3x HD ProRes HQ @ 50fps with crossfades and random access - 2.5 hours',
+                'duration': 9300,  # 2.5 hours = 9300 seconds (1800+5400+1800+300)
                 'fio_template': self._get_prores_hq_show_config()
             },
             'max_sustained': {
-                'name': 'Test 4: Max Sustained Read',
-                'description': 'Find reliable minimum speed under maximum stress - 1 hour',
-                'duration': 3600,  # 1 hour = 3600 seconds
+                'name': 'Test 4: Max Sustained Performance',
+                'description': 'Find maximum guaranteed speed without performance degradation - 1.5 hours',
+                'duration': 5400,  # 1.5 hours = 5400 seconds
                 'fio_template': self._get_max_sustained_config()
             }
         }
@@ -147,61 +147,64 @@ class QLabTestPatterns:
         return config
     
     def _get_quick_max_speed_config(self) -> str:
-        """Get FIO config for 3-minute maximum read speed test - fixed for macOS compatibility."""
+        """Get FIO config for 1-minute basic speed test - simple disk speed measurement."""
         return """
 [global]
 ioengine=posixaio
 direct=0
-runtime=180
+runtime=60
 time_based=1
 thread=1
 log_avg_msec=1000
-write_bw_log=quick_max_bw
-write_lat_log=quick_max_lat
-write_iops_log=quick_max_iops
+write_bw_log=quick_speed_bw
+write_lat_log=quick_speed_lat
 
-[quick_max_read]
+[quick_speed_test]
 filename=${TEST_FILE}
-size=10G
+size=5G
 bs=4M
 rw=read
 numjobs=1
-iodepth=64
+iodepth=32
 """
     
     def _get_prores_422_show_config(self) -> str:
-        """Get FIO config for realistic ProRes 422 show pattern - 2.5 hours with 3 phases."""
+        """Get FIO config for realistic ProRes 422 show pattern - 2.5 hours with 4 phases based on bash script."""
         return """
 [global]
 ioengine=posixaio
 direct=0
 time_based=1
-group_reporting=0
+group_reporting=1
 thread=1
 norandommap=1
 randrepeat=0
+random_generator=tausworthe64
 log_avg_msec=1000
 write_bw_log=p422_show_bw
 write_lat_log=p422_show_lat
 lat_percentiles=1
 
-# Phase 1: ProRes 422 Warmup + Asset Cache (30 min = 1800s)
+# Phase 3.1: ProRes 422 Warmup + Asset Cache Building (30 min = 1800s)
+# Simulating: Project loading, asset preloading, thumbnail generation
 [p422_warmup]
 filename=${TEST_FILE}
-size=${TEST_SIZE}
+size=20G
 bs=1M,64K,4K
 rw=randrw
 rwmixread=93
 numjobs=4
 runtime=1800
 rate=400M,50M
+ioengine=posixaio
 iodepth=24
-ramp_time=30
+direct=0
 
-# Phase 2: ProRes 422 Show + Continuous Asset Access (90 min = 5400s)
+# Phase 3.2: ProRes 422 Show + Continuous Asset Access (90 min = 5400s)
+# Simulating: Normal show operations with masks, overlays, graphics
 [p422_show_with_assets]
 filename=${TEST_FILE}
-size=${TEST_SIZE}
+size=35G
 bs=1M,256K,16K
 rw=randrw
 rwmixread=96
@@ -209,15 +212,18 @@ numjobs=6
 runtime=5400
 rate=700M,100M
 rate_process=poisson
+ioengine=posixaio
 iodepth=32
+direct=0
 thinktime=12000000
 thinktime_spin=3000000
 startdelay=1800
 
-# Phase 3: ProRes 422 Peak + Heavy Asset Load (30 min = 1800s)
+# Phase 3.3: ProRes 422 Peak Performance + Heavy Asset Usage (30 min = 1800s)
+# Simulating: Complex finale with crossfades, multiple overlays, masks
 [p422_peak_assets]
 filename=${TEST_FILE}
-size=${TEST_SIZE}
+size=40G
 bs=2M,128K,8K
 rw=randrw
 rwmixread=94
@@ -225,97 +231,127 @@ numjobs=8
 runtime=1800
 rate=2000M,200M
 rate_process=poisson
+ioengine=posixaio
 iodepth=48
+direct=0
 startdelay=7200
 
-# Cue Response Time Test (5 min = 300s)
+# Phase 3.4: Cue Response Time Test (5 min = 300s)
+# Simulating: Random cue triggers, seek operations, asset loading
 [cue_response]
 filename=${TEST_FILE}
-size=${TEST_SIZE}
+size=10G
 bs=4K,64K,1M
 rw=randread
 numjobs=12
 runtime=300
+ioengine=posixaio
 iodepth=1
+direct=0
 startdelay=9000
 """
     
     def _get_prores_hq_show_config(self) -> str:
-        """Get FIO config for realistic ProRes HQ show pattern - 2.5 hours with 3 phases."""
+        """Get FIO config for realistic ProRes HQ show pattern - 2.5 hours with 4 phases (higher rates than 422)."""
         return """
 [global]
 ioengine=posixaio
 direct=0
 time_based=1
-group_reporting=0
+group_reporting=1
 thread=1
 norandommap=1
 randrepeat=0
+random_generator=tausworthe64
 log_avg_msec=1000
 write_bw_log=hq_show_bw
 write_lat_log=hq_show_lat
 lat_percentiles=1
 
-# Phase 1: ProRes HQ Warmup & Asset Loading (30 min = 1800s)
+# Phase 1: ProRes HQ Warmup + Asset Cache Building (30 min = 1800s)
+# Simulating: Project loading, asset preloading, thumbnail generation (HQ rates)
 [hq_warmup]
 filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=1M,256K
+size=30G
+bs=2M,128K,8K
 rw=randrw
-rwmixread=95
-numjobs=3
+rwmixread=93
+numjobs=4
 runtime=1800
-rate=600M
-iodepth=16
-ramp_time=30
-
-# Phase 2: ProRes HQ Normal Show Operations (90 min = 5400s)
-[hq_normal_show]
-filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=2M,512K
-rw=randrw
-rwmixread=97
-numjobs=6
-runtime=5400
-rate=1400M
-rate_process=poisson
+rate=800M,100M
+ioengine=posixaio
 iodepth=32
+direct=0
+
+# Phase 2: ProRes HQ Show + Continuous Asset Access (90 min = 5400s)
+# Simulating: Normal HQ show operations with masks, overlays, graphics (double 422 rates)
+[hq_show_with_assets]
+filename=${TEST_FILE}
+size=50G
+bs=2M,512K,32K
+rw=randrw
+rwmixread=96
+numjobs=8
+runtime=5400
+rate=1400M,200M
+rate_process=poisson
+ioengine=posixaio
+iodepth=48
+direct=0
 thinktime=8000000
 thinktime_spin=2000000
 startdelay=1800
 
-# Phase 3: ProRes HQ Peak Performance & Multiple Crossfades (30 min = 1800s)
-[hq_peak_crossfades]
+# Phase 3: ProRes HQ Peak Performance + Heavy Asset Usage (30 min = 1800s)
+# Simulating: Complex HQ finale with crossfades, multiple overlays, masks (double 422 peak)
+[hq_peak_assets]
 filename=${TEST_FILE}
-size=${TEST_SIZE}
-bs=4M
-rw=read
-numjobs=10
+size=60G
+bs=4M,256K,16K
+rw=randrw
+rwmixread=94
+numjobs=12
 runtime=1800
-rate=4000M
+rate=4000M,400M
 rate_process=poisson
+ioengine=posixaio
 iodepth=64
+direct=0
 startdelay=7200
+
+# Phase 4: HQ Cue Response Time Test (5 min = 300s)
+# Simulating: Random cue triggers, seek operations, asset loading (HQ assets)
+[hq_cue_response]
+filename=${TEST_FILE}
+size=15G
+bs=8K,128K,2M
+rw=randread
+numjobs=16
+runtime=300
+ioengine=posixaio
+iodepth=1
+direct=0
+startdelay=9000
 """
     
     def _get_max_sustained_config(self) -> str:
-        """Get FIO config for 1-hour maximum sustained performance test (thermal testing)."""
+        """Get FIO config for 1.5-hour maximum sustained performance test (performance degradation and dropout detection)."""
         return """
 [global]
 ioengine=posixaio
 direct=0
 time_based=1
-group_reporting=0
+group_reporting=1
 thread=1
 log_avg_msec=1000
 write_bw_log=sustained_bw
 write_lat_log=sustained_lat
 lat_percentiles=1
 
-# Graduated load tests to find performance ceiling
-# Test rates: 500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000, 3500, 4000, 4500, 5000, 6000 MB/s
-# Each rate tested for 4 minutes (240s) for reliable measurement
+# Graduated load tests to find maximum guaranteed speed without dropouts/stutters
+# Test rates: 500, 750, 1000, 1250, 1500, 1750, 2000, 2500, 3000, 3500, 4000, 5000 MB/s
+# Each rate tested for 6 minutes (360s) for reliable thermal measurement
+# Total: 12 tests × 6min = 72min + 18min final validation = 90min = 1.5 hours
 
 [sustained_500M]
 filename=${TEST_FILE}
@@ -323,7 +359,7 @@ size=50G
 bs=8M
 rw=read
 numjobs=4
-runtime=240
+runtime=360
 rate=500M
 iodepth=64
 
@@ -333,10 +369,10 @@ size=50G
 bs=8M
 rw=read
 numjobs=4
-runtime=240
+runtime=360
 rate=750M
 iodepth=64
-startdelay=240
+startdelay=360
 
 [sustained_1000M]
 filename=${TEST_FILE}
@@ -344,10 +380,10 @@ size=50G
 bs=8M
 rw=read
 numjobs=4
-runtime=240
+runtime=360
 rate=1000M
 iodepth=64
-startdelay=480
+startdelay=720
 
 [sustained_1250M]
 filename=${TEST_FILE}
@@ -355,10 +391,10 @@ size=50G
 bs=8M
 rw=read
 numjobs=4
-runtime=240
+runtime=360
 rate=1250M
 iodepth=64
-startdelay=720
+startdelay=1080
 
 [sustained_1500M]
 filename=${TEST_FILE}
@@ -366,10 +402,10 @@ size=50G
 bs=8M
 rw=read
 numjobs=4
-runtime=240
+runtime=360
 rate=1500M
 iodepth=64
-startdelay=960
+startdelay=1440
 
 [sustained_1750M]
 filename=${TEST_FILE}
@@ -377,10 +413,10 @@ size=50G
 bs=8M
 rw=read
 numjobs=4
-runtime=240
+runtime=360
 rate=1750M
 iodepth=64
-startdelay=1200
+startdelay=1800
 
 [sustained_2000M]
 filename=${TEST_FILE}
@@ -388,22 +424,78 @@ size=50G
 bs=8M
 rw=read
 numjobs=4
-runtime=240
+runtime=360
 rate=2000M
 iodepth=64
-startdelay=1440
+startdelay=2160
 
-# Final validation at reliable speed (15 minutes)
+[sustained_2500M]
+filename=${TEST_FILE}
+size=50G
+bs=8M
+rw=read
+numjobs=4
+runtime=360
+rate=2500M
+iodepth=64
+startdelay=2520
+
+[sustained_3000M]
+filename=${TEST_FILE}
+size=50G
+bs=8M
+rw=read
+numjobs=4
+runtime=360
+rate=3000M
+iodepth=64
+startdelay=2880
+
+[sustained_3500M]
+filename=${TEST_FILE}
+size=50G
+bs=8M
+rw=read
+numjobs=4
+runtime=360
+rate=3500M
+iodepth=64
+startdelay=3240
+
+[sustained_4000M]
+filename=${TEST_FILE}
+size=50G
+bs=8M
+rw=read
+numjobs=4
+runtime=360
+rate=4000M
+iodepth=64
+startdelay=3600
+
+[sustained_5000M]
+filename=${TEST_FILE}
+size=50G
+bs=8M
+rw=read
+numjobs=4
+runtime=360
+rate=5000M
+iodepth=64
+startdelay=3960
+
+# Final validation at reliable speed (18 minutes = 1080s)
+# Tests maximum guaranteed speed for extended period
 [final_validation]
 filename=${TEST_FILE}
 size=50G
 bs=8M
 rw=read
 numjobs=4
-runtime=900
+runtime=1080
 rate=1500M
 iodepth=64
-startdelay=1680
+startdelay=4320
 """
     
     def _analyze_quick_max_speed(self, summary: Dict[str, Any]) -> Dict[str, Any]:
@@ -465,8 +557,8 @@ startdelay=1680
             analysis['video_playback_capability'] = 'unreliable_for_shows'
             analysis['show_suitability'] = 'not_recommended'
         
-        # Thermal performance assessment (2.75h test)
-        analysis['thermal_performance'] = 'stable' if read_bw > 500 else 'throttling_detected'
+        # Performance stability assessment (2.75h test)
+        analysis['performance_stability'] = 'stable' if read_bw > 500 else 'degradation_detected'
         analysis['audio_cue_performance'] = 'excellent' if read_iops > 3000 else 'good'
         analysis['rapid_triggering_capability'] = 'excellent' if avg_latency < 5 else 'good'
         
@@ -474,7 +566,7 @@ startdelay=1680
             'sustained_show_mb_s': read_bw,
             'prores_422_show_capability': 'yes' if read_bw > 600 else 'no',
             'crossfade_headroom': 'yes' if read_bw > 800 else 'limited',
-            'thermal_stability': 'stable' if read_bw > 500 else 'degraded'
+            'performance_stability': 'stable' if read_bw > 500 else 'degraded'
         }
         
         return analysis
@@ -505,8 +597,8 @@ startdelay=1680
             analysis['video_playback_capability'] = 'unreliable_for_hq_shows'
             analysis['show_suitability'] = 'hq_not_recommended'
         
-        # Thermal performance assessment (2.75h test)
-        analysis['thermal_performance'] = 'stable' if read_bw > 1000 else 'throttling_detected'
+        # Performance stability assessment (2.75h test)
+        analysis['performance_stability'] = 'stable' if read_bw > 1000 else 'degradation_detected'
         analysis['audio_cue_performance'] = 'excellent' if read_iops > 5000 else 'good'
         analysis['rapid_triggering_capability'] = 'excellent' if avg_latency < 3 else 'good'
         
@@ -514,13 +606,13 @@ startdelay=1680
             'sustained_hq_show_mb_s': read_bw,
             'prores_hq_show_capability': 'yes' if read_bw > 1200 else 'no',
             'hq_crossfade_headroom': 'yes' if read_bw > 1600 else 'limited',
-            'thermal_stability': 'stable' if read_bw > 1000 else 'degraded'
+            'performance_stability': 'stable' if read_bw > 1000 else 'degraded'
         }
         
         return analysis
     
     def _analyze_max_sustained(self, summary: Dict[str, Any]) -> Dict[str, Any]:
-        """Analyze maximum sustained performance test results (1.5h thermal test)."""
+        """Analyze maximum sustained performance test results (1.5h performance degradation test)."""
         read_bw = summary.get('total_read_bw', 0) / 1024  # Convert to MB/s
         write_bw = summary.get('total_write_bw', 0) / 1024  # Convert to MB/s
         read_iops = summary.get('total_read_iops', 0)
@@ -528,22 +620,22 @@ startdelay=1680
         
         analysis = {}
         
-        # Thermal throttling assessment over 1.5 hours
+        # Performance degradation assessment over 1.5 hours
         if read_bw > 800 and write_bw > 400:
             analysis['overall_performance'] = 'excellent'
-            analysis['thermal_performance'] = 'no_throttling_detected'
+            analysis['performance_stability'] = 'no_degradation_detected'
             analysis['sustained_capability'] = 'professional_grade'
         elif read_bw > 500 and write_bw > 250:
             analysis['overall_performance'] = 'good'
-            analysis['thermal_performance'] = 'minimal_throttling'
+            analysis['performance_stability'] = 'minimal_degradation'
             analysis['sustained_capability'] = 'show_suitable'
         elif read_bw > 200 and write_bw > 100:
             analysis['overall_performance'] = 'fair'
-            analysis['thermal_performance'] = 'moderate_throttling'
+            analysis['performance_stability'] = 'moderate_degradation'
             analysis['sustained_capability'] = 'limited_use'
         else:
             analysis['overall_performance'] = 'poor'
-            analysis['thermal_performance'] = 'severe_throttling'
+            analysis['performance_stability'] = 'severe_degradation'
             analysis['sustained_capability'] = 'not_recommended'
         
         # Long-term reliability assessment
@@ -555,7 +647,7 @@ startdelay=1680
             'sustained_read_mb_s': read_bw,
             'sustained_write_mb_s': write_bw,
             'sustained_read_iops': read_iops,
-            'thermal_stability_score': 'stable' if read_bw > 400 else 'unstable',
+            'performance_stability_score': 'stable' if read_bw > 400 else 'unstable',
             'long_term_reliability': 'high' if read_bw > 600 else 'medium'
         }
         
