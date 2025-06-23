@@ -2425,3 +2425,151 @@ h2 {
         background: #4b5563;
     }
 }
+
+/* Background Test Notice */
+.background-test-notice {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+    border: 2px solid #ffc107;
+    border-radius: var(--border-radius);
+    padding: 15px 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+    animation: slideInFromTop 0.5s ease-out;
+}
+
+@keyframes slideInFromTop {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.notice-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.notice-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    color: #856404;
+    font-size: 1rem;
+}
+
+.notice-header i {
+    color: #ffc107;
+    font-size: 1.1rem;
+}
+
+.notice-details {
+    flex: 1;
+    min-width: 200px;
+}
+
+.test-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 5px;
+    flex-wrap: wrap;
+}
+
+.test-name {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.95rem;
+}
+
+.test-progress {
+    background: rgba(255, 255, 255, 0.8);
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #856404;
+}
+
+.timing-info {
+    display: flex;
+    gap: 15px;
+    font-size: 0.85rem;
+    color: #6c757d;
+    flex-wrap: wrap;
+}
+
+.elapsed, .remaining {
+    font-weight: 500;
+}
+
+.notice-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-sm {
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    border-radius: 6px;
+}
+
+/* Responsive Design for Background Notice */
+@media (max-width: 768px) {
+    .notice-content {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 15px;
+    }
+    
+    .notice-header {
+        justify-content: center;
+    }
+    
+    .test-info {
+        justify-content: center;
+        text-align: center;
+    }
+    
+    .timing-info {
+        justify-content: center;
+        text-align: center;
+    }
+    
+    .notice-actions {
+        justify-content: center;
+    }
+}
+
+/* Dark Mode Support for Background Notice */
+@media (prefers-color-scheme: dark) {
+    .background-test-notice {
+        background: linear-gradient(135deg, #92400e 0%, #b45309 100%);
+        border-color: #f59e0b;
+        color: #fbbf24;
+    }
+    
+    .notice-header {
+        color: #fbbf24;
+    }
+    
+    .test-name {
+        color: #f3f4f6;
+    }
+    
+    .test-progress {
+        background: rgba(0, 0, 0, 0.3);
+        color: #fbbf24;
+    }
+    
+    .timing-info {
+        color: #d1d5db;
+    }
+}

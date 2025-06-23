@@ -556,7 +556,7 @@ class DiskBenchBridge:
             
             test_info = self.running_tests[test_id]
             
-            if test_info.get('status') != 'running':
+            if test_info.get('status') not in ['running', 'starting']:
                 return {
                     'success': False,
                     'error': f'Test is not running (status: {test_info.get("status")})'
@@ -830,9 +830,7 @@ class DiskBenchBridge:
         
         # Enhanced progress calculation for running tests
         if test_info['status'] == 'running':
-            elapsed = time.time() - time.mktime(
-                datetime.fromisoformat(test_info['start_time']).timetuple()
-            )
+            elapsed = (datetime.now() - datetime.fromisoformat(test_info['start_time'])).total_seconds()
             test_type = test_info.get('diskbench_test_type', 'quick_max_speed')
             
             # Calculate accurate progress and remaining time
@@ -2050,9 +2048,11 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         """Handle POST requests."""
         try:
-            parsed_url = urlparse(self.path)
-            path = parsed_url.path
-            
+            parsed_path = urlparse(self.path)
+            path = parsed_path.path
+            length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(length) if length > 0 else b''
+
             if path == '/api/test/start':
                 self._handle_start_test()
             elif path.startswith('/api/test/stop/'):
@@ -2060,12 +2060,17 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
                 self._handle_stop_test(test_id)
             elif path == '/api/test/stop-all':
                 self._handle_stop_all_tests()
+            elif path.startswith('/api/test/cleanup-background/'):
+                test_id = path.split('/')[-1]
+                self._handle_cleanup_background_test(test_id)
+            elif path == '/api/test/cleanup-all-background':
+                self._handle_cleanup_all_background_tests()
             elif path == '/api/setup':
                 self._handle_setup_action()
             elif path == '/api/validate':
                 self._handle_validate_action()
             else:
-                self._send_error(404, 'Not Found')
+                self._send_error(404, f'Unknown POST endpoint: {path}')
                 
         except Exception as e:
             self._send_error(500, str(e))
@@ -2201,6 +2206,16 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
     def _handle_background_tests_status(self):
         """Handle background tests status request."""
         result = self.bridge.get_background_tests_status()
+        self._send_json_response(result)
+
+    def _handle_cleanup_background_test(self, test_id):
+        """Handle cleanup of a specific background/disconnected test."""
+        result = self.bridge.cleanup_background_test(test_id)
+        self._send_json_response(result)
+
+    def _handle_cleanup_all_background_tests(self):
+        """Handle cleanup of all background/disconnected tests."""
+        result = self.bridge.cleanup_all_background_tests()
         self._send_json_response(result)
     
     def _handle_start_test(self):

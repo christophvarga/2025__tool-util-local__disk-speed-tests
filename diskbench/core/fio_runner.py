@@ -172,13 +172,24 @@ class FioRunner:
                 try:
                     with open(output_file, 'r') as f:
                         content = f.read()
-                        self.logger.debug(f"Raw FIO output length: {len(content)} chars")
+                        self.logger.info(f"Raw FIO output length: {len(content)} chars")
                         
                         # Log first few lines for debugging
                         lines = content.split('\n')[:5]
-                        self.logger.debug(f"First 5 lines: {lines}")
+                        self.logger.info(f"First 5 lines: {lines}")
                         
+                        # Parse JSON and log structure for debugging
                         fio_results = json.loads(content)
+                        
+                        # DEBUG: Log the actual FIO JSON structure
+                        if 'jobs' in fio_results and len(fio_results['jobs']) > 0:
+                            first_job = fio_results['jobs'][0]
+                            self.logger.info(f"DEBUG: First job keys: {list(first_job.keys())}")
+                            if 'read' in first_job:
+                                self.logger.info(f"DEBUG: Read stats keys: {list(first_job['read'].keys())}")
+                                self.logger.info(f"DEBUG: Read stats sample: {dict(list(first_job['read'].items())[:10])}")
+                            if 'write' in first_job:
+                                self.logger.info(f"DEBUG: Write stats keys: {list(first_job['write'].keys())}")
                     
                     # Process and enhance results
                     processed_results = self._process_fio_results(fio_results)
@@ -305,13 +316,20 @@ class FioRunner:
             return {'error': str(e)}
     
     def _extract_io_stats(self, io_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract I/O statistics from FIO job data."""
+        """Extract I/O statistics from FIO job data with backward-compatibility for newer FIO JSON fields."""
+        # FIO 3.35+ has switched from KiB/s ``bw`` to bytes/s ``bw_bytes``
+        bw_bytes = io_data.get('bw_bytes', 0)
+        bw_kib = io_data.get('bw', 0)
+        if (not bw_kib or bw_kib == 0) and bw_bytes:
+            # Convert bytes/s -> KiB/s to keep existing logic untouched
+            bw_kib = bw_bytes / 1024
+
         return {
             'io_bytes': io_data.get('io_bytes', 0),
             'io_kbytes': io_data.get('io_kbytes', 0),
-            'bw_bytes': io_data.get('bw_bytes', 0),
-            'bw': io_data.get('bw', 0),
-            'iops': io_data.get('iops', 0),
+            'bw_bytes': bw_bytes,
+            'bw': bw_kib,
+            'iops': io_data.get('iops', io_data.get('iops_mean', 0)),
             'runtime': io_data.get('runtime', 0),
             'total_ios': io_data.get('total_ios', 0),
             'short_ios': io_data.get('short_ios', 0),
@@ -322,15 +340,15 @@ class FioRunner:
             'bw_min': io_data.get('bw_min', 0),
             'bw_max': io_data.get('bw_max', 0),
             'bw_agg': io_data.get('bw_agg', 0),
-            'bw_mean': io_data.get('bw_mean', 0),
+            'bw_mean': io_data.get('bw_mean', bw_kib),
             'bw_dev': io_data.get('bw_dev', 0)
         }
     
     def _calculate_summary(self, jobs: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Calculate summary statistics across all jobs."""
+        """Calculate summary statistics across all jobs, handling both old and new FIO field names."""
         if not jobs:
             return {}
-        
+
         summary = {
             'total_read_iops': 0,
             'total_write_iops': 0,
@@ -340,32 +358,43 @@ class FioRunner:
             'avg_write_latency': 0,
             'total_runtime': 0
         }
-        
-        read_latencies = []
-        write_latencies = []
-        
+
+        read_latencies: List[float] = []
+        write_latencies: List[float] = []
+
         for job in jobs:
+            # ---- IOPS ----
             summary['total_read_iops'] += job['read'].get('iops', 0)
             summary['total_write_iops'] += job['write'].get('iops', 0)
-            summary['total_read_bw'] += job['read'].get('bw', 0)
-            summary['total_write_bw'] += job['write'].get('bw', 0)
+
+            # ---- Bandwidth (KiB/s) ----
+            def _bw(io: Dict[str, Any]):
+                bw = io.get('bw', 0)
+                if not bw or bw == 0:
+                    bw = io.get('bw_bytes', 0) / 1024  # bytes/s → KiB/s
+                return bw
+
+            summary['total_read_bw'] += _bw(job['read'])
+            summary['total_write_bw'] += _bw(job['write'])
+
+            # ---- Runtime ----
             summary['total_runtime'] = max(summary['total_runtime'], job.get('job_runtime', 0))
-            
-            # Collect latencies for averaging
+
+            # ---- Latency (ns) ----
             read_lat = job['read'].get('lat_ns', {}).get('mean', 0)
             write_lat = job['write'].get('lat_ns', {}).get('mean', 0)
-            
+
             if read_lat > 0:
                 read_latencies.append(read_lat)
             if write_lat > 0:
                 write_latencies.append(write_lat)
-        
-        # Calculate average latencies
+
+        # Average latencies -> ms
         if read_latencies:
-            summary['avg_read_latency'] = sum(read_latencies) / len(read_latencies) / 1000000  # Convert to ms
+            summary['avg_read_latency'] = sum(read_latencies) / len(read_latencies) / 1_000_000
         if write_latencies:
-            summary['avg_write_latency'] = sum(write_latencies) / len(write_latencies) / 1000000  # Convert to ms
-        
+            summary['avg_write_latency'] = sum(write_latencies) / len(write_latencies) / 1_000_000
+
         return summary
     
     def _clean_json_output(self, content: str) -> str:

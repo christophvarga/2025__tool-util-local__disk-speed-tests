@@ -77,7 +77,7 @@ class TestCommand:
                 progress_callback = self._progress_callback
             
             # Get estimated duration from config
-            estimated_duration = config.get('estimated_duration', 0) # Default to 0 if not found
+            estimated_duration = config.get('duration', 0) # Default to 0 if not found
             
             # Run FIO test
             fio_results = self.fio_runner.run_fio_test(
@@ -87,8 +87,16 @@ class TestCommand:
                 progress_callback
             )
             
+            # Check for FIO test failure - both None and error dictionary
             if not fio_results:
-                self.logger.error("FIO test failed")
+                self.logger.error("FIO test failed - no results returned")
+                return None
+            
+            # Check if FIO returned an error dictionary instead of results
+            if isinstance(fio_results, dict) and 'error' in fio_results:
+                self.logger.error(f"FIO test failed with error: {fio_results['error']}")
+                self.logger.error(f"FIO stderr: {fio_results.get('fio_stderr', 'No stderr')}")
+                self.logger.error(f"FIO stdout: {fio_results.get('fio_stdout', 'No stdout')}")
                 return None
             
             # Analyze results for QLab

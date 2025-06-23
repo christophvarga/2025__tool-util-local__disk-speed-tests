@@ -218,19 +218,25 @@ class DiskBenchApp {
     
     updateUI() {
         const startButton = document.getElementById('startTest');
+        const stopButton = document.getElementById('stopTest');
+        const stopAllButton = document.getElementById('stopAllTests');
+        
         const canStartTest = this.selectedDisk && !this.isTestRunning;
         
         startButton.disabled = !canStartTest;
         
         if (canStartTest) {
             startButton.innerHTML = '<i class="fas fa-play"></i> Start Test';
-            document.getElementById('stopAllTests').classList.add('hidden'); // Hide stop all button when not running
+            stopButton.classList.add('hidden');
+            stopAllButton.classList.add('hidden');
         } else if (this.isTestRunning) {
             startButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...';
-            document.getElementById('stopAllTests').classList.remove('hidden'); // Show stop all button when running
+            stopButton.classList.remove('hidden');
+            stopAllButton.classList.add('hidden');
         } else {
             startButton.innerHTML = '<i class="fas fa-play"></i> Select Disk First';
-            document.getElementById('stopAllTests').classList.add('hidden'); // Hide stop all button when not running
+            stopButton.classList.add('hidden');
+            stopAllButton.classList.add('hidden');
         }
     }
     
@@ -248,7 +254,7 @@ class DiskBenchApp {
         document.getElementById('resultsSection').classList.add('hidden');
         document.getElementById('startTest').classList.add('hidden');
         document.getElementById('stopTest').classList.remove('hidden');
-        document.getElementById('stopAllTests').classList.remove('hidden'); // Show stop all button
+        document.getElementById('stopAllTests').classList.add('hidden'); // keep hidden for single-test mode
         document.getElementById('exportResults').classList.add('hidden');
         
         // Temperature monitoring removed - no longer needed
@@ -274,29 +280,31 @@ class DiskBenchApp {
             this.updateProgress(5, 'Starting FIO test...');
             this.updateProgressDetails(`Command: diskbench ${command.join(' ')}`);
             
-            // Execute test
+            // Execute test (this only starts the test, doesn't wait for completion)
             const result = await this.executeDiskBenchCommand(command);
             
-            if (result) {
-                this.updateProgress(100, 'Test completed successfully!');
-                this.testResults = result;
-                this.showResults(result);
+            if (result && result.success) {
+                // Test started successfully - polling will handle the rest
+                this.updateProgress(5, 'Test started successfully...');
+                this.updateProgressDetails('Test is now running in background. Polling for updates...');
             } else {
-                throw new Error('Test failed - no results received');
+                throw new Error('Failed to start test - no confirmation received');
             }
             
         } catch (error) {
             console.error('Test failed:', error);
             this.updateProgress(0, `Test failed: ${error.message}`);
             this.updateProgressDetails(`Error: ${error.message}`);
-        } finally {
-            this.isTestRunning = false;
             
+            // Only reset state on error
+            this.isTestRunning = false;
+            this.currentTestId = null;
             this.updateUI();
             document.getElementById('startTest').classList.remove('hidden');
             document.getElementById('stopTest').classList.add('hidden');
-            document.getElementById('stopAllTests').classList.add('hidden'); // Hide stop all button too
+            document.getElementById('stopAllTests').classList.add('hidden');
         }
+        // Note: No finally block - let polling handle successful completion
     }
     
     async stopTest() {
@@ -1439,12 +1447,18 @@ class DiskBenchApp {
                         this.isTestRunning = false;
                         this.updateUI();
                     }
-                } else if (testInfo.status === 'failed' || testInfo.status === 'timeout' || testInfo.status === 'stopped') {
-                    // Test ended with an error or was stopped
-                    this.isTestRunning = false;
-                    this.currentTestId = null;
-                    this.updateProgress(0, `Test ${testInfo.status}: ${testInfo.error || 'Unknown error'}`);
-                    this.updateUI();
+                } else if (
+                    testInfo.status === 'failed' ||
+                    testInfo.status === 'timeout' ||
+                    testInfo.status === 'stopped' ||
+                    testInfo.status === 'disconnected' ||
+                    testInfo.status === 'unknown'
+                ) {
+                    // Test ended with an error, was stopped, or lost connection
+                    this.handleTestStopped(`Test ended: ${testInfo.status}`);
+                } else {
+                    // Unknown status
+                    this.handleTestStopped('Test ended (unknown status)');
                 }
             } else {
                 // Handle cases where test might have disappeared or API error
@@ -1472,17 +1486,102 @@ class DiskBenchApp {
                     this.isTestRunning = true;
                     this.currentTestId = result.test_info.test_id;
                     this.currentTestDuration = result.test_info.estimated_duration || 0;
-                    
+
+                    // Show background test notice
+                    this.showBackgroundTestNotice(result.test_info);
+
+                    // If test is disconnected/unknown, show cleanup UI and do not poll
+                    if (
+                        result.test_info.status === 'disconnected' ||
+                        result.test_info.status === 'unknown'
+                    ) {
+                        this.showDisconnectedCleanupUI(result.test_info);
+                        this.updateUI();
+                        return;
+                    }
+
                     // Update UI to reflect running state
                     this.updateUI();
-                    
                     // Start polling for status updates
                     this.pollTestStatus(this.currentTestId);
+                } else {
+                    // No test running, hide any notices
+                    this.hideBackgroundTestNotice();
                 }
             })
             .catch(error => {
                 console.error('Error checking for active test:', error);
+                this.hideBackgroundTestNotice();
             });
+    }
+    
+    showBackgroundTestNotice(testInfo) {
+        // Create or update background test notice
+        let notice = document.getElementById('backgroundTestNotice');
+        if (!notice) {
+            notice = document.createElement('div');
+            notice.id = 'backgroundTestNotice';
+            notice.className = 'background-notice';
+            document.body.appendChild(notice);
+        }
+        let extra = '';
+        if (testInfo.status === 'disconnected' || testInfo.status === 'unknown') {
+            extra = `<div style="margin-top:8px"><button id='cleanupDisconnectedTestBtn'>Clean up lost test</button></div>`;
+        }
+        
+        notice.innerHTML = `
+            <div class="notice-content">
+                <div class="notice-header">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <strong>Test in Progress</strong>
+                </div>
+                <div class="notice-details">
+                    <div class="test-info">
+                        <span class="test-name">${this.getTestDisplayName(testType)}</span>
+                        <span class="test-progress">${progress.toFixed(1)}% complete</span>
+                    </div>
+                    <div class="timing-info">
+                        <span class="elapsed">Elapsed: ${this.formatDuration(elapsedTime)}</span>
+                        <span class="remaining">Remaining: ${this.formatDuration(remainingTime)}</span>
+                    </div>
+                </div>
+                <div class="notice-actions">
+                    <button id="stopBackgroundTest" class="btn btn-danger btn-sm">
+                        <i class="fas fa-stop"></i> Stop Test
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        // Add event listener for stop button with proper context binding
+        const stopButton = document.getElementById('stopBackgroundTest');
+        if (stopButton) {
+            // Remove any existing event listeners to prevent duplicates
+            stopButton.replaceWith(stopButton.cloneNode(true));
+            const newStopButton = document.getElementById('stopBackgroundTest');
+            
+            // Bind the context properly
+            newStopButton.addEventListener('click', this.stopTest.bind(this));
+        }
+        
+        notice.classList.remove('hidden');
+    }
+    
+    hideBackgroundTestNotice() {
+        const notice = document.getElementById('backgroundTestNotice');
+        if (notice) {
+            notice.classList.add('hidden');
+        }
+    }
+    
+    getTestDisplayName(testType) {
+        const testNames = {
+            'quick_max_speed': 'Quick Max Speed Test',
+            'qlab_prores_422_show': 'ProRes 422 Show Simulation',
+            'qlab_prores_hq_show': 'ProRes HQ Show Simulation',
+            'max_sustained': 'Max Sustained Performance'
+        };
+        return testNames[testType] || testType;
     }
     
     exportResults() {

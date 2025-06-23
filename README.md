@@ -2,29 +2,29 @@
 
 Professional disk performance testing tool optimized for QLab audio/video applications. This tool uses a modern architecture with a clean web GUI that communicates with an unsandboxed helper binary to perform comprehensive FIO-based disk testing.
 
-## 🏗️ Architecture Overview
+## 🏗️ Architecture Overview (MVP)
 
-The application uses a **sandboxed GUI + unsandboxed helper binary** architecture to provide both security and functionality:
+This project is **not a packaged desktop app**.  It is a minimal-viable-product built entirely from ordinary Python scripts plus static web files.  Nothing is code-signed, sandboxed, or bundled. You run two processes manually:
 
+1. **Bridge Server** (`python bridge-server/server.py`) – a small HTTP API that also serves the GUI files.
+2. **Browser** – you open `http://localhost:8765/` to access the GUI.
+
+The bridge starts the helper CLI (`diskbench/main.py`) which in turn invokes **fio** to measure disk performance.  The data flow is therefore:
+
+```text
+Browser GUI  ⇄  Bridge Server (HTTP API + static files)  ⇄  diskbench CLI  ⇄  fio
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Web GUI       │    │  Communication   │    │ Helper Binary   │    │   FIO Engine    │
-│  (Sandboxed)    │◄──►│     Bridge       │◄──►│ (Unsandboxed)   │◄──►│ (Professional)  │
-│                 │    │                  │    │                 │    │                 │
-│ • Clean UI      │    │ • Parameter      │    │ • Raw disk      │    │ • Industry      │
-│ • Disk select   │    │   validation     │    │   access        │    │   standard      │
-│ • Test config   │    │ • Command exec   │    │ • FIO execution │    │ • Precise       │
-│ • Results view  │    │ • Progress mon   │    │ • JSON output   │    │   testing       │
-│ • Export data   │    │ • Error handling │    │ • Safety checks │    │ • QLab patterns │
-└─────────────────┘    └──────────────────┘    └─────────────────┘    └─────────────────┘
-```
+
+• Everything runs locally on your Mac.  
+• No sandbox / notarisation / application bundle is involved.  
+• If you want to package it later you can, but the MVP assumes a developer shell.
 
 ### Components
 
-1. **Web GUI (Sandboxed)**: Clean browser-based interface for user interaction
-2. **Helper Binary (Unsandboxed)**: Python CLI tool that executes FIO tests with raw disk access
-3. **Communication Bridge**: Local command execution and data exchange
-4. **FIO Engine**: Professional disk benchmarking with QLab-optimized test patterns
+1. **Web GUI** – static HTML/CSS/JS served by the bridge.
+2. **Bridge Server** – Python `http.server` subclass exposing JSON endpoints and spawning tests.
+3. **diskbench** – helper Python CLI that builds FIO job files and parses results.
+4. **fio** – industry-standard disk benchmark tool you install separately (e.g. `brew install fio`).
 
 ## 🚀 Quick Start
 
@@ -48,7 +48,7 @@ python server.py
 ### 3. Open the Web Interface
 
 ```bash
-open web-gui/index.html
+open http://localhost:8765/
 ```
 
 ### 4. Run Setup Wizard
