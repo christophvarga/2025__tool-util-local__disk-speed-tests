@@ -465,9 +465,9 @@ class DiskBenchApp {
         } else if (testType === 'qlab_prores_hq_show') {
             console.log('Rendering Test 3 Analysis');
             this.renderTest3Analysis(results);
-        } else if (testType === 'max_sustained') {
-            console.log('Rendering Test 4 Analysis');
-            this.renderTest4Analysis(results);
+        } else if (testType === 'thermal_maximum_analyser') {
+            console.log('Rendering Thermal Maximum Analysis');
+            this.renderThermalMaximumAnalysis(results);
         } else {
             console.log('Rendering Generic Analysis for unknown test type:', testType);
             // Fallback to generic analysis
@@ -992,9 +992,9 @@ class DiskBenchApp {
         `;
     }
     
-    renderTest4Analysis(results) {
+    renderThermalMaximumAnalysis(results) {
         /**
-         * Test 4: Max Sustained Performance (1.5 hours)
+         * Thermal Maximum Analyser: Extended thermal testing (1.5 hours)
          * Focus: Long-term stability and thermal throttling assessment
          */
         const container = document.getElementById('qlabAnalysis');
@@ -1010,22 +1010,22 @@ class DiskBenchApp {
         const maxBW = (summary.max_read_bw || readBW) / 1024;
         const avgLatency = summary.avg_read_latency || 0;
         
-        // QLab Sustained Performance Requirements
-        const requiredBW = 300; // MB/s for sustained performance
+        // QLab Thermal Maximum Requirements
+        const requiredBW = 300; // MB/s for thermal maximum performance
         const performanceTier = this.getQLabPerformanceTier(readBW, requiredBW);
         
         container.innerHTML = `
             <div class="test-analysis-header">
-                <h3>🔥 Test 4: Max Sustained Performance</h3>
+                <h3>🔥 Thermal Maximum Analyser</h3>
                 <div class="test-load-info">
                     <strong>Test Duration:</strong> ~1.5 hours<br>
-                    <strong>Purpose:</strong> Assess long-term stability and thermal throttling
+                    <strong>Purpose:</strong> Assess long-term thermal stability and throttling behavior
                 </div>
                 <div class="tier-badge ${performanceTier.class}">${performanceTier.message}</div>
             </div>
             
             <div class="qlab-metrics">
-                <h4>📊 Sustained Performance Metrics</h4>
+                <h4>📊 Thermal Performance Metrics</h4>
                 <div class="metrics-grid">
                     <div class="metric-item">
                         <div class="metric-label">Average Read Speed</div>
@@ -1051,7 +1051,7 @@ class DiskBenchApp {
             </div>
             
             <div class="qlab-analysis">
-                <h4>💡 Performance Analysis</h4>
+                <h4>💡 Thermal Performance Analysis</h4>
                 <div class="analysis-grid">
                     <div class="analysis-section">
                         <h5>Performance Tier</h5>
@@ -1579,11 +1579,39 @@ class DiskBenchApp {
             'quick_max_speed': 'Quick Max Speed Test',
             'qlab_prores_422_show': 'ProRes 422 Show Simulation',
             'qlab_prores_hq_show': 'ProRes HQ Show Simulation',
-            'max_sustained': 'Max Sustained Performance'
+            'thermal_maximum_analyser': 'Thermal Maximum Analyser'
         };
         return testNames[testType] || testType;
     }
     
+    /* ------------ FIO availability check ------------- */
+    async checkFio() {
+        try {
+            const res = await this.callBridgeAPI('/api/fio-info');
+            if (!res.success) {
+                this.showFioWarning(res.error || 'fio not installed');
+            }
+        } catch (err) {
+            this.showFioWarning('Cannot contact bridge server or /api/fio-info');
+        }
+    }
+
+    showFioWarning(message) {
+        let banner = document.getElementById('fioWarning');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'fioWarning';
+            banner.style.background = '#ffdddd';
+            banner.style.border = '1px solid #d33';
+            banner.style.padding = '10px';
+            banner.style.marginBottom = '10px';
+            banner.style.fontWeight = 'bold';
+            banner.style.fontFamily = 'system-ui, sans-serif';
+            document.body.prepend(banner);
+        }
+        banner.innerHTML = `⚠️  ${message}. Install FIO with <code>brew install fio</code> and reload.`;
+    }
+
     exportResults() {
         if (!this.testResults) {
             alert('No test results to export.');
@@ -1636,3 +1664,66 @@ class DiskBenchApp {
 document.addEventListener('DOMContentLoaded', function() {
     const app = new DiskBenchApp();
 });
+
+// Global functions for pattern info modal
+function showPatternInfo(testType) {
+    const modal = document.getElementById('patternInfoModal');
+    const title = document.getElementById('modalTitle');
+    const body = document.getElementById('modalBody');
+    
+    let content = '';
+    
+    switch(testType) {
+        case 'quick_max_speed':
+            title.textContent = 'Quick Max Speed Test';
+            content = `
+                <h4>Quick Max Speed Test</h4>
+                <p><strong>Duration:</strong> 1 minute</p>
+                <p><strong>Purpose:</strong> Basic disk performance check and system validation</p>
+                <p><strong>Test Pattern:</strong> Sequential read/write with high queue depth</p>
+                <p><strong>Note:</strong> This is NOT a QLab-specific test - for QLab analysis, use ProRes tests</p>
+            `;
+            break;
+        case 'qlab_prores_422_show':
+            title.textContent = 'QLab ProRes 422 Show Pattern';
+            content = `
+                <h4>QLab ProRes 422 Show Pattern</h4>
+                <p><strong>Duration:</strong> 2.75 hours</p>
+                <p><strong>Purpose:</strong> Realistic show simulation with ProRes 422 playback</p>
+                <p><strong>Test Pattern:</strong> 1x4K + 3xHD ProRes 422 with crossfades</p>
+                <p><strong>Bandwidth Requirement:</strong> 220 MB/s minimum</p>
+            `;
+            break;
+        case 'qlab_prores_hq_show':
+            title.textContent = 'QLab ProRes HQ Show Pattern';
+            content = `
+                <h4>QLab ProRes HQ Show Pattern</h4>
+                <p><strong>Duration:</strong> 2.75 hours</p>
+                <p><strong>Purpose:</strong> High-demand 4K ProRes HQ show simulation</p>
+                <p><strong>Test Pattern:</strong> 1x4K + 3xHD ProRes HQ with intensive crossfades</p>
+                <p><strong>Bandwidth Requirement:</strong> 440 MB/s minimum</p>
+            `;
+            break;
+        case 'thermal_maximum_analyser':
+            title.textContent = 'Thermal Maximum Analyser';
+            content = `
+                <h4>Thermal Maximum Analyser</h4>
+                <p><strong>Duration:</strong> 1.5 hours</p>
+                <p><strong>Purpose:</strong> Assess long-term thermal stability and throttling behavior</p>
+                <p><strong>Test Pattern:</strong> Continuous maximum performance load</p>
+                <p><strong>Bandwidth Requirement:</strong> 300 MB/s sustained</p>
+            `;
+            break;
+        default:
+            title.textContent = 'Unknown Test Type';
+            content = '<p>Information not available for this test type.</p>';
+    }
+    
+    body.innerHTML = content;
+    modal.classList.remove('hidden');
+}
+
+function closePatternInfo() {
+    const modal = document.getElementById('patternInfoModal');
+    modal.classList.add('hidden');
+}

@@ -266,6 +266,41 @@ cd diskbench && python main.py --list-disks
 
 This project is provided as-is for professional audio/video applications. The bundled FIO binary is subject to its own license terms.
 
+## 🔄 Migration from 0.x
+
+The 1.x release introduces cleaned-up test identifiers, consistent labeling, and a new **recommended execution order**.  All 0.x identifiers continue to work for now, but they trigger a `DeprecationWarning` and will be **removed in 2.0**.  Update your scripts and GUI integrations as soon as possible.
+
+### ID mapping (old → new)
+
+| Old test id (≤0.9) | New test id (≥1.0) | Rationale |
+| ------------------- | ------------------ | --------- |
+| `quick_max_speed` | `quick_max_mix` | Unified quick-stress test |
+| `qlab_prores_422_show` | `prores_422_real` | Clearer codec naming |
+| `qlab_prores_hq_show` | `prores_422_hq_real` | Matches HQ variant wording |
+| `max_sustained` | `thermal_maximum` | Reflects long thermal-stress purpose |
+
+> **Heads-up:** Calling any of the *old* ids prints a warning like:
+> `Test ID 'quick_max_speed' is deprecated and will be removed in a future version. Use 'quick_max_mix' instead.`
+
+### New recommended execution order
+
+Internally each test is tagged with a display label (**Test 1 → Test 4**) to guide typical QLab workflows:
+
+1. **Test 1** – `quick_max_mix` (Quick Max Mix)
+2. **Test 3** – `prores_422_real` (ProRes 422 Real-World)
+3. **Test 4** – `prores_422_hq_real` (ProRes 422 HQ Real-World)
+4. **Test 2** – `thermal_maximum` (Thermal Maximum)
+
+Run them sequentially for a full performance picture:
+
+```bash
+# Example full-suite run (10 GB file on /Volumes/Media)
+python main.py --test quick_max_mix        --disk /Volumes/Media --size 10 --output quick.json
+python main.py --test prores_422_real      --disk /Volumes/Media --size 10 --output pr422.json
+python main.py --test prores_422_hq_real   --disk /Volumes/Media --size 10 --output pr422hq.json
+python main.py --test thermal_maximum      --disk /Volumes/Media --size 10 --output thermal.json
+```
+
 ## 🔄 Version History
 
 - **v1.0.0**: Initial release with web GUI + helper binary architecture

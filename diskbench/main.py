@@ -28,10 +28,11 @@ current_test_command = None
 
 # Import modules with error handling
 try:
-    from commands.test import TestCommand
+    from commands.test import DiskTestCommand
     from commands.list_disks import ListDisksCommand
     from commands.validate import ValidateCommand
-    from commands.setup import handle_detect_command, handle_install_command, handle_validate_command as handle_setup_validate_command
+    from commands.setup import (handle_detect_command, handle_install_command,
+                                handle_validate_command as handle_setup_validate_command)
     from utils.logging import setup_logging
     from utils.security import validate_disk_path, sanitize_filename
     from utils.system_info import get_system_info
@@ -42,9 +43,9 @@ except ImportError as e:
 
 __version__ = "1.0.0"
 
+
 def signal_handler(signum, frame):
     """Handle termination signals by stopping the current test."""
-    global current_test_command
     if current_test_command:
         logger = logging.getLogger(__name__)
         logger.info(f"Received signal {signum}, stopping FIO test...")
@@ -52,9 +53,11 @@ def signal_handler(signum, frame):
         logger.info("FIO test stop signal sent")
     sys.exit(0)
 
+
 # Set up signal handlers
 signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
+
 
 def create_parser():
     """Create the command-line argument parser."""
@@ -65,66 +68,75 @@ def create_parser():
         epilog="""
 Examples:
   diskbench --test setup_check --disk /dev/disk1s1 --output results.json
-  diskbench --test qlab_prores_hq --disk /dev/disk1s1 --size 10
+  diskbench --test prores_422_hq_real --disk /dev/disk1s1 --size 10
+  diskbench --test quick_max_mix --disk /dev/disk1s1 --output quick_test.json
   diskbench --custom-config ./my-pattern.fio --disk /dev/disk1s1
   diskbench --list-disks --json
   diskbench --version --check-fio
         """
     )
-    
+
     # Main operation modes (mutually exclusive)
     operation_group = parser.add_mutually_exclusive_group(required=True)
-    
+
     operation_group.add_argument(
         '--test',
-        choices=['setup_check', 'qlab_prores_422', 'qlab_prores_hq', 'baseline_streaming', 
-                'quick_max_speed', 'qlab_prores_422_show', 'qlab_prores_hq_show', 'max_sustained'],
+        choices=['setup_check', 'qlab_prores_422', 'qlab_prores_hq', 'baseline_streaming',
+                 'quick_max_mix', 'prores_422_real', 'prores_422_hq_real', 'thermal_maximum',
+                 # Deprecated - backward compatibility
+                 'quick_max_speed', 'qlab_prores_422_show', 'qlab_prores_hq_show', 'max_sustained'],
         help='Run a built-in test pattern'
     )
-    
+
     operation_group.add_argument(
         '--custom-config',
         type=str,
         metavar='FILE',
         help='Run a custom FIO configuration file'
     )
-    
+
     operation_group.add_argument(
         '--list-disks',
         action='store_true',
         help='List available disks for testing'
     )
-    
+
     operation_group.add_argument(
         '--version',
         action='store_true',
         help='Show version information'
     )
-    
+
     operation_group.add_argument(
         '--validate',
         action='store_true',
         help='Validate system and FIO installation'
     )
-    
+
     operation_group.add_argument(
         '--detect',
         action='store_true',
         help='Detect system status and FIO availability'
     )
-    
+
     operation_group.add_argument(
         '--install',
         action='store_true',
         help='Install or fix FIO for macOS'
     )
-    
+
     operation_group.add_argument(
         '--setup-validate',
         action='store_true',
         help='Run setup validation tests'
     )
-    
+
+    operation_group.add_argument(
+        '--list-tests',
+        action='store_true',
+        help='List available test patterns'
+    )
+
     # Test execution options
     parser.add_argument(
         '--disk',
@@ -132,7 +144,7 @@ Examples:
         metavar='PATH',
         help='Target disk path (e.g., /dev/disk1s1 or /Volumes/MyDisk)'
     )
-    
+
     parser.add_argument(
         '--size',
         type=int,
@@ -140,68 +152,91 @@ Examples:
         default=10,
         help='Test file size in GB (default: 10)'
     )
-    
+
     parser.add_argument(
         '--output',
         type=str,
         metavar='FILE',
         help='Output file for JSON results'
     )
-    
+
     parser.add_argument(
         '--estimated-duration',
         type=int,
         default=0,
         help='Estimated duration of the test in seconds (for progress reporting)'
     )
-    
+
     # Output format options
     parser.add_argument(
         '--json',
         action='store_true',
         help='Output results in JSON format'
     )
-    
+
     parser.add_argument(
         '--progress',
         action='store_true',
         help='Show real-time progress updates'
     )
-    
+
     # System options
     parser.add_argument(
         '--check-fio',
         action='store_true',
         help='Check FIO binary availability and version'
     )
-    
+
     parser.add_argument(
         '--verbose', '-v',
         action='store_true',
         help='Enable verbose logging'
     )
-    
+
     parser.add_argument(
         '--debug',
         action='store_true',
         help='Enable debug logging'
     )
-    
+
     return parser
+
 
 def validate_arguments(args):
     """Validate command-line arguments and dependencies."""
     errors = []
-    
+
     # Test operations require disk and output
     if args.test or args.custom_config:
+        # Validate test ID if specified
+        if args.test:
+            from core.qlab_patterns import QLabTestPatterns
+            from commands.test import DiskTestCommand
+
+            qlab_patterns = QLabTestPatterns()
+            test_cmd = DiskTestCommand()
+
+            # Define all valid test IDs (current + deprecated)
+            valid_test_ids = set(qlab_patterns.patterns.keys())
+            valid_test_ids.update(test_cmd.deprecated_test_mapping.keys())
+
+            # Also add legacy choices from argparse for completeness
+            legacy_choices = {'setup_check', 'qlab_prores_422', 'qlab_prores_hq', 'baseline_streaming'}
+            valid_test_ids.update(legacy_choices)
+
+            if args.test not in valid_test_ids:
+                # Get sorted list of current valid choices for display
+                current_valid_ids = sorted(qlab_patterns.patterns.keys())
+                valid_choices_str = "', '".join(current_valid_ids)
+                errors.append(f"Unknown test id '{args.test}'. Valid choices: '{valid_choices_str}'")
+
         if not args.disk:
             errors.append("--disk is required for test operations")
         else:
             # Validate disk path
             if not validate_disk_path(args.disk):
                 errors.append(f"Invalid or inaccessible disk path: {args.disk}")
-        
+
         if not args.output:
             errors.append("--output is required for test operations")
         else:
@@ -211,30 +246,31 @@ def validate_arguments(args):
                 errors.append(f"Output directory does not exist: {output_dir}")
             elif not os.access(output_dir, os.W_OK):
                 errors.append(f"Output directory is not writable: {output_dir}")
-    
+
     # Custom config file validation
     if args.custom_config:
         if not os.path.exists(args.custom_config):
             errors.append(f"Custom config file not found: {args.custom_config}")
         elif not os.access(args.custom_config, os.R_OK):
             errors.append(f"Custom config file is not readable: {args.custom_config}")
-    
+
     # Size validation
     if args.size and (args.size < 1 or args.size > 1000):
         errors.append("Test size must be between 1 and 1000 GB")
-    
+
     return errors
+
 
 def main():
     """Main entry point for the diskbench CLI."""
     parser = create_parser()
     args = parser.parse_args()
-    
+
     # Setup logging
     log_level = logging.DEBUG if args.debug else (logging.INFO if args.verbose else logging.WARNING)
     setup_logging(log_level)
     logger = logging.getLogger(__name__)
-    
+
     try:
         # Handle version command
         if args.version:
@@ -243,12 +279,12 @@ def main():
                 'python_version': sys.version,
                 'system_info': get_system_info()
             }
-            
+
             if args.check_fio:
                 from core.fio_runner import FioRunner
                 fio_runner = FioRunner()
                 version_info['fio_status'] = fio_runner.get_fio_status()
-            
+
             if args.json:
                 print(json.dumps(version_info, indent=2))
             else:
@@ -260,7 +296,7 @@ def main():
                     else:
                         print(f"FIO: Not available - {fio_status['error']}")
             return 0
-        
+
         # Validate arguments
         validation_errors = validate_arguments(args)
         if validation_errors:
@@ -268,14 +304,14 @@ def main():
             for error in validation_errors:
                 logger.error(f"  - {error}")
             return 1
-        
+
         # Handle list-disks command
         if args.list_disks:
             list_cmd = ListDisksCommand()
             result = list_cmd.execute(json_output=args.json)
             if result is None:
                 return 1
-            
+
             if args.json:
                 print(json.dumps(result, indent=2))
             else:
@@ -283,14 +319,14 @@ def main():
                 for disk in result.get('disks', []):
                     print(f"  {disk['device']} - {disk['name']} ({disk['size']}, {disk['type']})")
             return 0
-        
+
         # Handle validate command
         if args.validate:
             validate_cmd = ValidateCommand()
             result = validate_cmd.execute(json_output=args.json)
             if result is None:
                 return 1
-            
+
             if args.json:
                 print(json.dumps(result, indent=2))
             else:
@@ -298,25 +334,57 @@ def main():
                 for check, status in result.get('checks', {}).items():
                     status_icon = "✅" if status['passed'] else "❌"
                     print(f"  {status_icon} {check}: {status['message']}")
-            
+
             return 0 if result.get('overall_status') == 'passed' else 1
-        
+
         # Handle setup commands
         if args.detect:
             return handle_detect_command(args)
-        
+
         if args.install:
             return handle_install_command(args)
-        
+
         if args.setup_validate:
             return handle_setup_validate_command(args)
-        
+
+        # Handle list-tests command
+        if args.list_tests:
+            from core.qlab_patterns import QLabTestPatterns
+            qlab_patterns = QLabTestPatterns()
+
+            if args.json:
+                tests_info = {}
+                for test_id in qlab_patterns.get_ordered_tests():
+                    config = qlab_patterns.get_test_config(test_id)
+                    tests_info[test_id] = {
+                        'name': config['name'],
+                        'description': config['description'],
+                        'duration': config['duration'],
+                        'display_label': qlab_patterns.get_test_display_label(test_id)
+                    }
+                result = {
+                    'tests': tests_info,
+                    'order': qlab_patterns.get_ordered_tests()
+                }
+                print(json.dumps(result, indent=2))
+            else:
+                print("Available test patterns:")
+                for i, test_id in enumerate(qlab_patterns.get_ordered_tests(), 1):
+                    config = qlab_patterns.get_test_config(test_id)
+                    display_label = qlab_patterns.get_test_display_label(test_id)
+                    print(f"{i}. {display_label}: {config['name']}")
+                    print(f"   ID: {test_id}")
+                    print(f"   Description: {config['description']}")
+                    print(f"   Duration: {config['duration']} seconds")
+                    print()
+            return 0
+
         # Handle test commands
         if args.test or args.custom_config:
             global current_test_command
-            test_cmd = TestCommand()
+            test_cmd = DiskTestCommand()
             current_test_command = test_cmd  # Store for signal handling
-            
+
             # Prepare test parameters
             test_params = {
                 'disk_path': args.disk,
@@ -324,9 +392,9 @@ def main():
                 'output_file': args.output,
                 'show_progress': args.progress,
                 'json_output': args.json,
-                'estimated_duration': args.estimated_duration # Pass estimated duration
+                'estimated_duration': args.estimated_duration  # Pass estimated duration
             }
-            
+
             try:
                 if args.test:
                     test_params['test_mode'] = args.test
@@ -336,11 +404,11 @@ def main():
                     result = test_cmd.execute_custom_test(**test_params)
             finally:
                 current_test_command = None  # Clear after test completes
-            
+
             if result is None:
                 logger.error("Test execution failed")
                 return 1
-            
+
             # Save results to output file
             try:
                 with open(args.output, 'w') as f:
@@ -349,13 +417,13 @@ def main():
             except Exception as e:
                 logger.error(f"Failed to save results: {e}")
                 return 1
-            
+
             return 0
-        
+
         # Should not reach here due to mutually exclusive group
         parser.print_help()
         return 1
-        
+
     except KeyboardInterrupt:
         logger.info("Operation cancelled by user")
         return 130  # Standard exit code for SIGINT
@@ -365,6 +433,7 @@ def main():
             import traceback
             logger.error(traceback.format_exc())
         return 1
+
 
 if __name__ == '__main__':
     sys.exit(main())

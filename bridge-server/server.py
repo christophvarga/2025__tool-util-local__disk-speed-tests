@@ -20,11 +20,31 @@ from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import socketserver
+from typing import Dict, Any, Optional
 
 # Add diskbench to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'diskbench'))
 
 class DiskBenchBridge:
+
+    # ---------------------------------------------------------------------
+    # Utility
+    # ---------------------------------------------------------------------
+    def _verify_fio(self) -> Dict[str, str]:
+        """Locate fio binary and return {'path': str, 'version': str}. Raises OSError."""
+        if self._fio_checked:
+            return self._fio_checked
+        import shutil, subprocess
+        fio_path = shutil.which('fio')
+        if not fio_path:
+            raise OSError('fio binary not found in PATH – install with "brew install fio"')
+        try:
+            version_out = subprocess.check_output([fio_path, "--version"], text=True).strip()
+        except Exception:
+            version_out = 'unknown'
+        self._fio_checked = {'path': fio_path, 'version': version_out}
+        return self._fio_checked
+
     """Bridge between web GUI and diskbench helper binary."""
     
     def __init__(self):
@@ -32,6 +52,7 @@ class DiskBenchBridge:
         self.running_tests = {}
         self.running_processes = {}  # Track actual subprocess objects
         self.logger = logging.getLogger(__name__)
+        self._fio_checked: Optional[Dict[str, str]] = None
         self.state_file = 'memory-bank/diskbench_bridge_state.json'
         
         # Load persistent state on startup
@@ -390,6 +411,12 @@ class DiskBenchBridge:
             }
     
     def start_test(self, test_params):
+        # Verify fio is available first
+        try:
+            self._verify_fio()
+        except OSError as e:
+            return {'success': False, 'error': str(e)}
+
         """Start a disk performance test with single-instance enforcement."""
         try:
             # Check for running tests - only allow one test at a time
@@ -402,21 +429,38 @@ class DiskBenchBridge:
                     'error': f'Test already running (ID: {running_test_ids[0]}). Stop current test before starting a new one.'
                 }
             
-            # Generate unique test ID
-            test_id = f"test_{int(time.time())}"
+            # Validate test type early
+            requested_test_type = test_params.get('test_type', 'quick_max_speed')
             
             # Map test types from web GUI to diskbench - using correct diskbench test names
             test_type_mapping = {
-                'quick_max_speed': 'quick_max_speed',
-                'qlab_prores_422_show': 'qlab_prores_422_show',
-                'qlab_prores_hq_show': 'qlab_prores_hq_show',
-                'max_sustained': 'max_sustained'
+                'quick_max_speed': 'quick_max_mix',
+                'qlab_prores_422_show': 'prores_422_real',
+                'qlab_prores_hq_show': 'prores_422_hq_real',
+                'thermal_maximum_analyser': 'thermal_maximum'
             }
             
-            diskbench_test_type = test_type_mapping.get(
-                test_params.get('test_type', 'quick_max_speed'), 
-                'quick_max_speed'
-            )
+            # Check if test type is valid (in mapping or already a valid diskbench test)
+            from core.qlab_patterns import QLabTestPatterns
+            qlab_patterns = QLabTestPatterns()
+            
+            if requested_test_type in test_type_mapping:
+                diskbench_test_type = test_type_mapping[requested_test_type]
+            elif requested_test_type in qlab_patterns.patterns:
+                diskbench_test_type = requested_test_type
+            else:
+                # Unknown test type - return error with valid choices
+                valid_choices = sorted(list(test_type_mapping.keys()) + list(qlab_patterns.patterns.keys()))
+                valid_choices_str = "', '".join(valid_choices)
+                return {
+                    'success': False,
+                    'error': f"Unknown test id '{requested_test_type}'. Valid choices: '{valid_choices_str}'"
+                }
+            
+            # Generate unique test ID
+            test_id = f"test_{int(time.time())}"
+            
+            # diskbench_test_type is already determined above during validation
             
             # Build command arguments
             args = [
@@ -445,7 +489,7 @@ class DiskBenchBridge:
                 estimated_duration = 9300  # 2.5 hours
             elif diskbench_test_type == 'qlab_prores_hq_show':
                 estimated_duration = 9300  # 2.5 hours
-            elif diskbench_test_type == 'max_sustained':
+            elif diskbench_test_type == 'thermal_maximum':
                 estimated_duration = 5400  # 1.5 hours
             else:
                 estimated_duration = 60   # Default to 1 minute for unknown tests
@@ -838,8 +882,8 @@ class DiskBenchBridge:
                 estimated_duration = 9300  # 2.5 hours for ProRes 422 show tests
             elif test_type == 'qlab_prores_hq_show':
                 estimated_duration = 9300  # 2.5 hours for ProRes HQ show tests
-            elif test_type == 'max_sustained':
-                estimated_duration = 5400  # 1.5 hours for sustained tests
+            elif test_type == 'thermal_maximum':
+                estimated_duration = 5400  # 1.5 hours for thermal maximum tests
             elif test_type == 'quick_max_speed':
                 estimated_duration = 60    # 1 minute for quick tests
             else:
@@ -897,11 +941,11 @@ class DiskBenchBridge:
                 'elapsed_time': elapsed,
                 'test_type': test_type
             }
-        elif test_type == 'max_sustained':
-            # Sustained performance test (1.5 hours)
+        elif test_type == 'thermal_maximum':
+            # Thermal maximum test (1.5 hours)
             return {
                 'status': 'thermal_endurance_test',
-                'message': f'🔥 Sustained Performance Test ({elapsed//60:.0f}m {elapsed%60:.0f}s)',
+                'message': f'🔥 Thermal Maximum Test ({elapsed//60:.0f}m {elapsed%60:.0f}s)',
                 'description': 'Maximum sustained load for thermal testing',
                 'phase': 'Continuous maximum performance',
                 'elapsed_time': elapsed,
@@ -922,13 +966,13 @@ class DiskBenchBridge:
         """Generate QLab-specific performance analysis."""
         # QLab requirements for different scenarios
         qlab_requirements = {
-            'qlab_prores_422_show': {'min_throughput': 220, 'name': 'ProRes 422'},
-            'qlab_prores_hq_show': {'min_throughput': 440, 'name': 'ProRes HQ'},
-            'quick_max_speed': {'min_throughput': 100, 'name': 'Basic'},
-            'max_sustained': {'min_throughput': 300, 'name': 'Sustained'}
+            'prores_422_real': {'min_throughput': 220, 'name': 'ProRes 422'},
+            'prores_422_hq_real': {'min_throughput': 440, 'name': 'ProRes HQ'},
+            'quick_max_mix': {'min_throughput': 100, 'name': 'Basic'},
+            'thermal_maximum': {'min_throughput': 300, 'name': 'Thermal Maximum'}
         }
         
-        requirement = qlab_requirements.get(test_type, qlab_requirements['quick_max_speed'])
+        requirement = qlab_requirements.get(test_type, qlab_requirements['quick_max_mix'])
         min_required = requirement['min_throughput']
         
         # Since we removed temperature monitoring and live metrics, return placeholder analysis
@@ -2002,6 +2046,12 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
         super().__init__(*args, **kwargs)
     
     def do_GET(self):
+        parsed_path = urlparse(self.path)
+        path = parsed_path.path
+        if path == '/api/fio-info':
+            self._handle_fio_info()
+            return
+
         """Handle GET requests."""
         try:
             parsed_url = urlparse(self.path)
@@ -2203,6 +2253,14 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
         result = self.bridge.auto_fix_fio_shm()
         self._send_json_response(result)
     
+    def _handle_fio_info(self):
+        """Return fio binary path and version."""
+        try:
+            info = self.bridge._verify_fio()
+            self._send_json_response({'success': True, 'fio': info})
+        except OSError as e:
+            self._send_json_response({'success': False, 'error': str(e)})
+
     def _handle_background_tests_status(self):
         """Handle background tests status request."""
         result = self.bridge.get_background_tests_status()
