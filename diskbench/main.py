@@ -41,7 +41,7 @@ except ImportError as e:
     print("Make sure all required modules are present in the diskbench directory")
     sys.exit(1)
 
-__version__ = "1.0.0"
+__version__ = "1.0.0-beta"
 
 
 def signal_handler(signum, frame):
@@ -354,9 +354,12 @@ def main():
 
             if args.json:
                 tests_info = {}
+                order = []
                 for test_id in qlab_patterns.get_ordered_tests():
                     config = qlab_patterns.get_test_config(test_id)
-                    tests_info[test_id] = {
+                    key = test_id.value if hasattr(test_id, 'value') else str(test_id)
+                    order.append(key)
+                    tests_info[key] = {
                         'name': config['name'],
                         'description': config['description'],
                         'duration': config['duration'],
@@ -364,7 +367,7 @@ def main():
                     }
                 result = {
                     'tests': tests_info,
-                    'order': qlab_patterns.get_ordered_tests()
+                    'order': order
                 }
                 print(json.dumps(result, indent=2))
             else:
@@ -372,8 +375,9 @@ def main():
                 for i, test_id in enumerate(qlab_patterns.get_ordered_tests(), 1):
                     config = qlab_patterns.get_test_config(test_id)
                     display_label = qlab_patterns.get_test_display_label(test_id)
+                    test_id_str = test_id.value if hasattr(test_id, 'value') else str(test_id)
                     print(f"{i}. {display_label}: {config['name']}")
-                    print(f"   ID: {test_id}")
+                    print(f"   ID: {test_id_str}")
                     print(f"   Description: {config['description']}")
                     print(f"   Duration: {config['duration']} seconds")
                     print()

@@ -3,6 +3,7 @@ QLab test patterns dictionary for diskbench.
 """
 from enum import Enum
 
+
 class TestId(Enum):
     """Enumeration of available test IDs in the system."""
     QUICK_MAX_MIX = 'quick_max_mix'
@@ -28,6 +29,7 @@ class TestId(Enum):
         except ValueError:
             valid_ids = ', '.join([e.value for e in TestId])
             raise ValueError(f"Invalid TestId: '{value}'. Valid TestIds are: {valid_ids}")
+
 
 # Dictionary of QLab test templates keyed by test identifier
 QLAB_PATTERNS = {
@@ -57,7 +59,7 @@ iodepth=32
 """
     },
 
-TestId.PRORES_422_REAL: {
+    TestId.PRORES_422_REAL: {
         'name': 'ProRes 422 Real-World Test',
         'description': 'Realistic ProRes 422 playback simulation with multiple streams',
         'duration': 1800,  # 30 minutes
@@ -108,7 +110,7 @@ startdelay=600
 """
     },
 
-TestId.PRORES_422_HQ_REAL: {
+    TestId.PRORES_422_HQ_REAL: {
         'name': 'ProRes 422 HQ Real-World Test',
         'description': 'Realistic ProRes 422 HQ playback simulation with higher bandwidth',
         'duration': 1800,  # 30 minutes
@@ -159,7 +161,7 @@ startdelay=600
 """
     },
 
-TestId.THERMAL_MAXIMUM: {
+    TestId.THERMAL_MAXIMUM: {
         'name': 'Thermal Maximum Test',
         'description': 'Extended high-load test to identify thermal throttling and maximum sustained performance',
         'duration': 3600,  # 60 minutes
@@ -177,7 +179,7 @@ lat_percentiles=1
 
 [thermal_ramp_up]
 filename=${TEST_FILE}
-size=${TEST_SIZE}
+size=${TEST_SIZE]
 bs=8M
 rw=read
 numjobs=2
@@ -228,15 +230,15 @@ startdelay=2700
 class QLabTestPatterns:
     """Class for managing QLab test patterns and configurations."""
 
-def __init__(self):
+    def __init__(self):
         self.patterns = QLAB_PATTERNS
 
         # Test display order: 1-3-4-2 corresponds to quick → prores422 → prores422hq → thermal
         self.test_display_order = [
-            TestId.QUICK_MAX_MIX,      # Test 1
-            TestId.PRORES_422_REAL,    # Test 3 (shown as position 2)
+            TestId.QUICK_MAX_MIX,       # Test 1
+            TestId.PRORES_422_REAL,     # Test 3 (shown as position 2)
             TestId.PRORES_422_HQ_REAL,  # Test 4 (shown as position 3)
-            TestId.THERMAL_MAXIMUM     # Test 2 (shown as position 4)
+            TestId.THERMAL_MAXIMUM      # Test 2 (shown as position 4)
         ]
 
         # Map test IDs to display labels
@@ -247,7 +249,7 @@ def __init__(self):
             TestId.THERMAL_MAXIMUM: 'Test 2'
         }
 
-def get_test_config(self, test_id: 'TestId | str', disk_path: str = None, test_size_gb: int = None) -> dict:
+    def get_test_config(self, test_id: 'TestId | str', disk_path: str = None, test_size_gb: int = None) -> dict:
         """
         Get test configuration metadata for a given test ID.
 
@@ -288,11 +290,11 @@ def get_test_config(self, test_id: 'TestId | str', disk_path: str = None, test_s
         if disk_path and test_size_gb:
             # Create test file path
             if disk_path.startswith('/dev/'):
-                test_file = f'/tmp/diskbench_test_{test_id}.dat'
+                test_file = f'/tmp/diskbench_test_{test_id.value}.dat'
             elif disk_path.startswith('/Volumes/'):
-                test_file = f'{disk_path}/diskbench_test_{test_id}.dat'
+                test_file = f'{disk_path}/diskbench_test_{test_id.value}.dat'
             else:
-                test_file = f'{disk_path}/diskbench_test_{test_id}.dat'
+                test_file = f'{disk_path}/diskbench_test_{test_id.value}.dat'
 
             # Process template variables
             processed_config = pattern['fio_template']
@@ -303,7 +305,7 @@ def get_test_config(self, test_id: 'TestId | str', disk_path: str = None, test_s
 
         return config
 
-def get_ordered_tests(self) -> list[TestId]:
+    def get_ordered_tests(self) -> list[TestId]:
         """
         Get test IDs in display order (1-3-4-2: quick → prores422 → prores422hq → thermal).
 
@@ -312,7 +314,7 @@ def get_ordered_tests(self) -> list[TestId]:
         """
         return self.test_display_order.copy()
 
-def get_test_display_label(self, test_id: 'TestId | str') -> str:
+    def get_test_display_label(self, test_id: 'TestId | str') -> str:
         """
         Get the user-visible display label for a test ID.
 
@@ -331,7 +333,7 @@ def get_test_display_label(self, test_id: 'TestId | str') -> str:
 
         return self.test_display_labels.get(test_id, test_id.value)
 
-def analyze_results(self, test_mode: 'TestId | str', fio_results: dict) -> dict:
+    def analyze_results(self, test_mode: 'TestId | str', fio_results: dict) -> dict:
         """
         Analyze FIO results for QLab-specific metrics.
 

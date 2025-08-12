@@ -1,123 +1,140 @@
 # QLab Disk Performance Tester
 
-Professional disk performance testing tool optimized for QLab audio/video applications. This tool uses a modern architecture with a clean web GUI that communicates with an unsandboxed helper binary to perform comprehensive FIO-based disk testing.
+Version 1.1 – 12.8.2025
 
-## 🏗️ Architecture Overview (MVP)
+Professionelles Disk Performance Testing Tool optimiert für QLab Audio/Video-Anwendungen. Web-basierte Architektur mit Python Bridge Server und FIO Engine für realistische Show-Pattern-Tests.
 
-This project is **not a packaged desktop app**.  It is a minimal-viable-product built entirely from ordinary Python scripts plus static web files.  Nothing is code-signed, sandboxed, or bundled. You run two processes manually:
+## 🏗️ Architektur-Übersicht
 
-1. **Bridge Server** (`python bridge-server/server.py`) – a small HTTP API that also serves the GUI files.
-2. **Browser** – you open `http://localhost:8765/` to access the GUI.
-
-The bridge starts the helper CLI (`diskbench/main.py`) which in turn invokes **fio** to measure disk performance.  The data flow is therefore:
+Drei-Schichten-Architektur für maximale Flexibilität und einfache Wartung:
 
 ```text
-Browser GUI  ⇄  Bridge Server (HTTP API + static files)  ⇄  diskbench CLI  ⇄  fio
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────┐
+│   Web Browser   │ ←→  │  Bridge Server   │ ←→  │  FIO Engine │
+│   (Frontend)    │HTTP │  (Python HTTP)   │Proc │  (Homebrew) │
+│                 │8765 │                  │     │             │
+└─────────────────┘     └──────────────────┘     └─────────────┘
 ```
 
-• Everything runs locally on your Mac.  
-• No sandbox / notarisation / application bundle is involved.  
-• If you want to package it later you can, but the MVP assumes a developer shell.
+### Komponenten:
 
-### Components
+1. **Web GUI** (`web-gui/`) - Moderne Browser-basierte Oberfläche
+2. **Bridge Server** (`bridge-server/server.py`) - HTTP API Server und Process Manager
+3. **Diskbench CLI** (`diskbench/`) - Test Engine und FIO Wrapper
+4. **FIO** - Industry-Standard Disk Benchmark (via Homebrew)
 
-1. **Web GUI** – static HTML/CSS/JS served by the bridge.
-2. **Bridge Server** – Python `http.server` subclass exposing JSON endpoints and spawning tests.
-3. **diskbench** – helper Python CLI that builds FIO job files and parses results.
-4. **fio** – industry-standard disk benchmark tool you install separately (e.g. `brew install fio`).
+• Alles läuft lokal auf Ihrem Mac  
+• Keine Sandbox-Beschränkungen  
+• Open Source ohne Lizenzkosten
 
-## 🚀 Quick Start
+## 🚀 Quick Start (< 5 Minuten)
 
-### 1. Install FIO via Homebrew
+### Einfachste Methode:
 
 ```bash
-# Install Homebrew (if not already installed)
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+# 1. Repository klonen oder herunterladen
+git clone <repository-url>
+cd qlab-disk-performance-tester
 
-# Install FIO
+# 2. Start-Script ausführen (installiert alles automatisch)
+./start.sh
+```
+
+Das Start-Script:
+- ✅ Prüft macOS und Prozessor-Architektur (Intel/M1)
+- ✅ Installiert Homebrew (falls nötig)
+- ✅ Installiert FIO automatisch
+- ✅ Startet den Bridge Server
+- ✅ Öffnet den Browser automatisch
+
+### Manuelle Installation:
+
+```bash
+# 1. FIO installieren (falls nicht vorhanden)
 brew install fio
-```
 
-### 2. Start the Bridge Server
-
-```bash
+# 2. Bridge Server starten
 cd bridge-server
-python server.py
-```
+python3 server.py
 
-### 3. Open the Web Interface
-
-```bash
+# 3. Browser öffnen
 open http://localhost:8765/
 ```
 
-### 4. Run Setup Wizard
+### Server stoppen:
 
-1. Open the web interface in your browser
-2. Follow the setup wizard to verify FIO installation
-3. Select a disk from the available list
-4. Choose a test type (QLab Mixed Test recommended)
-5. Click "Start Test"
-6. View results and export if needed
-
-## 📋 Test Types
-
-### QLab-Optimized Tests
-
-- **QLab ProRes HQ Test** ⭐ *Recommended*
-  - Mixed read/write patterns for ProRes HQ video playback
-  - 4K block sizes with realistic access patterns
-  - Optimized for live performance requirements
-
-- **QLab ProRes 422 Test**
-  - Optimized for ProRes 422 video playback
-  - Lower bandwidth requirements than HQ
-
-- **Setup Check**
-  - Quick system validation
-  - Basic performance verification
-  - Ideal for initial system testing
-
-- **Baseline Streaming**
-  - General streaming performance test
-  - Audio/video content simulation
-
-## 🔧 Helper Binary Commands
-
-The `diskbench` helper binary provides comprehensive CLI functionality:
-
-### System Validation
 ```bash
+./stop.sh
+```
+
+## 📋 Verfügbare Test-Patterns
+
+### QLab-optimierte Tests:
+
+1. **Quick Max Mix Test** (5 Minuten) ⭐ *Empfohlen für schnelle Analyse*
+   - Gemischte Read/Write Workloads
+   - Maximale Performance-Ermittlung
+   - Test-ID: `quick_max_mix`
+   - Dauer: 5 Minuten
+
+2. **ProRes 422 Real-World Test** (30 Minuten)
+   - Realistische ProRes 422 Playback-Simulation
+   - Mehrere Streams mit Crossfades
+   - Test-ID: `prores_422_real`
+   - Dauer: 30 Minuten
+
+3. **ProRes 422 HQ Real-World Test** (30 Minuten)
+   - Höhere Bandbreite für ProRes HQ
+   - 6 parallele Jobs für Heavy Load
+   - Test-ID: `prores_422_hq_real`
+   - Dauer: 30 Minuten
+
+4. **Thermal Maximum Test** (60 Minuten)
+   - Langzeit-Belastungstest
+   - Thermal Throttling Erkennung
+   - Test-ID: `thermal_maximum`
+   - Dauer: 60 Minuten
+
+## 🔧 Diskbench CLI Befehle
+
+Das `diskbench` CLI Tool bietet umfassende Kommandozeilen-Funktionalität:
+
+### System-Validierung
+```bash
+cd diskbench
 python main.py --validate
 ```
 
-### List Available Disks
+### Verfügbare Disks anzeigen
 ```bash
 python main.py --list-disks --json
 ```
 
-### Run Performance Tests
+### Performance Tests ausführen
 ```bash
-# QLab ProRes HQ test
-python main.py --test qlab_prores_hq --disk /dev/disk1s1 --size 10 --output results.json
+# Quick Max Mix Test (5 Min)
+python main.py --test quick_max_mix --disk /Volumes/Media --size 10 --output quick.json
 
-# Quick setup check
-python main.py --test setup_check --disk /Volumes/MyDrive --size 5 --output check.json
+# ProRes 422 Real-World Test (30 Min)
+python main.py --test prores_422_real --disk /Volumes/Media --size 10 --output prores422.json
 
-# Custom FIO configuration
-python main.py --config custom-test.fio --disk /dev/disk2s1 --size 20 --output custom.json
+# ProRes 422 HQ Real-World Test (30 Min)
+python main.py --test prores_422_hq_real --disk /Volumes/Media --size 10 --output prores422hq.json
+
+# Thermal Maximum Test (60 Min)
+python main.py --test thermal_maximum --disk /Volumes/Media --size 10 --output thermal.json
 ```
 
-### Command Options
-- `--test`: Test type (qlab_prores_hq, qlab_prores_422, setup_check, baseline_streaming)
-- `--disk`: Target disk path (/dev/diskX or /Volumes/Name)
-- `--size`: Test file size in GB (1-100)
-- `--output`: Output JSON file path
-- `--progress`: Show progress during test
-- `--json`: Format output as JSON
-- `--validate`: Run system validation
-- `--list-disks`: List available disks
-- `--version`: Show version information
+### Kommandozeilen-Optionen
+- `--test`: Test-Pattern (quick_max_mix, prores_422_real, prores_422_hq_real, thermal_maximum)
+- `--disk`: Ziel-Disk Pfad (/dev/diskX oder /Volumes/Name)
+- `--size`: Test-Dateigröße in GB (1-100)
+- `--output`: Output JSON Datei
+- `--progress`: Zeige Fortschritt während Test
+- `--json`: Formatiere Output als JSON
+- `--validate`: System-Validierung durchführen
+- `--list-disks`: Liste verfügbare Disks
+- `--version`: Version anzeigen
 
 ## 📊 Understanding Results
 
@@ -262,50 +279,32 @@ cd diskbench && python main.py --list-disks
 3. Verify FIO installation and permissions
 4. Test helper binary independently
 
-## 📄 License
+## 📄 Lizenz
 
-This project is provided as-is for professional audio/video applications. The bundled FIO binary is subject to its own license terms.
+Dieses Projekt wird als Open Source für professionelle Audio/Video-Anwendungen bereitgestellt. MIT License.
 
-## 🔄 Migration from 0.x
+## ✅ Validierung und aktuelle Änderungen
 
-The 1.x release introduces cleaned-up test identifiers, consistent labeling, and a new **recommended execution order**.  All 0.x identifiers continue to work for now, but they trigger a `DeprecationWarning` and will be **removed in 2.0**.  Update your scripts and GUI integrations as soon as possible.
+- Testsuite: 27/27 Tests erfolgreich (Stand: 2025-08-12)
+- Behobene Punkte:
+  - QLabTestPatterns korrekt als Klasse implementiert (Methoden und Attribute waren zuvor außerhalb des Klassenblocks)
+  - Konsistente Testlisten-Ausgabe: JSON nutzt String-Test-IDs für Keys und die Reihenfolge-Liste
+- Relevante Dateien:
+  - diskbench/core/qlab_patterns.py
+  - diskbench/main.py (Ausgabe von --list-tests)
 
-### ID mapping (old → new)
+## 🔄 Versions-Historie
 
-| Old test id (≤0.9) | New test id (≥1.0) | Rationale |
-| ------------------- | ------------------ | --------- |
-| `quick_max_speed` | `quick_max_mix` | Unified quick-stress test |
-| `qlab_prores_422_show` | `prores_422_real` | Clearer codec naming |
-| `qlab_prores_hq_show` | `prores_422_hq_real` | Matches HQ variant wording |
-| `max_sustained` | `thermal_maximum` | Reflects long thermal-stress purpose |
+- v0.9.0-beta (Juli 2025)
+  - Web-basierte Architektur
+  - 4 QLab-spezifische Test-Patterns
+  - FIO Integration mit macOS Workarounds
+  - Basis-Fehlerbehandlung
 
-> **Heads-up:** Calling any of the *old* ids prints a warning like:
-> `Test ID 'quick_max_speed' is deprecated and will be removed in a future version. Use 'quick_max_mix' instead.`
-
-### New recommended execution order
-
-Internally each test is tagged with a display label (**Test 1 → Test 4**) to guide typical QLab workflows:
-
-1. **Test 1** – `quick_max_mix` (Quick Max Mix)
-2. **Test 3** – `prores_422_real` (ProRes 422 Real-World)
-3. **Test 4** – `prores_422_hq_real` (ProRes 422 HQ Real-World)
-4. **Test 2** – `thermal_maximum` (Thermal Maximum)
-
-Run them sequentially for a full performance picture:
-
-```bash
-# Example full-suite run (10 GB file on /Volumes/Media)
-python main.py --test quick_max_mix        --disk /Volumes/Media --size 10 --output quick.json
-python main.py --test prores_422_real      --disk /Volumes/Media --size 10 --output pr422.json
-python main.py --test prores_422_hq_real   --disk /Volumes/Media --size 10 --output pr422hq.json
-python main.py --test thermal_maximum      --disk /Volumes/Media --size 10 --output thermal.json
-```
-
-## 🔄 Version History
-
-- **v1.0.0**: Initial release with web GUI + helper binary architecture
-  - Professional FIO-based testing
-  - QLab-optimized test patterns
-  - Clean web interface
-  - Comprehensive safety features
-  - JSON result export
+- v1.0.0 (geplant)
+  - Vereinfachtes Setup mit start.sh
+  - Verbesserte Fehlerbehandlung
+  - Schnelle Test-Optionen (5–10 Min)
+  - Chart.js Visualisierung
+  - SQLite State Management
+  - Stabilisierung und Beta-Tests

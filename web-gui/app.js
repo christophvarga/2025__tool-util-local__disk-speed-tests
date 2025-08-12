@@ -8,7 +8,7 @@
 class DiskBenchApp {
     constructor() {
         this.selectedDisk = null;
-        this.selectedTestType = 'qlab_prores_422_show';
+        this.selectedTestType = null;
         this.testSize = 10;
         this.isTestRunning = false;
         this.testResults = null;
@@ -33,6 +33,7 @@ class DiskBenchApp {
         this.setupEventListeners();
         this.checkSystemStatus();
         this.loadAvailableDisks();
+        this.loadTests();
         this.checkForActiveTest();
         this.updateUI();
     }
@@ -82,13 +83,8 @@ class DiskBenchApp {
             this.loadAvailableDisks();
         });
         
-        // Test type selection
-        document.querySelectorAll('input[name="testType"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                this.selectedTestType = e.target.value;
-                this.updateUI();
-            });
-        });
+        // Initial binding for test type radios (will be re-bound after dynamic render)
+        this.bindTestTypeListeners();
         
         // Test size
         document.getElementById('testSize').addEventListener('change', (e) => {
@@ -111,6 +107,16 @@ class DiskBenchApp {
 
         document.getElementById('exportResults').addEventListener('click', () => {
             this.exportResults();
+        });
+    }
+
+    bindTestTypeListeners() {
+        const radios = document.querySelectorAll('input[name="testType"]');
+        radios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                this.selectedTestType = e.target.value;
+                this.updateUI();
+            });
         });
     }
     
@@ -360,7 +366,56 @@ class DiskBenchApp {
             this.handleTestStopped(`Stop all failed: ${error.message}`);
         }
     }
+    }
 
+    async loadTests() {
+        try {
+            const resp = await fetch('/api/tests');
+            const data = await resp.json();
+            if (!data || !data.success || !data.tests || !data.order) {
+                console.warn('Tests API returned unexpected format', data);
+                return;
+            }
+            this.renderTestOptions(data.tests, data.order);
+            // Select first by default if none selected yet
+            if (!this.selectedTestType && data.order.length > 0) {
+                this.selectedTestType = data.order[0];
+                const firstRadio = document.querySelector(`input[name="testType"][value="${this.selectedTestType}"]`);
+                if (firstRadio) firstRadio.checked = true;
+            }
+            this.updateUI();
+        } catch (e) {
+            console.error('Failed to load tests:', e);
+        }
+    }
+
+    renderTestOptions(testsById, order) {
+        const container = document.querySelector('.test-types');
+        if (!container) return;
+        // Store catalog for later (info modal)
+        this.testsCatalog = { tests: testsById, order };
+        const html = order.map((id) => {
+            const t = testsById[id] || {};
+            const minutes = t.duration ? Math.round(t.duration / 60) : null;
+            const durationText = minutes ? `⏱️ Dauer: ${minutes} Minuten` : '';
+            const label = t.display_label || id;
+            const checked = this.selectedTestType === id ? 'checked' : '';
+            return `
+            <label class="test-option">
+                <input type="radio" name="testType" value="${id}" ${checked}>
+                <div class="test-card${label === 'Test 1' ? ' recommended' : ''}">
+                    <h4>${label}: ${t.name || id}
+                        <i class="fas fa-info-circle info-icon" onclick="showPatternInfo('${id}')" title="Show detailed information"></i>
+                    </h4>
+                    <p>${t.description || ''}</p>
+                    <div class="test-duration">${durationText}</div>
+                </div>
+            </label>`;
+        }).join('');
+        container.innerHTML = html;
+        // Re-bind listeners after dynamic render
+        this.bindTestTypeListeners();
+    }
     
     updateProgress(percentage, message) {
         // Fix progress bar jumping by ensuring valid percentage
@@ -1663,6 +1718,7 @@ class DiskBenchApp {
 // Initialize the application when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     const app = new DiskBenchApp();
+    window.app = app; // expose for inline handlers
 });
 
 // Global functions for pattern info modal
@@ -1672,51 +1728,39 @@ function showPatternInfo(testType) {
     const body = document.getElementById('modalBody');
     
     let content = '';
-    
-    switch(testType) {
-        case 'quick_max_speed':
-            title.textContent = 'Quick Max Speed Test';
-            content = `
-                <h4>Quick Max Speed Test</h4>
-                <p><strong>Duration:</strong> 1 minute</p>
-                <p><strong>Purpose:</strong> Basic disk performance check and system validation</p>
-                <p><strong>Test Pattern:</strong> Sequential read/write with high queue depth</p>
-                <p><strong>Note:</strong> This is NOT a QLab-specific test - for QLab analysis, use ProRes tests</p>
-            `;
-            break;
-        case 'qlab_prores_422_show':
-            title.textContent = 'QLab ProRes 422 Show Pattern';
-            content = `
-                <h4>QLab ProRes 422 Show Pattern</h4>
-                <p><strong>Duration:</strong> 2.75 hours</p>
-                <p><strong>Purpose:</strong> Realistic show simulation with ProRes 422 playback</p>
-                <p><strong>Test Pattern:</strong> 1x4K + 3xHD ProRes 422 with crossfades</p>
-                <p><strong>Bandwidth Requirement:</strong> 220 MB/s minimum</p>
-            `;
-            break;
-        case 'qlab_prores_hq_show':
-            title.textContent = 'QLab ProRes HQ Show Pattern';
-            content = `
-                <h4>QLab ProRes HQ Show Pattern</h4>
-                <p><strong>Duration:</strong> 2.75 hours</p>
-                <p><strong>Purpose:</strong> High-demand 4K ProRes HQ show simulation</p>
-                <p><strong>Test Pattern:</strong> 1x4K + 3xHD ProRes HQ with intensive crossfades</p>
-                <p><strong>Bandwidth Requirement:</strong> 440 MB/s minimum</p>
-            `;
-            break;
-        case 'thermal_maximum_analyser':
-            title.textContent = 'Thermal Maximum Analyser';
-            content = `
-                <h4>Thermal Maximum Analyser</h4>
-                <p><strong>Duration:</strong> 1.5 hours</p>
-                <p><strong>Purpose:</strong> Assess long-term thermal stability and throttling behavior</p>
-                <p><strong>Test Pattern:</strong> Continuous maximum performance load</p>
-                <p><strong>Bandwidth Requirement:</strong> 300 MB/s sustained</p>
-            `;
-            break;
-        default:
-            title.textContent = 'Unknown Test Type';
-            content = '<p>Information not available for this test type.</p>';
+
+    // Prefer dynamic catalog from backend if available
+    const catalog = window.app && window.app.testsCatalog;
+    if (catalog && catalog.tests && catalog.tests[testType]) {
+        const t = catalog.tests[testType];
+        title.textContent = t.name || testType;
+        const minutes = t.duration ? Math.round(t.duration / 60) : null;
+        const durationText = minutes ? `${minutes} Minuten` : 'Unbekannt';
+        content = `
+            <div class="pattern-overview">
+                <h4>${t.display_label ? `${t.display_label}: ` : ''}${t.name || testType}</h4>
+                <p>${t.description || ''}</p>
+            </div>
+            <div class="technical-specs">
+                <strong>Dauer:</strong> ${durationText}
+            </div>
+        `;
+    } else {
+        // Fallback to static text
+        switch(testType) {
+            case 'quick_max_speed':
+                title.textContent = 'Quick Max Speed Test';
+                content = `
+                    <h4>Quick Max Speed Test</h4>
+                    <p><strong>Duration:</strong> 1 minute</p>
+                    <p><strong>Purpose:</strong> Basic disk performance check and system validation</p>
+                    <p><strong>Note:</strong> This is NOT a QLab-specific test - for QLab analysis, use ProRes tests</p>
+                `;
+                break;
+            default:
+                title.textContent = 'Test Information';
+                content = '<p>Information not available for this test type.</p>';
+        }
     }
     
     body.innerHTML = content;

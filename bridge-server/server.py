@@ -2064,6 +2064,8 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
                 self._handle_validate()
             elif path == '/api/version':
                 self._handle_version()
+            elif path == '/api/tests':
+                self._handle_list_tests()
             elif path == '/api/status':
                 self._handle_status()
             elif path == '/api/setup/validate':
@@ -2206,6 +2208,15 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
         """Handle version request."""
         result = self.bridge.get_version()
         self._send_json_response(result)
+
+    def _handle_list_tests(self):
+        """Handle list tests request (proxy to diskbench)."""
+        result = self.bridge.execute_diskbench_command(['--list-tests', '--json'])
+        # Normalize format if needed
+        if isinstance(result, dict) and 'tests' in result and 'order' in result:
+            self._send_json_response({'success': True, **result})
+        else:
+            self._send_json_response({'success': True, 'tests': result, 'order': []})
     def _handle_status(self):
         """Handle system status request."""
         result = self.bridge.detect_system_status()

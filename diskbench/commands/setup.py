@@ -438,8 +438,8 @@ class SetupManager:
                 '--rw=read',
                 '--runtime=1',
                 '--time_based=1',
-                '--ioengine=libaio',
-                '--direct=1',
+                '--ioengine=sync',  # macOS-safe; avoid Linux-specific engines
+                '--direct=0',       # reduce SHM usage on macOS
                 '--numjobs=2',
                 '--group_reporting=1',
                 '--output-format=json'
