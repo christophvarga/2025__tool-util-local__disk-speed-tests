@@ -179,7 +179,7 @@ lat_percentiles=1
 
 [thermal_ramp_up]
 filename=${TEST_FILE}
-size=${TEST_SIZE]
+size=${TEST_SIZE}
 bs=8M
 rw=read
 numjobs=2

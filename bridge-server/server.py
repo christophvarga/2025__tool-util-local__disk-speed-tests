@@ -96,6 +96,8 @@ class DiskBenchBridge:
                 'last_updated': datetime.now().isoformat()
             }
             
+            # Ensure state directory exists
+            os.makedirs(os.path.dirname(self.state_file), exist_ok=True)
             with open(self.state_file, 'w') as f:
                 json.dump(state_data, f, indent=2)
                 
@@ -542,7 +544,7 @@ class DiskBenchBridge:
             lines = result.stdout.split('\n')
             
             for line in lines:
-                if 'fio' in line and ('diskbench-test_' in line or '/tmp/diskbench-' in line):
+                if 'fio' in line and ('diskbench-test_' in line or '/tmp/diskbench-' in line or 'diskbench_' in line or 'fio_config.ini' in line):
                     # This looks like one of our FIO processes
                     parts = line.split()
                     if len(parts) >= 2:

@@ -216,8 +216,9 @@ def validate_arguments(args):
             qlab_patterns = QLabTestPatterns()
             test_cmd = DiskTestCommand()
 
-            # Define all valid test IDs (current + deprecated)
-            valid_test_ids = set(qlab_patterns.patterns.keys())
+            # Define all valid test IDs (current + deprecated) as strings
+            current_ids = [tid.value if hasattr(tid, 'value') else str(tid) for tid in qlab_patterns.patterns.keys()]
+            valid_test_ids = set(current_ids)
             valid_test_ids.update(test_cmd.deprecated_test_mapping.keys())
 
             # Also add legacy choices from argparse for completeness
@@ -226,7 +227,7 @@ def validate_arguments(args):
 
             if args.test not in valid_test_ids:
                 # Get sorted list of current valid choices for display
-                current_valid_ids = sorted(qlab_patterns.patterns.keys())
+                current_valid_ids = sorted(current_ids)
                 valid_choices_str = "', '".join(current_valid_ids)
                 errors.append(f"Unknown test id '{args.test}'. Valid choices: '{valid_choices_str}'")
 

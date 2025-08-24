@@ -29,7 +29,7 @@ class FioRunner:
         
         # Priority order: no-SHM version first to avoid shared memory issues
         fio_candidates = [
-            '/usr/local/bin/fio-nosmh',   # Compiled no-SHM version (HIGHEST priority)
+            '/usr/local/bin/fio-noshm',   # Compiled no-SHM version (HIGHEST priority)
             '/usr/local/bin/fio-noshm',   # Alternative no-SHM name
             '/opt/homebrew/bin/fio',      # Apple Silicon Homebrew (standard)
             '/usr/local/bin/fio',         # Intel Homebrew (standard)

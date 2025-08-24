@@ -1,0 +1,7 @@
+#!/Users/christophvarga/Documents/2000_software_lokal/2025_06_disk-speed-tests/.venv-clean/bin/python3
+import sys
+from pygments.cmdline import main
+if __name__ == '__main__':
+    if sys.argv[0].endswith('.exe'):
+        sys.argv[0] = sys.argv[0][:-4]
+    sys.exit(main())
