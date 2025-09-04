@@ -14,8 +14,8 @@ import urllib.request
 import tarfile
 from pathlib import Path
 
-from utils.logging import get_logger
-from utils.system_info import get_system_info
+from diskbench.utils.logging import get_logger
+from diskbench.utils.system_info import get_system_info
 
 logger = get_logger(__name__)
 

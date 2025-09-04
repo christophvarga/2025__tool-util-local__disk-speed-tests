@@ -9,10 +9,10 @@ import warnings
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
-from core.fio_runner import FioRunner
-from core.qlab_patterns import QLabTestPatterns
-from utils.security import validate_disk_path, get_safe_test_directory, check_available_space
-from utils.system_info import get_system_info
+from diskbench.core.fio_runner import FioRunner
+from diskbench.core.qlab_patterns import QLabTestPatterns
+from diskbench.utils.security import validate_disk_path, get_safe_test_directory, check_available_space
+from diskbench.utils.system_info import get_system_info
 
 logger = logging.getLogger(__name__)
 

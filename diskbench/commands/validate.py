@@ -8,7 +8,7 @@ import os
 import platform
 from typing import Dict, Any, Optional
 
-from utils.system_info import get_system_info, check_admin_privileges
+from diskbench.utils.system_info import get_system_info, check_admin_privileges
 
 logger = logging.getLogger(__name__)
 
@@ -156,9 +156,37 @@ class ValidateCommand:
         }
 
     def _check_fio_availability(self) -> Dict[str, Any]:
-        """Check FIO availability - Homebrew only."""
+        """Check FIO availability - prefer vendored FIO for offline use, then Homebrew/PATH."""
         try:
-            # Check Homebrew FIO paths (Apple Silicon and Intel)
+            from pathlib import Path
+            import platform as _platform
+
+            # 1) Vendored FIO
+            try:
+                repo_root = Path(__file__).resolve().parents[2]
+            except Exception:
+                repo_root = Path.cwd()
+            machine = _platform.machine().lower()
+            arch_dir = 'arm64' if 'arm' in machine or 'aarch64' in machine else 'x86_64'
+            vendor_candidates = [
+                str(repo_root / 'vendor' / 'fio' / 'macos' / arch_dir / 'fio'),
+                str(repo_root / 'vendor' / 'fio' / 'macos' / arch_dir / 'fio-noshm'),
+            ]
+            for fio_path in vendor_candidates:
+                if os.path.exists(fio_path) and os.access(fio_path, os.X_OK):
+                    try:
+                        result = subprocess.run([fio_path, '--version'], capture_output=True, text=True, timeout=10)
+                        if result.returncode == 0:
+                            version = result.stdout.strip().split('\n')[0]
+                            return {
+                                'passed': True,
+                                'message': f'Vendored FIO available: {version}',
+                                'details': f'Path: {fio_path}, Version: {version} (offline)'
+                            }
+                    except Exception:
+                        pass
+
+            # 2) Homebrew FIO paths (Apple Silicon and Intel)
             homebrew_paths = [
                 '/opt/homebrew/bin/fio',  # Apple Silicon Homebrew
                 '/usr/local/bin/fio',     # Intel Homebrew
@@ -177,16 +205,16 @@ class ValidateCommand:
                                 'passed': True,
                                 'message': f'Homebrew FIO available: {version}',
                                 'details': f'Path: {fio_path}, Version: {version}, Status: Binary found (execution will be tested in bridge server)'}
-                    except Exception as e:
+                    except Exception:
                         continue
 
-            # Check system PATH FIO (backup for other installations)
+            # 3) System PATH FIO (backup for other installations)
             try:
                 result = subprocess.run(['which', 'fio'], capture_output=True, text=True, timeout=5)
                 if result.returncode == 0:
                     fio_path = result.stdout.strip()
                     # Only accept if it's not already checked above
-                    if fio_path not in homebrew_paths:
+                    if fio_path not in homebrew_paths and fio_path not in vendor_candidates:
                         version_result = subprocess.run([fio_path, '--version'],
                                                         capture_output=True, text=True, timeout=10)
                         if version_result.returncode == 0:
@@ -201,8 +229,8 @@ class ValidateCommand:
 
             return {
                 'passed': False,
-                'message': 'FIO not found. Install with: brew install fio',
-                'details': 'Homebrew FIO not detected. Run: brew install fio'
+                'message': 'FIO not found (offline). Place binary at vendor/fio/macos/<arch>/fio or install with Homebrew.',
+                'details': 'Vendored FIO not detected. Offline mode requires vendor/fio/macos/arm64/fio on Apple Silicon.'
             }
 
         except Exception as e:

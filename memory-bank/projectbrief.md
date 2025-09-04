@@ -4,6 +4,10 @@
 QLab Disk Performance Tester - MVP Web Interface Architecture
 
 ## Project Goal
+
+Top Goal (non-negotiable):
+- Run on a factory-new Apple Silicon (M-series) Mac completely offline (no internet) and without interfering with or requiring changes to Apple's System Integrity Protection (SIP).
+
 To develop a functional MVP disk performance testing application for macOS using a **Web GUI + HTTP Bridge + CLI Helper** architecture. The application provides professional FIO-based disk testing specifically tailored for QLab shows requiring high-performance video playback, while maintaining simplicity and honest error reporting.
 
 ## Key Objectives

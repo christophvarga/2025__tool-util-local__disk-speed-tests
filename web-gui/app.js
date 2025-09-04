@@ -30,6 +30,7 @@ class DiskBenchApp {
     }
     
     init() {
+        this.loadPersistedState();
         this.setupEventListeners();
         this.checkSystemStatus();
         this.loadAvailableDisks();
@@ -82,9 +83,53 @@ class DiskBenchApp {
         document.getElementById('refreshDisks').addEventListener('click', () => {
             this.loadAvailableDisks();
         });
+
+        // Disk alias controls
+        const aliasInput = document.getElementById('diskAliasInput');
+        const saveAliasBtn = document.getElementById('saveDiskAlias');
+        const aliasStatus = document.getElementById('diskAliasStatus');
+        const updateAliasControlsState = () => {
+            const hasDisk = !!this.selectedDisk;
+            if (aliasInput) {
+                aliasInput.disabled = !hasDisk;
+                aliasInput.value = hasDisk ? (this.getDiskAlias(this.selectedDisk.device) || '') : '';
+            }
+            if (saveAliasBtn) {
+                saveAliasBtn.disabled = !hasDisk;
+            }
+        };
+        if (saveAliasBtn) {
+            saveAliasBtn.addEventListener('click', () => {
+                if (!this.selectedDisk) return;
+                const alias = aliasInput ? aliasInput.value.trim() : '';
+                this.setDiskAlias(this.selectedDisk.device, alias);
+                if (aliasStatus) {
+                    aliasStatus.classList.remove('hidden');
+                    aliasStatus.textContent = 'Saved';
+                    setTimeout(() => aliasStatus.classList.add('hidden'), 1200);
+                }
+                if (this.availableDisks) this.renderDiskList(this.availableDisks);
+            });
+        }
+        if (aliasInput) {
+            aliasInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && this.selectedDisk) {
+                    e.preventDefault();
+                    const alias = aliasInput.value.trim();
+                    this.setDiskAlias(this.selectedDisk.device, alias);
+                    if (aliasStatus) {
+                        aliasStatus.classList.remove('hidden');
+                        aliasStatus.textContent = 'Saved';
+                        setTimeout(() => aliasStatus.classList.add('hidden'), 1200);
+                    }
+                    if (this.availableDisks) this.renderDiskList(this.availableDisks);
+                }
+            });
+        }
         
         // Initial binding for test type radios (will be re-bound after dynamic render)
         this.bindTestTypeListeners();
+        updateAliasControlsState();
         
         // Test size
         document.getElementById('testSize').addEventListener('change', (e) => {
@@ -108,6 +153,27 @@ class DiskBenchApp {
         document.getElementById('exportResults').addEventListener('click', () => {
             this.exportResults();
         });
+        
+        const copyBtn = document.getElementById('copyResults');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => {
+                this.copyResults();
+            });
+        }
+
+        const copyCliBtn = document.getElementById('copyCli');
+        if (copyCliBtn) {
+            copyCliBtn.addEventListener('click', () => {
+                this.copyCli();
+            });
+        }
+
+        const downloadSummaryBtn = document.getElementById('downloadSummary');
+        if (downloadSummaryBtn) {
+            downloadSummaryBtn.addEventListener('click', () => {
+                this.downloadSummary();
+            });
+        }
     }
 
     bindTestTypeListeners() {
@@ -116,6 +182,7 @@ class DiskBenchApp {
             radio.addEventListener('change', (e) => {
                 this.selectedTestType = e.target.value;
                 this.updateUI();
+                this.updateTestDescription();
             });
         });
     }
@@ -142,6 +209,7 @@ class DiskBenchApp {
             const result = await this.executeDiskBenchCommand(['--list-disks', '--json']);
             
             if (result && result.disks) {
+                this.availableDisks = result.disks;
                 this.renderDiskList(result.disks);
             } else {
                 throw new Error('No disk data received');
@@ -186,14 +254,16 @@ class DiskBenchApp {
     }
     
     createDiskItem(disk) {
-        const typeClass = disk.type.toLowerCase();
+        const typeClass = (disk.type || '').toLowerCase();
         const isSelected = this.selectedDisk && this.selectedDisk.device === disk.device;
+        const alias = this.getDiskAlias(disk.device);
+        const nameLine = alias ? `${alias} <span class="disk-original-name">(${disk.name})</span>` : `${disk.name}`;
         
         return `
             <div class="disk-item ${isSelected ? 'selected' : ''}" data-disk-path="${disk.device}">
                 <input type="radio" name="selectedDisk" value="${disk.device}" ${isSelected ? 'checked' : ''}>
                 <div class="disk-info">
-                    <div class="disk-name">${disk.name}</div>
+                    <div class="disk-name">${nameLine}</div>
                     <div class="disk-details">
                         ${disk.device} • ${disk.size} • ${disk.file_system}
                         ${disk.free_space ? ` • ${disk.free_space} free` : ''}
@@ -217,6 +287,17 @@ class DiskBenchApp {
         if (selectedItem) {
             selectedItem.classList.add('selected');
             selectedItem.querySelector('input[type="radio"]').checked = true;
+        }
+        
+        // Update alias controls for the selected disk
+        const aliasInput = document.getElementById('diskAliasInput');
+        const saveAliasBtn = document.getElementById('saveDiskAlias');
+        if (aliasInput) {
+            aliasInput.disabled = false;
+            aliasInput.value = this.getDiskAlias(diskPath) || '';
+        }
+        if (saveAliasBtn) {
+            saveAliasBtn.disabled = false;
         }
         
         this.updateUI();
@@ -267,6 +348,14 @@ class DiskBenchApp {
         
         // Reset progress
         this.updateProgress(0, 'Preparing test...');
+
+        // Hide result action buttons while running
+        const copyBtn = document.getElementById('copyResults');
+        if (copyBtn) copyBtn.classList.add('hidden');
+        const copyCliBtn = document.getElementById('copyCli');
+        if (copyCliBtn) copyCliBtn.classList.add('hidden');
+        const downloadSummaryBtn = document.getElementById('downloadSummary');
+        if (downloadSummaryBtn) downloadSummaryBtn.classList.add('hidden');
         
         try {
             // Generate output filename
@@ -282,6 +371,17 @@ class DiskBenchApp {
                 '--progress',
                 '--json'
             ];
+
+            // Persist last-run parameters for convenience
+            const devicePath = this.selectedDisk.device;
+            this.lastRunParams = {
+                test_type: this.selectedTestType,
+                disk_path: devicePath,
+                disk_alias: this.getDiskAlias(devicePath) || '',
+                size_gb: this.testSize,
+                saved_at: new Date().toISOString()
+            };
+            this.saveLastRun();
             
             this.updateProgress(5, 'Starting FIO test...');
             this.updateProgressDetails(`Command: diskbench ${command.join(' ')}`);
@@ -366,7 +466,6 @@ class DiskBenchApp {
             this.handleTestStopped(`Stop all failed: ${error.message}`);
         }
     }
-    }
 
     async loadTests() {
         try {
@@ -384,6 +483,7 @@ class DiskBenchApp {
                 if (firstRadio) firstRadio.checked = true;
             }
             this.updateUI();
+            this.updateTestDescription();
         } catch (e) {
             console.error('Failed to load tests:', e);
         }
@@ -415,6 +515,62 @@ class DiskBenchApp {
         container.innerHTML = html;
         // Re-bind listeners after dynamic render
         this.bindTestTypeListeners();
+        // Update test description for current selection
+        this.updateTestDescription();
+    }
+
+    updateTestDescription() {
+        const descEl = document.getElementById('testDescription');
+        if (!descEl) return;
+
+        let selected = this.selectedTestType;
+        if (!selected) {
+            const checked = document.querySelector('input[name="testType"]:checked');
+            if (checked) selected = checked.value;
+        }
+
+        if (!selected) {
+            descEl.innerHTML = `<div class="loading"><i class="fas fa-info-circle"></i> Select a test to see details.</div>`;
+            return;
+        }
+
+        const catalog = (this.testsCatalog && this.testsCatalog.tests) ? this.testsCatalog.tests : null;
+        const staticMap = {
+            'quick_max_speed': {
+                name: 'Quick Max Speed Test',
+                description: 'Schneller Maximaltest (ca. 1 Minute). Eignet sich für eine schnelle Einschätzung der maximalen Lese-/Schreibgeschwindigkeit.',
+                duration: 60
+            },
+            'qlab_prores_422_show': {
+                name: 'QLab ProRes 422 Show Pattern',
+                description: 'Realistische QLab-Show (2,75h): 1x4K + 3xHD ProRes 422 inkl. Crossfades. Bewertet Stabilität und Durchsatz.',
+                duration: 9900
+            },
+            'qlab_prores_hq_show': {
+                name: 'QLab ProRes HQ Show Pattern',
+                description: 'Anspruchsvolle QLab-Show (2,75h) mit ProRes HQ. Eignet sich für 4K/HQ-Workflows und Worst-Case Crossfades.',
+                duration: 9900
+            },
+            'thermal_maximum_analyser': {
+                name: 'Thermal Maximum Analyser',
+                description: '1,5h Dauerlast zur Erkennung von thermischem Throttling und Langzeitverhalten.',
+                duration: 5400
+            }
+        };
+
+        const t = (catalog && catalog[selected]) ? catalog[selected] : staticMap[selected] || {};
+        const title = t.display_label ? `${t.display_label}: ${t.name || ''}` : (t.name || selected);
+        const desc = t.description || '';
+        const minutes = t.duration ? Math.round(t.duration / 60) : null;
+
+        descEl.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;color:var(--dark-color)">
+                <i class="fas fa-circle-info" style="color:var(--info-color)"></i>
+                <strong>${title}</strong>
+            </div>
+            <p>${desc}</p>
+            ${minutes ? `<div class="test-duration">⏱️ Duration: ${minutes} minutes</div>` : ''}
+        `;
     }
     
     updateProgress(percentage, message) {
@@ -500,10 +656,59 @@ class DiskBenchApp {
             return `${secs}s`;
         }
     }
+
+    // ===== Persistence (aliases and last-run) =====
+    loadPersistedState() {
+        try {
+            const aliasRaw = localStorage.getItem('diskbench:aliases');
+            this.diskAliases = aliasRaw ? JSON.parse(aliasRaw) : {};
+        } catch (e) {
+            this.diskAliases = {};
+        }
+        try {
+            const lastRaw = localStorage.getItem('diskbench:lastRun');
+            this.lastRunParams = lastRaw ? JSON.parse(lastRaw) : null;
+        } catch (e) {
+            this.lastRunParams = null;
+        }
+    }
+    saveAliases() {
+        try {
+            localStorage.setItem('diskbench:aliases', JSON.stringify(this.diskAliases || {}));
+        } catch (e) { /* ignore */ }
+    }
+    saveLastRun() {
+        try {
+            localStorage.setItem('diskbench:lastRun', JSON.stringify(this.lastRunParams || null));
+        } catch (e) { /* ignore */ }
+    }
+    getDiskAlias(devicePath) {
+        if (!devicePath || !this.diskAliases) return '';
+        return this.diskAliases[devicePath] || '';
+    }
+    setDiskAlias(devicePath, alias) {
+        if (!devicePath) return;
+        if (!this.diskAliases) this.diskAliases = {};
+        const trimmed = (alias || '').trim();
+        if (trimmed) this.diskAliases[devicePath] = trimmed; else delete this.diskAliases[devicePath];
+        this.saveAliases();
+    }
+    sanitizeForFileName(name) {
+        return (name || 'unknown')
+            .replace(/[^a-zA-Z0-9._-]+/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_+|_+$/g, '');
+    }
     
     showResults(results) {
         document.getElementById('resultsSection').classList.remove('hidden');
         document.getElementById('exportResults').classList.remove('hidden');
+        const copyBtn = document.getElementById('copyResults');
+        if (copyBtn) copyBtn.classList.remove('hidden');
+        const copyCliBtn = document.getElementById('copyCli');
+        if (copyCliBtn) copyCliBtn.classList.remove('hidden');
+        const downloadSummaryBtn = document.getElementById('downloadSummary');
+        if (downloadSummaryBtn) downloadSummaryBtn.classList.remove('hidden');
         
         // Determine which analyzer to use based on test type
         const testType = this.selectedTestType;
@@ -645,9 +850,12 @@ class DiskBenchApp {
     renderImplementationDetails(results) {
         const container = document.getElementById('implementationInfo');
         const testInfo = results.test_info || {};
+        const alias = this.getDiskAlias(testInfo.disk_path || this.selectedDisk?.device || '') || '';
+        const aliasLine = alias ? `<p><strong>Disk label:</strong> ${alias}</p>` : '';
         
         container.innerHTML = `
             <p><strong>Test executed:</strong> ${testInfo.test_name || 'Unknown'} on ${testInfo.disk_path || 'Unknown'}</p>
+            ${aliasLine}
             <p><strong>Timestamp:</strong> ${testInfo.timestamp ? new Date(testInfo.timestamp).toLocaleString() : 'Unknown'}</p>
             <p><strong>CLI Command:</strong> <code>diskbench --test ${this.selectedTestType} --disk ${this.selectedDisk?.device} --output result.json</code></p>
             <p><strong>Architecture:</strong> Web GUI → Helper Binary → FIO Engine → JSON Results</p>
@@ -691,6 +899,18 @@ class DiskBenchApp {
             return (num / 1000).toFixed(1) + 'K';
         } else {
             return num.toFixed(1);
+        }
+    }
+    
+    getLatencyClass(latency) {
+        if (latency <= 2) {
+            return 'excellent';
+        } else if (latency <= 5) {
+            return 'good';
+        } else if (latency <= 10) {
+            return 'warning';
+        } else {
+            return 'danger';
         }
     }
     
@@ -754,23 +974,47 @@ class DiskBenchApp {
                 <div class="metrics-grid">
                     <div class="metric-item">
                         <div class="metric-label">Sequential Read</div>
-                        <div class="metric-value">${readBW.toFixed(0)} MB/s</div>
-                        <div class="metric-status">Peak performance</div>
+                        <div class="metric-value-with-bar">
+                            <div class="metric-value-large">${readBW.toFixed(0)}</div>
+                            <div class="metric-unit-inline">MB/s</div>
+                        </div>
+                        <div class="performance-bar-container">
+                            <div class="performance-bar ${classColor}" style="width: ${Math.min(100, (readBW / 3000) * 100)}%"></div>
+                        </div>
+                        <div class="metric-benchmark">Max theoretical: ~3000 MB/s</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Sequential Write</div>
-                        <div class="metric-value">${writeBW.toFixed(0)} MB/s</div>
-                        <div class="metric-status">Peak performance</div>
+                        <div class="metric-value-with-bar">
+                            <div class="metric-value-large">${writeBW.toFixed(0)}</div>
+                            <div class="metric-unit-inline">MB/s</div>
+                        </div>
+                        <div class="performance-bar-container">
+                            <div class="performance-bar ${classColor}" style="width: ${Math.min(100, (writeBW / 3000) * 100)}%"></div>
+                        </div>
+                        <div class="metric-benchmark">Max theoretical: ~3000 MB/s</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Random Access</div>
-                        <div class="metric-value">${this.formatNumber(readIOPS)}</div>
-                        <div class="metric-status">IOPS capability</div>
+                        <div class="metric-value-with-bar">
+                            <div class="metric-value-large">${this.formatNumber(readIOPS)}</div>
+                            <div class="metric-unit-inline">IOPS</div>
+                        </div>
+                        <div class="performance-bar-container">
+                            <div class="performance-bar ${classColor}" style="width: ${Math.min(100, (readIOPS / 100000) * 100)}%"></div>
+                        </div>
+                        <div class="metric-benchmark">Max theoretical: ~100k IOPS</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Response Time</div>
-                        <div class="metric-value">${avgLatency.toFixed(1)} ms</div>
-                        <div class="metric-status">Average latency</div>
+                        <div class="metric-value-with-bar">
+                            <div class="metric-value-large">${avgLatency.toFixed(1)}</div>
+                            <div class="metric-unit-inline">ms</div>
+                        </div>
+                        <div class="performance-bar-container">
+                            <div class="performance-bar ${this.getLatencyClass(avgLatency)}" style="width: ${100 - Math.min(100, (avgLatency / 20) * 100)}%"></div>
+                        </div>
+                        <div class="metric-benchmark">Lower is better (target: <5ms)</div>
                     </div>
                 </div>
             </div>
@@ -1584,6 +1828,12 @@ class DiskBenchApp {
             extra = `<div style="margin-top:8px"><button id='cleanupDisconnectedTestBtn'>Clean up lost test</button></div>`;
         }
         
+        // Derive display values from testInfo
+        const testType = testInfo.test_type || this.selectedTestType || 'unknown';
+        const progress = typeof testInfo.progress === 'number' ? testInfo.progress : 0;
+        const elapsedTime = testInfo.elapsed_time || 0;
+        const remainingTime = testInfo.remaining_time || 0;
+        
         notice.innerHTML = `
             <div class="notice-content">
                 <div class="notice-header">
@@ -1682,11 +1932,148 @@ class DiskBenchApp {
         
         const a = document.createElement('a');
         a.href = url;
-        a.download = `diskbench_results_${this.selectedDisk?.name || 'unknown'}_${this.selectedTestType}_${new Date().toISOString().split('T')[0]}.json`;
+        const diskLabel = this.getDiskAlias(this.selectedDisk?.device || '') || this.selectedDisk?.name || 'unknown';
+        const safeDisk = this.sanitizeForFileName(diskLabel);
+        const safeTest = this.sanitizeForFileName(this.selectedTestType || 'test');
+        const date = new Date().toISOString().split('T')[0];
+        a.download = `diskbench_results_${safeDisk}_${safeTest}_${date}.json`;
         document.body.appendChild(a);
         a.click();
         
         // Clean up
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+    
+    copyResults() {
+        if (!this.testResults) {
+            alert('No test results to copy.');
+            return;
+        }
+        const summaryText = this.buildResultsSummary(this.testResults);
+        const fullText = `${summaryText}\n\nJSON:\n${JSON.stringify(this.testResults, null, 2)}`;
+        
+        const doCopiedUI = () => {
+            const btn = document.getElementById('copyResults');
+            if (!btn) return;
+            const old = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            btn.disabled = true;
+            setTimeout(() => { btn.innerHTML = old; btn.disabled = false; }, 1500);
+        };
+        
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(fullText).then(doCopiedUI).catch(() => {
+                // Fallback
+                const ta = document.createElement('textarea');
+                ta.value = fullText;
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy'); } catch (e) {}
+                document.body.removeChild(ta);
+                doCopiedUI();
+            });
+        } else {
+            // Fallback
+            const ta = document.createElement('textarea');
+            ta.value = fullText;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(ta);
+            doCopiedUI();
+        }
+    }
+
+    buildResultsSummary(results) {
+        const testType = this.getTestDisplayName(this.selectedTestType || results.diskbench_test_type || results.test_type || 'unknown');
+        const devicePath = this.selectedDisk?.device || results.params?.disk_path || results.disk_path || '';
+        const alias = this.getDiskAlias(devicePath) || '';
+        const diskName = alias || this.selectedDisk?.name || results.params?.disk_path || results.disk_path || 'Unknown';
+        const diskDev = devicePath;
+        const ts = results.end_time || results.test_time || new Date().toISOString();
+        
+        // Try to find a summary object in multiple likely locations
+        const s = (results?.fio_results?.summary) ||
+                  (results?.result?.fio_results?.summary) ||
+                  (results?.result?.summary) ||
+                  (results?.summary) || {};
+        
+        const readBW = ((s.total_read_bw || 0) / 1024); // MB/s
+        const writeBW = ((s.total_write_bw || 0) / 1024);
+        const iops = (s.total_read_iops || s.iops || 0);
+        const latency = (s.avg_read_latency || s.latency_avg || 0);
+        
+        const lines = [
+            'QLab Disk Performance Tester - Summary',
+            `Test: ${testType}`,
+            `Disk: ${diskName}${diskDev ? ` (${diskDev})` : ''}`,
+            `Finished: ${new Date(ts).toLocaleString()}`,
+            `Read: ${readBW.toFixed(0)} MB/s | Write: ${writeBW.toFixed(0)} MB/s | IOPS: ${iops.toFixed ? iops.toFixed(0) : iops} | Latency: ${latency.toFixed ? latency.toFixed(1) : latency} ms`
+        ];
+        return lines.join('\n');
+    }
+
+    buildCliCommand(results) {
+        // Determine disk path
+        const diskPath = this.selectedDisk?.device || results.params?.disk_path || results.disk_path || '/tmp';
+        // Determine test type (map to diskbench test ids)
+        const selected = this.selectedTestType || results.diskbench_test_type || results.test_type || 'quick_max_speed';
+        const map = {
+            'quick_max_speed': 'quick_max_mix',
+            'qlab_prores_422_show': 'prores_422_real',
+            'qlab_prores_hq_show': 'prores_422_hq_real',
+            'thermal_maximum_analyser': 'thermal_maximum'
+        };
+        const diskbenchTest = map[selected] || selected;
+        // Determine size
+        const sizeGb = this.testSize || results.params?.size_gb || 10;
+        // Compose output filename with timestamp
+        const ts = new Date().toISOString().replace(/[:.]/g, '-');
+        const outputFile = `/tmp/diskbench_${diskbenchTest}_${ts}.json`;
+        // Prefer running with python to ensure same interpreter
+        return `python diskbench/main.py --test ${diskbenchTest} --disk '${diskPath}' --size ${sizeGb} --output '${outputFile}' --json --progress`;
+    }
+
+    copyCli() {
+        const results = this.testResults || {};
+        const cli = this.buildCliCommand(results);
+        const btn = document.getElementById('copyCli');
+        const ok = () => {
+            if (!btn) return;
+            const old = btn.innerHTML; btn.innerHTML = '<i class="fas fa-check"></i> Copied!'; btn.disabled = true;
+            setTimeout(()=>{ btn.innerHTML = old; btn.disabled = false; }, 1500);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(cli).then(ok).catch(()=>{
+                const ta = document.createElement('textarea'); ta.value = cli; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); ok();
+            });
+        } else {
+            const ta = document.createElement('textarea'); ta.value = cli; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); ok();
+        }
+    }
+
+    downloadSummary() {
+        if (!this.testResults) {
+            alert('No test results to export.');
+            return;
+        }
+        const text = this.buildResultsSummary(this.testResults);
+        const blob = new Blob([text + '\n'], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const diskLabel = this.getDiskAlias(this.selectedDisk?.device || '') || this.selectedDisk?.name || 'unknown';
+        const safeDisk = this.sanitizeForFileName(diskLabel);
+        const safeTest = this.sanitizeForFileName(this.selectedTestType || 'test');
+        const date = new Date().toISOString().split('T')[0];
+        a.download = `diskbench_summary_${safeDisk}_${safeTest}_${date}.txt`;
+        document.body.appendChild(a);
+        a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }

@@ -1,0 +1,16 @@
+[run]
+source = diskbench, bridge-server
+omit = 
+    */tests/*
+    */test_*.py
+    */__pycache__/*
+    */.venv/*
+
+[report]
+precision = 2
+show_missing = True
+skip_covered = False
+
+[html]
+directory = htmlcov
+

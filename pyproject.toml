@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "diskbench-qlab"
+version = "0.1.0"
+description = "QLab Disk Performance Tester - local disk benchmark CLI with FIO and monitoring"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "QLab Disk Tester Team" }]
+dependencies = [
+  "psutil>=5.9"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "ruff",
+  "black",
+  "mypy"
+]
+
+[project.scripts]
+diskbench = "diskbench.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["diskbench*"]
+

@@ -19,26 +19,25 @@ import logging
 import signal
 from pathlib import Path
 
-# Add the current directory to Python path for imports
-current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, current_dir)
-
 # Global variable to hold the currently running test command for signal handling
 current_test_command = None
 
-# Import modules with error handling
+# Import modules with error handling (use absolute package imports)
 try:
-    from commands.test import DiskTestCommand
-    from commands.list_disks import ListDisksCommand
-    from commands.validate import ValidateCommand
-    from commands.setup import (handle_detect_command, handle_install_command,
-                                handle_validate_command as handle_setup_validate_command)
-    from utils.logging import setup_logging
-    from utils.security import validate_disk_path, sanitize_filename
-    from utils.system_info import get_system_info
+    from diskbench.commands.test import DiskTestCommand
+    from diskbench.commands.list_disks import ListDisksCommand
+    from diskbench.commands.validate import ValidateCommand
+    from diskbench.commands.setup import (
+        handle_detect_command,
+        handle_install_command,
+        handle_validate_command as handle_setup_validate_command,
+    )
+    from diskbench.utils.logging import setup_logging
+    from diskbench.utils.security import validate_disk_path, sanitize_filename
+    from diskbench.utils.system_info import get_system_info
 except ImportError as e:
     print(f"Import error: {e}")
-    print("Make sure all required modules are present in the diskbench directory")
+    print("Make sure you're running from the project root, or install the package so 'diskbench' is importable.")
     sys.exit(1)
 
 __version__ = "1.0.0-beta"
@@ -210,8 +209,8 @@ def validate_arguments(args):
     if args.test or args.custom_config:
         # Validate test ID if specified
         if args.test:
-            from core.qlab_patterns import QLabTestPatterns
-            from commands.test import DiskTestCommand
+            from diskbench.core.qlab_patterns import QLabTestPatterns
+            from diskbench.commands.test import DiskTestCommand
 
             qlab_patterns = QLabTestPatterns()
             test_cmd = DiskTestCommand()
@@ -282,7 +281,7 @@ def main():
             }
 
             if args.check_fio:
-                from core.fio_runner import FioRunner
+                from diskbench.core.fio_runner import FioRunner
                 fio_runner = FioRunner()
                 version_info['fio_status'] = fio_runner.get_fio_status()
 
@@ -350,7 +349,7 @@ def main():
 
         # Handle list-tests command
         if args.list_tests:
-            from core.qlab_patterns import QLabTestPatterns
+            from diskbench.core.qlab_patterns import QLabTestPatterns
             qlab_patterns = QLabTestPatterns()
 
             if args.json:

@@ -29,33 +29,27 @@ Drei-Schichten-Architektur für maximale Flexibilität und einfache Wartung:
 
 ## 🚀 Quick Start (< 5 Minuten)
 
-### Einfachste Methode:
+### Offline Start (ohne Internet, ohne SIP‑Eingriff)
 
-```bash
-# 1. Repository klonen oder herunterladen
-git clone <repository-url>
-cd qlab-disk-performance-tester
+Voraussetzung: Vendortes FIO-Binary vorhanden unter `vendor/fio/macos/arm64/fio` (für Apple Silicon). Siehe `vendor/fio/README.md`.
 
-# 2. Start-Script ausführen (installiert alles automatisch)
-./start.sh
-```
+1) Repo auf den Ziel-Mac kopieren (AirDrop/USB)
+2) Doppelklick auf „Start Diskbench Bridge.command“ (Repo-Root)
+3) Browser öffnet `http://localhost:8765/`
 
-Das Start-Script:
-- ✅ Prüft macOS und Prozessor-Architektur (Intel/M1)
-- ✅ Installiert Homebrew (falls nötig)
-- ✅ Installiert FIO automatisch
-- ✅ Startet den Bridge Server
-- ✅ Öffnet den Browser automatisch
+Hinweise:
+- Falls ein PyInstaller-Build vorhanden ist (`dist/diskbench-bridge`), nutzt der Launcher automatisch dieses Binary (keine System-Python-Abhängigkeit).
+- Falls kein Build vorhanden ist, nutzt der Launcher System-`python3` (typisch auf macOS verfügbar) – weiterhin offline.
+- Keine Homebrew- oder Netzwerkzugriffe; keine Änderungen an SIP erforderlich.
 
-### Manuelle Installation:
+### Online Setup (Alternative)
 
 ```bash
 # 1. FIO installieren (falls nicht vorhanden)
 brew install fio
 
 # 2. Bridge Server starten
-cd bridge-server
-python3 server.py
+python3 bridge-server/server.py
 
 # 3. Browser öffnen
 open http://localhost:8765/
@@ -94,6 +88,27 @@ open http://localhost:8765/
    - Thermal Throttling Erkennung
    - Test-ID: `thermal_maximum`
    - Dauer: 60 Minuten
+
+## 🔧 Start & Imports
+
+- Empfohlener Start (aus dem Projekt-Root):
+  ```bash
+  python -m diskbench.main --help
+  ```
+- Warum? So werden alle Module über den Paketnamen diskbench importiert (konsistente Imports).
+- Alternativ: Paket im Editiermodus installieren (macht diskbench überall importierbar und installiert einen CLI-Befehl `diskbench`):
+  ```bash
+  # aus dem Projekt-Root
+  python -m pip install -e .
+  # danach funktionieren z. B.
+  python -m diskbench.main --list-disks --json
+  # oder der CLI-Befehl (Konsole)
+  diskbench --list-disks --json
+  ```
+
+Hinweise zu Imports
+- Innerhalb der Codebasis nutzen wir absolute Paket-Imports (from diskbench.…. import …). Das ist robust gegen unterschiedliche Startverzeichnisse.
+- Für Legacy-Tests existieren Kompatibilitäts-Shims (commands/*, core/*) auf Root-Ebene, die alte Imports (from commands.… / from core.… ) weiterleiten. Langfristig bitte auf diskbench.* umstellen.
 
 ## 🔧 Diskbench CLI Befehle
 
@@ -164,6 +179,16 @@ The tool provides specific recommendations based on test results:
 - Workflow recommendations
 
 ## 🛠️ Development
+
+### Installation (optional, empfohlen für globale Nutzung)
+
+- Editiermodus (entwicklungsfreundlich):
+  ```bash
+  python -m pip install -e .
+  ```
+- Danach kann das CLI überall mit python -m diskbench.main aufgerufen werden.
+
+### Project Structure
 
 ### Project Structure
 

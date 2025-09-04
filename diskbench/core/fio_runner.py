@@ -1,5 +1,5 @@
 """
-FIO runner for diskbench helper binary - Pure Homebrew FIO only.
+FIO runner for diskbench helper binary - prefers vendored FIO for offline use, falls back to Homebrew/PATH.
 """
 
 import logging
@@ -9,36 +9,56 @@ import json
 import tempfile
 import shutil
 import signal
+import time
 from typing import Dict, Any, Optional, List
 from pathlib import Path
+import platform
 
-from utils.security import validate_fio_parameters, get_safe_test_directory, check_available_space
+from diskbench.utils.security import validate_fio_parameters, get_safe_test_directory, check_available_space
+from .exceptions import FIOExecutionError, JSONParsingError, DiskBenchError
 
 logger = logging.getLogger(__name__)
 
 class FioRunner:
-    """Manages FIO execution and result processing - Homebrew FIO only."""
+    """Manages FIO execution and result processing - prefers vendored FIO (offline)."""
     
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.fio_path = self._find_fio_binary()
         self.fio_process = None # Initialize fio_process to None
     
+    def _vendor_fio_candidates(self) -> List[str]:
+        """Compute possible vendored FIO binary paths for current architecture."""
+        try:
+            repo_root = Path(__file__).resolve().parents[2]
+        except Exception:
+            repo_root = Path.cwd()
+        machine = platform.machine().lower()
+        arch_dir = 'arm64' if 'arm' in machine or 'aarch64' in machine else 'x86_64'
+        return [
+            str(repo_root / 'vendor' / 'fio' / 'macos' / arch_dir / 'fio'),
+            str(repo_root / 'vendor' / 'fio' / 'macos' / arch_dir / 'fio-noshm'),
+        ]
+
     def _find_fio_binary(self) -> Optional[str]:
-        """Find optimal FIO binary - prioritizing no-SHM version for macOS compatibility."""
+        """Find optimal FIO binary - prefer vendored and no-SHM versions for macOS compatibility."""
         
-        # Priority order: no-SHM version first to avoid shared memory issues
-        fio_candidates = [
-            '/usr/local/bin/fio-noshm',   # Compiled no-SHM version (HIGHEST priority)
-            '/usr/local/bin/fio-noshm',   # Alternative no-SHM name
+        # Priority: vendor → noshm → Homebrew → PATH
+        fio_candidates = []
+        fio_candidates.extend(self._vendor_fio_candidates())
+        fio_candidates.extend([
+            '/usr/local/bin/fio-noshm',   # Compiled no-SHM version (Intel path)
+            '/opt/homebrew/bin/fio-noshm',# Compiled no-SHM version (Apple Silicon path)
             '/opt/homebrew/bin/fio',      # Apple Silicon Homebrew (standard)
             '/usr/local/bin/fio',         # Intel Homebrew (standard)
-        ]
+        ])
         
         for fio_path in fio_candidates:
             if os.path.exists(fio_path) and os.access(fio_path, os.X_OK):
-                if 'nosmh' in fio_path or 'noshm' in fio_path:
+                if any(tag in fio_path for tag in ['nosmh', 'noshm']):
                     self.logger.info(f"✅ Found macOS-compatible no-SHM FIO at: {fio_path}")
+                elif '/vendor/' in fio_path:
+                    self.logger.info(f"✅ Found vendored FIO (offline) at: {fio_path}")
                 else:
                     self.logger.info(f"⚠️ Found standard FIO at: {fio_path} (may have SHM issues)")
                 return fio_path
@@ -56,8 +76,8 @@ class FioRunner:
             pass
         
         self.logger.error("❌ FIO not found. Options:")
-        self.logger.error("  1. Install standard FIO: brew install fio")
-        self.logger.error("  2. Use bridge server to compile no-SHM version for better macOS compatibility")
+        self.logger.error("  • Place a macOS FIO binary at vendor/fio/macos/<arch>/fio (preferred for offline)")
+        self.logger.error("  • Or install with Homebrew: brew install fio")
         return None
     
     def get_fio_status(self) -> Dict[str, Any]:
@@ -100,19 +120,23 @@ class FioRunner:
     def run_fio_test(self, config_content: str, test_directory: str, 
                      estimated_duration: int, progress_callback=None) -> Optional[Dict[str, Any]]:
         """
-        Run FIO test with given configuration.
+        Run FIO test with given configuration and retry logic.
         
         Args:
             config_content: FIO configuration content
             test_directory: Directory for test files
+            estimated_duration: Estimated test duration in seconds
             progress_callback: Optional callback for progress updates
         
         Returns:
             Test results or None on error
+        
+        Raises:
+            FIOExecutionError: When FIO execution fails after retries
+            JSONParsingError: When FIO output cannot be parsed
         """
         if not self.fio_path:
-            self.logger.error("FIO binary not available")
-            return None
+            raise FIOExecutionError("FIO binary not available", context={'fio_path': self.fio_path})
         
         try:
             # Create test directory
@@ -139,8 +163,17 @@ class FioRunner:
             
             self.logger.info(f"Running FIO command: {' '.join(safe_cmd)}")
             
-            # Run FIO with clean environment - no sandbox workarounds
+            # Run FIO with clean environment - ensure macOS SHM disabled and vendor PATH precedence
             env = os.environ.copy()
+            env['FIO_DISABLE_SHM'] = '1'
+            try:
+                repo_root = Path(__file__).resolve().parents[2]
+                machine = platform.machine().lower()
+                arch_dir = 'arm64' if 'arm' in machine or 'aarch64' in machine else 'x86_64'
+                vendor_path = str(repo_root / 'vendor' / 'fio' / 'macos' / arch_dir)
+                env['PATH'] = f"{vendor_path}:/opt/homebrew/bin:/usr/local/bin:{env.get('PATH','')}"
+            except Exception:
+                env['PATH'] = f"/opt/homebrew/bin:/usr/local/bin:{env.get('PATH','')}"
             
             self.fio_process = subprocess.Popen(
                 safe_cmd,
@@ -286,7 +319,7 @@ class FioRunner:
                 'timestamp': fio_results.get('timestamp', 0),
                 'jobs': [],
                 'summary': {},
-                'engine': 'homebrew_fio'
+'engine': 'vendor_fio' if (self.fio_path and '/vendor/' in self.fio_path) else 'homebrew_fio'
             }
             
             # Process each job
@@ -345,9 +378,17 @@ class FioRunner:
         }
     
     def _calculate_summary(self, jobs: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Calculate summary statistics across all jobs, handling both old and new FIO field names."""
-        if not jobs:
-            return {}
+        """Calculate summary statistics across all jobs with defensive error handling."""
+        if not jobs or not isinstance(jobs, list):
+            return {
+                'total_read_iops': 0,
+                'total_write_iops': 0,
+                'total_read_bw': 0,
+                'total_write_bw': 0,
+                'avg_read_latency': 0,
+                'avg_write_latency': 0,
+                'total_runtime': 0
+            }
 
         summary = {
             'total_read_iops': 0,

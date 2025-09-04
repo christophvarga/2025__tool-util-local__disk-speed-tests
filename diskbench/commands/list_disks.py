@@ -8,7 +8,7 @@ import json
 import os
 from typing import Dict, Any, List, Optional
 
-from utils.system_info import get_disk_info
+from diskbench.utils.system_info import get_disk_info
 
 logger = logging.getLogger(__name__)
 

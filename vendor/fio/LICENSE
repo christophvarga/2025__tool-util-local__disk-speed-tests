@@ -1,0 +1,4 @@
+GPLv2 license placeholder for bundled FIO binaries.
+
+When including a compiled FIO binary, replace this file with the full GPLv2 license text from upstream and reference the source commit and build flags used.
+

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QLab Disk Performance Tester</title>
     <link rel="stylesheet" href="styles.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Offline build: Font Awesome CDN removed to avoid network dependency -->
 </head>
 <body>
     <div class="container">
@@ -184,6 +184,14 @@
                 <button id="refreshDisks" class="btn btn-secondary">
                     <i class="fas fa-sync-alt"></i> Refresh Disk List
                 </button>
+                <div class="disk-alias-controls" style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <label for="diskAliasInput" style="min-width:140px;">Disk Label (optional):</label>
+                    <input id="diskAliasInput" type="text" placeholder="e.g., 'Samsung T7 Pro'" style="flex:1; min-width:220px;" disabled>
+                    <button id="saveDiskAlias" class="btn btn-secondary" disabled>
+                        <i class="fas fa-save"></i> Save Label
+                    </button>
+                    <span id="diskAliasStatus" class="small-hint hidden" style="color: var(--success-color);">Saved</span>
+                </div>
             </div>
 
             <!-- Test Selection -->
@@ -235,6 +243,11 @@
                         </div>
                     </label>
                 </div>
+                <div id="testDescription" class="test-description">
+                    <div class="loading">
+                        <i class="fas fa-info-circle"></i> Select a test to see details.
+                    </div>
+                </div>
             </div>
 
             <!-- Test Controls -->
@@ -259,6 +272,9 @@
                         </button>
                         <button id="exportResults" class="btn btn-secondary hidden">
                             <i class="fas fa-download"></i> Export Results
+                        </button>
+                        <button id="copyResults" class="btn btn-secondary hidden">
+                            <i class="fas fa-clipboard"></i> Copy Results
                         </button>
                     </div>
                 </div>
@@ -291,6 +307,14 @@
             <!-- Implementation Details -->
             <div class="implementation-details">
                 <h4><i class="fas fa-info-circle"></i> Implementation Details</h4>
+                <div class="implementation-actions" style="margin-bottom:12px; display:flex; gap:10px; flex-wrap: wrap;">
+                    <button id="copyCli" class="btn btn-secondary hidden">
+                        <i class="fas fa-terminal"></i> Copy CLI
+                    </button>
+                    <button id="downloadSummary" class="btn btn-secondary hidden">
+                        <i class="fas fa-file-alt"></i> Download Summary
+                    </button>
+                </div>
                 <div id="implementationInfo" class="implementation-info"></div>
             </div>
         </div>

@@ -22,8 +22,18 @@ from urllib.parse import urlparse, parse_qs
 import socketserver
 from typing import Dict, Any, Optional
 
-# Add diskbench to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'diskbench'))
+# Add diskbench to path (supports PyInstaller onefile/onedir)
+_base_dir = os.path.dirname(__file__)
+_meipass = getattr(sys, '_MEIPASS', None)
+possible_diskbench_paths = [
+    os.path.join(_base_dir, '..', 'diskbench'),  # source checkout
+]
+if _meipass:
+    possible_diskbench_paths.insert(0, os.path.join(_meipass, 'diskbench'))  # bundled data
+for _p in possible_diskbench_paths:
+    if os.path.isdir(_p) and _p not in sys.path:
+        sys.path.insert(0, _p)
+        break
 
 class DiskBenchBridge:
 
@@ -31,13 +41,30 @@ class DiskBenchBridge:
     # Utility
     # ---------------------------------------------------------------------
     def _verify_fio(self) -> Dict[str, str]:
-        """Locate fio binary and return {'path': str, 'version': str}. Raises OSError."""
+        """Locate fio binary (prefer vendored) and return {'path': str, 'version': str}. Raises OSError."""
         if self._fio_checked:
             return self._fio_checked
-        import shutil, subprocess
-        fio_path = shutil.which('fio')
+        import shutil, subprocess, platform as _platform
+        # Prefer vendored fio in repo
+        try:
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        except Exception:
+            repo_root = os.getcwd()
+        machine = _platform.machine().lower()
+        arch_dir = 'arm64' if ('arm' in machine or 'aarch64' in machine) else 'x86_64'
+        vendor_candidates = [
+            os.path.join(repo_root, 'vendor', 'fio', 'macos', arch_dir, 'fio'),
+            os.path.join(repo_root, 'vendor', 'fio', 'macos', arch_dir, 'fio-noshm'),
+        ]
+        fio_path = None
+        for p in vendor_candidates:
+            if os.path.exists(p) and os.access(p, os.X_OK):
+                fio_path = p
+                break
         if not fio_path:
-            raise OSError('fio binary not found in PATH – install with "brew install fio"')
+            fio_path = shutil.which('fio')
+        if not fio_path:
+            raise OSError('fio binary not found. Place it at vendor/fio/macos/<arch>/fio or install via Homebrew.')
         try:
             version_out = subprocess.check_output([fio_path, "--version"], text=True).strip()
         except Exception:
@@ -324,11 +351,16 @@ class DiskBenchBridge:
             env = os.environ.copy()
             env['FIO_DISABLE_SHM'] = '1'  # Disable shared memory
             env['TMPDIR'] = '/tmp'        # Use system tmp directory
-            env['PATH'] = f"/opt/homebrew/bin:/usr/local/bin:{env.get('PATH', '')}"  # Ensure Homebrew FIO is found
+            # Prepend vendored FIO path if available
+            machine = __import__('platform').machine().lower()
+            arch_dir = 'arm64' if ('arm' in machine or 'aarch64' in machine) else 'x86_64'
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+            vendor_path = os.path.join(repo_root, 'vendor', 'fio', 'macos', arch_dir)
+            env['PATH'] = f"{vendor_path}:/opt/homebrew/bin:/usr/local/bin:{env.get('PATH', '')}"
             
             if log_callback:
                 log_callback('info', f"Environment: FIO_DISABLE_SHM=1, TMPDIR=/tmp")
-                log_callback('info', f"PATH includes: /opt/homebrew/bin:/usr/local/bin")
+                log_callback('info', f"PATH includes vendor: {vendor_path}")
             
             # Execute in diskbench directory with unsandboxed environment
             # Timeout based on test type - long tests need more time
@@ -754,7 +786,11 @@ class DiskBenchBridge:
             env = os.environ.copy()
             env['FIO_DISABLE_SHM'] = '1'
             env['TMPDIR'] = '/tmp'
-            env['PATH'] = f"/opt/homebrew/bin:/usr/local/bin:{env.get('PATH', '')}"
+            machine = __import__('platform').machine().lower()
+            arch_dir = 'arm64' if ('arm' in machine or 'aarch64' in machine) else 'x86_64'
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+            vendor_path = os.path.join(repo_root, 'vendor', 'fio', 'macos', arch_dir)
+            env['PATH'] = f"{vendor_path}:/opt/homebrew/bin:/usr/local/bin:{env.get('PATH', '')}"
             
             # Start process with process tracking
             process = subprocess.Popen(
@@ -1080,16 +1116,29 @@ class DiskBenchBridge:
             log_callback('info', f'Process context: Unsandboxed bridge server (PID: {os.getpid()})')
             
             # Find FIO binary
-            fio_paths = [
-                '/opt/homebrew/bin/fio',  # Apple Silicon Homebrew
-                '/usr/local/bin/fio',     # Intel Homebrew
+            # Prefer vendored fio
+            import platform as _platform
+            machine = _platform.machine().lower()
+            arch_dir = 'arm64' if ('arm' in machine or 'aarch64' in machine) else 'x86_64'
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+            vendor_candidates = [
+                os.path.join(repo_root, 'vendor', 'fio', 'macos', arch_dir, 'fio'),
+                os.path.join(repo_root, 'vendor', 'fio', 'macos', arch_dir, 'fio-noshm'),
             ]
-            
             fio_path = None
-            for path in fio_paths:
+            for path in vendor_candidates:
                 if os.path.exists(path) and os.access(path, os.X_OK):
                     fio_path = path
                     break
+            if not fio_path:
+                fio_paths = [
+                    '/opt/homebrew/bin/fio',  # Apple Silicon Homebrew
+                    '/usr/local/bin/fio',     # Intel Homebrew
+                ]
+                for path in fio_paths:
+                    if os.path.exists(path) and os.access(path, os.X_OK):
+                        fio_path = path
+                        break
             
             if not fio_path:
                 # Try system PATH
@@ -1118,9 +1167,14 @@ class DiskBenchBridge:
                 env = os.environ.copy()
                 env['FIO_DISABLE_SHM'] = '1'  # Disable shared memory
                 env['TMPDIR'] = '/tmp'        # Use system tmp directory
-                env['PATH'] = f"/opt/homebrew/bin:/usr/local/bin:{env.get('PATH', '')}"
+                machine = __import__('platform').machine().lower()
+                arch_dir = 'arm64' if ('arm' in machine or 'aarch64' in machine) else 'x86_64'
+                repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+                vendor_path = os.path.join(repo_root, 'vendor', 'fio', 'macos', arch_dir)
+                env['PATH'] = f"{vendor_path}:/opt/homebrew/bin:/usr/local/bin:{env.get('PATH', '')}"
                 
                 log_callback('info', 'Environment: FIO_DISABLE_SHM=1, TMPDIR=/tmp')
+                log_callback('info', f'PATH includes vendor: {vendor_path}')
                 
                 # Build FIO command with maximum shared memory avoidance
                 fio_cmd = [
@@ -1241,16 +1295,29 @@ class DiskBenchBridge:
             log_callback('info', f'Test parameters: size={test_size}, rw={test_type}, target={target_path}')
             
             # Find FIO binary
-            fio_paths = [
-                '/opt/homebrew/bin/fio',  # Apple Silicon Homebrew
-                '/usr/local/bin/fio',     # Intel Homebrew
+            # Prefer vendored fio
+            import platform as _platform
+            machine = _platform.machine().lower()
+            arch_dir = 'arm64' if ('arm' in machine or 'aarch64' in machine) else 'x86_64'
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+            vendor_candidates = [
+                os.path.join(repo_root, 'vendor', 'fio', 'macos', arch_dir, 'fio'),
+                os.path.join(repo_root, 'vendor', 'fio', 'macos', arch_dir, 'fio-noshm'),
             ]
-            
             fio_path = None
-            for path in fio_paths:
+            for path in vendor_candidates:
                 if os.path.exists(path) and os.access(path, os.X_OK):
                     fio_path = path
                     break
+            if not fio_path:
+                fio_paths = [
+                    '/opt/homebrew/bin/fio',  # Apple Silicon Homebrew
+                    '/usr/local/bin/fio',     # Intel Homebrew
+                ]
+                for path in fio_paths:
+                    if os.path.exists(path) and os.access(path, os.X_OK):
+                        fio_path = path
+                        break
             
             if not fio_path:
                 # Try system PATH
@@ -2374,7 +2441,11 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
     
     def _serve_web_gui(self):
         """Serve the main web GUI."""
-        web_gui_path = os.path.join(os.path.dirname(__file__), '..', 'web-gui', 'index.html')
+        base_dir = getattr(sys, '_MEIPASS', None)
+        if base_dir and os.path.isdir(os.path.join(base_dir, 'web-gui')):
+            web_gui_path = os.path.join(base_dir, 'web-gui', 'index.html')
+        else:
+            web_gui_path = os.path.join(os.path.dirname(__file__), '..', 'web-gui', 'index.html')
         self._serve_file(web_gui_path, 'text/html')
     
     def _serve_static_file(self, path):
@@ -2385,7 +2456,11 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
         else:
             file_path = path[1:]  # Remove leading '/'
         
-        full_path = os.path.join(os.path.dirname(__file__), '..', 'web-gui', file_path)
+        base_dir = getattr(sys, '_MEIPASS', None)
+        if base_dir and os.path.isdir(os.path.join(base_dir, 'web-gui')):
+            full_path = os.path.join(base_dir, 'web-gui', file_path)
+        else:
+            full_path = os.path.join(os.path.dirname(__file__), '..', 'web-gui', file_path)
         
         # Determine content type
         if file_path.endswith('.css'):
