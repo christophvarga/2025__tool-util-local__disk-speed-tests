@@ -1,6 +1,6 @@
 # QLab Disk Performance Tester
 
-Version 1.1 – 12.8.2025
+Version 1.2 – 4.9.2025
 
 Professionelles Disk Performance Testing Tool optimiert für QLab Audio/Video-Anwendungen. Web-basierte Architektur mit Python Bridge Server und FIO Engine für realistische Show-Pattern-Tests.
 
@@ -41,6 +41,16 @@ Hinweise:
 - Falls ein PyInstaller-Build vorhanden ist (`dist/diskbench-bridge`), nutzt der Launcher automatisch dieses Binary (keine System-Python-Abhängigkeit).
 - Falls kein Build vorhanden ist, nutzt der Launcher System-`python3` (typisch auf macOS verfügbar) – weiterhin offline.
 - Keine Homebrew- oder Netzwerkzugriffe; keine Änderungen an SIP erforderlich.
+
+#### Offline Checklist
+- FIO-Binary liegt unter `vendor/fio/macos/arm64/fio` und ist ausführbar (`chmod +x vendor/fio/macos/arm64/fio`).
+- Optional: Packaged Bridge vorhanden unter `dist/diskbench-bridge` (gebaut via PyInstaller) – dann kein System-Python nötig.
+- Gatekeeper: Beim ersten Start ggf. Rechtsklick → Öffnen bestätigen (kein SIP-Eingriff nötig).
+- Internet: Nicht erforderlich für Laufzeit (UI, Bridge, FIO laufen lokal).
+
+#### Launcher-Übersicht
+- Endnutzer (Doppelklick): `Start Diskbench Bridge.command` – nutzt automatisch das PyInstaller-Binary, sonst `python3`.
+- Entwicklung (Terminal): `bash scripts/start.sh` – gleiches Verhalten, optional `--no-browser`/`--no-venv`.
 
 ### Online Setup (Alternative)
 
@@ -182,6 +192,15 @@ The tool provides specific recommendations based on test results:
 
 ### Installation (optional, empfohlen für globale Nutzung)
 
+#### Packaging (PyInstaller, dev)
+- Erzeugt ein self-contained Binary für Apple Silicon.
+- Build:
+  ```bash
+  bash scripts/build_bridge_pyinstaller.sh
+  ```
+- Artefakte: `dist/diskbench-bridge` (onefile) oder `dist/diskbench-bridge/` (onedir).
+- Der Launcher (.command) verwendet das Binary automatisch, falls vorhanden.
+
 - Editiermodus (entwicklungsfreundlich):
   ```bash
   python -m pip install -e .
@@ -298,6 +317,11 @@ cd diskbench && python main.py --list-disks
 - Ensure all files are in correct locations
 
 ### Getting Help
+
+### macOS Gatekeeper Hinweis
+- Beim ersten Start eines nicht signierten Binaries kann macOS den Start blockieren.
+- Lösung: Rechtsklick auf „Start Diskbench Bridge.command“ → Öffnen → Bestätigen.
+- Dies ist kein Eingriff in SIP und erfordert keine Internetverbindung.
 
 1. Run system validation: `cd diskbench && python main.py --validate`
 2. Check the browser console for errors

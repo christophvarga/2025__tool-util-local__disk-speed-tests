@@ -15,7 +15,7 @@ Files affected (high-level):
 - diskbench/commands/validate.py
 - Start Diskbench Bridge.command; scripts/start.sh; start.sh
 - scripts/build_bridge_pyinstaller.sh
-- web-gui/index.html; README.md
+- web-gui/index.html; README.md (v1.1 → v1.2; Offline Checklist, Launcher, Packaging, Gatekeeper)
 - vendor/fio/* docs/placeholders
 - tests/unit/test_fio_path_resolution.py
 
