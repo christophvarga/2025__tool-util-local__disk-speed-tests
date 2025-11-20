@@ -20,7 +20,7 @@ from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import socketserver
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Union
 
 # Add diskbench to path (supports PyInstaller onefile/onedir)
 _base_dir = os.path.dirname(__file__)
@@ -74,13 +74,13 @@ class DiskBenchBridge:
 
     """Bridge between web GUI and diskbench helper binary."""
     
-    def __init__(self):
-        self.diskbench_path = os.path.join(os.path.dirname(__file__), '..', 'diskbench')
-        self.running_tests = {}
-        self.running_processes = {}  # Track actual subprocess objects
-        self.logger = logging.getLogger(__name__)
+    def __init__(self) -> None:
+        self.diskbench_path: str = os.path.join(os.path.dirname(__file__), '..', 'diskbench')
+        self.running_tests: Dict[str, Any] = {}
+        self.running_processes: Dict[str, subprocess.Popen] = {}  # Track actual subprocess objects
+        self.logger: logging.Logger = logging.getLogger(__name__)
         self._fio_checked: Optional[Dict[str, str]] = None
-        self.state_file = 'memory-bank/diskbench_bridge_state.json'
+        self.state_file: str = 'memory-bank/diskbench_bridge_state.json'
         
         # Load persistent state on startup
         self._load_persistent_state()
@@ -169,7 +169,7 @@ class DiskBenchBridge:
         except Exception as e:
             self.logger.error(f"Error discovering orphaned processes: {e}")
     
-    def get_background_tests_status(self):
+    def get_background_tests_status(self) -> Dict[str, Any]:
         """Get status of all background/disconnected tests."""
         try:
             background_tests = []
@@ -198,7 +198,7 @@ class DiskBenchBridge:
                 'error': str(e)
             }
     
-    def cleanup_background_test(self, test_id):
+    def cleanup_background_test(self, test_id: str) -> Dict[str, Any]:
         """Clean up a specific background/disconnected test."""
         try:
             if test_id not in self.running_tests:
@@ -240,7 +240,7 @@ class DiskBenchBridge:
                 'error': str(e)
             }
     
-    def cleanup_all_background_tests(self):
+    def cleanup_all_background_tests(self) -> Dict[str, Any]:
         """Clean up all background/disconnected tests."""
         try:
             background_test_ids = [tid for tid, info in self.running_tests.items() 
@@ -284,50 +284,84 @@ class DiskBenchBridge:
                 'error': str(e)
             }
 
-    def _extract_json_from_output(self, output):
-        """Extract JSON from mixed output (logs + JSON)."""
+    def _extract_json_from_output(self, output: str) -> str:
+        """
+        Extract JSON from mixed output (logs + JSON).
+        
+        Uses a robust approach to find the largest valid JSON object in the output string.
+        """
         try:
-            # Find the first line that starts with '{' - this should be the JSON
+            # Fast path: if it looks like pure JSON, try parsing it directly
+            stripped = output.strip()
+            if stripped.startswith('{') and stripped.endswith('}'):
+                try:
+                    json.loads(stripped)
+                    return stripped
+                except json.JSONDecodeError:
+                    pass
+
+            # Robust extraction: find the outer-most braces
+            # We scan for the first '{' and the last '}'
+            start_idx = output.find('{')
+            end_idx = output.rfind('}')
+
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                candidate = output[start_idx : end_idx + 1]
+                try:
+                    # Verify it's valid JSON
+                    json.loads(candidate)
+                    return candidate
+                except json.JSONDecodeError:
+                    # If simple extraction fails, it might be because of nested braces mismatch
+                    # or multiple JSON objects.
+                    # Fallback to a brace counting approach (already implemented in previous version, but refined here)
+                    pass
+
+            # Fallback: Brace counting to find the first valid JSON object
             lines = output.split('\n')
-            json_start = -1
+            json_lines = []
+            brace_count = 0
+            in_json = False
             
-            for i, line in enumerate(lines):
-                stripped = line.strip()
-                if stripped.startswith('{'):
-                    json_start = i
-                    break
+            for line in lines:
+                stripped_line = line.strip()
+                
+                # Check for start of JSON
+                if not in_json and '{' in stripped_line:
+                    # Be careful not to catch log lines that happen to have a brace
+                    # Heuristic: If it starts with '{', it's likely JSON.
+                    # If it's inside a log line like "INFO: {data}", we might catch it, but let's try.
+                    brace_idx = line.find('{')
+                    if brace_idx != -1:
+                        in_json = True
+                        # Start from the brace
+                        line = line[brace_idx:]
+                        brace_count = 0 # Will be incremented below
+
+                if in_json:
+                    json_lines.append(line)
+                    brace_count += line.count('{') - line.count('}')
+                    
+                    if brace_count == 0:
+                        # Potential end of JSON
+                        candidate = '\n'.join(json_lines)
+                        try:
+                            json.loads(candidate)
+                            return candidate
+                        except json.JSONDecodeError:
+                            # False positive or incomplete, keep going?
+                            # If brace_count is 0 but invalid JSON, it might be that we picked up garbage.
+                            # But usually brace balancing is a good enough heuristic.
+                            pass
             
-            if json_start >= 0:
-                # Join all lines from the JSON start
-                json_lines = lines[json_start:]
-                json_text = '\n'.join(json_lines)
-                
-                # Try to find the end of the JSON by counting braces
-                brace_count = 0
-                json_end = 0
-                
-                for i, char in enumerate(json_text):
-                    if char == '{':
-                        brace_count += 1
-                    elif char == '}':
-                        brace_count -= 1
-                        if brace_count == 0:
-                            json_end = i + 1
-                            break
-                
-                if json_end > 0:
-                    return json_text[:json_end]
-                else:
-                    return json_text
-            else:
-                # No JSON found, return original output
-                return output
+            # If all else fails, return original output
+            return output
                 
         except Exception as e:
             self.logger.warning(f"Failed to extract JSON from output: {e}")
             return output
 
-    def execute_diskbench_command(self, args, estimated_duration: int = 0, log_callback=None):
+    def execute_diskbench_command(self, args: List[str], estimated_duration: int = 0, log_callback: Optional[Any] = None) -> Dict[str, Any]:
         """Execute a diskbench command and return the result."""
         try:
             # Build command
@@ -357,6 +391,9 @@ class DiskBenchBridge:
             repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
             vendor_path = os.path.join(repo_root, 'vendor', 'fio', 'macos', arch_dir)
             env['PATH'] = f"{vendor_path}:/opt/homebrew/bin:/usr/local/bin:{env.get('PATH', '')}"
+            
+            # Ensure diskbench package is importable
+            env['PYTHONPATH'] = repo_root
             
             if log_callback:
                 log_callback('info', f"Environment: FIO_DISABLE_SHM=1, TMPDIR=/tmp")
@@ -444,7 +481,7 @@ class DiskBenchBridge:
                 'command': cmd_str if 'cmd_str' in locals() else str(cmd)
             }
     
-    def start_test(self, test_params):
+    def start_test(self, test_params: Dict[str, Any]) -> Dict[str, Any]:
         # Verify fio is available first
         try:
             self._verify_fio()
@@ -561,7 +598,7 @@ class DiskBenchBridge:
                 'error': str(e)
             }
     
-    def cleanup_fio_processes(self, test_id=None):
+    def cleanup_fio_processes(self, test_id: Optional[str] = None) -> List[int]:
         """Find and kill orphaned FIO processes related to our tests."""
         try:
             self.logger.info("Searching for orphaned FIO processes...")
@@ -623,7 +660,7 @@ class DiskBenchBridge:
             self.logger.error(f"Error cleaning up FIO processes: {e}")
             return []
     
-    def stop_test(self, test_id):
+    def stop_test(self, test_id: str) -> Dict[str, Any]:
         """Stop a running test and cleanup processes."""
         try:
             if test_id not in self.running_tests:
@@ -699,7 +736,7 @@ class DiskBenchBridge:
                 'error': str(e)
             }
     
-    def stop_all_tests(self):
+    def stop_all_tests(self) -> Dict[str, Any]:
         """Stop all running tests and cleanup processes."""
         try:
             stopped_tests = []
@@ -770,7 +807,7 @@ class DiskBenchBridge:
                 'error': str(e)
             }
     
-    def _run_test_thread(self, test_id, args, estimated_duration: int):
+    def _run_test_thread(self, test_id: str, args: List[str], estimated_duration: int) -> None:
         """Run test in background thread with enhanced live progress monitoring."""
         process = None
         try:
@@ -1004,10 +1041,10 @@ class DiskBenchBridge:
         """Generate QLab-specific performance analysis."""
         # QLab requirements for different scenarios
         qlab_requirements = {
-            'prores_422_real': {'min_throughput': 220, 'name': 'ProRes 422'},
-            'prores_422_hq_real': {'min_throughput': 440, 'name': 'ProRes HQ'},
-            'quick_max_mix': {'min_throughput': 100, 'name': 'Basic'},
-            'thermal_maximum': {'min_throughput': 300, 'name': 'Thermal Maximum'}
+            'prores_422_real': {'min_throughput': 350, 'name': 'ProRes 422'},
+            'prores_422_hq_real': {'min_throughput': 700, 'name': 'ProRes HQ'},
+            'quick_max_mix': {'min_throughput': 300, 'name': 'Basic'},
+            'thermal_maximum': {'min_throughput': 400, 'name': 'Thermal Maximum'}
         }
         
         requirement = qlab_requirements.get(test_type, qlab_requirements['quick_max_mix'])

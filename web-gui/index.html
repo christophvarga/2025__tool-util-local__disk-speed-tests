@@ -345,6 +345,37 @@
         </div>
     </div>
 
+    <!-- Templates -->
+    <template id="disk-item-template">
+        <div class="disk-item">
+            <div class="disk-icon">
+                <i class="fas fa-hdd"></i>
+            </div>
+            <div class="disk-info">
+                <div class="disk-name"></div>
+                <div class="disk-details"></div>
+                <div class="disk-meta"></div>
+            </div>
+            <div class="disk-select-icon">
+                <i class="fas fa-chevron-right"></i>
+            </div>
+        </div>
+    </template>
+
+    <template id="test-option-template">
+        <label class="test-option">
+            <input type="radio" name="testType">
+            <div class="test-card">
+                <h4>
+                    <span class="test-label"></span>
+                    <i class="fas fa-info-circle info-icon" title="Show detailed information"></i>
+                    <span class="badge hidden">RECOMMENDED</span>
+                </h4>
+                <p class="test-description"></p>
+                <div class="test-duration"></div>
+            </div>
+        </label>
+    </template>
 
     <script src="app.js"></script>
 </body>

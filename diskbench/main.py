@@ -17,10 +17,11 @@ import argparse
 import json
 import logging
 import signal
+from typing import List, Optional, Dict, Any, Union
 from pathlib import Path
 
 # Global variable to hold the currently running test command for signal handling
-current_test_command = None
+current_test_command: Optional[Any] = None
 
 # Import modules with error handling (use absolute package imports)
 try:
@@ -36,14 +37,14 @@ try:
     from diskbench.utils.security import validate_disk_path, sanitize_filename
     from diskbench.utils.system_info import get_system_info
 except ImportError as e:
-    print(f"Import error: {e}")
-    print("Make sure you're running from the project root, or install the package so 'diskbench' is importable.")
+    sys.stderr.write(f"Import error: {e}\n")
+    sys.stderr.write("Make sure you're running from the project root, or install the package so 'diskbench' is importable.\n")
     sys.exit(1)
 
-__version__ = "1.0.0-beta"
+__version__ = "1.3.0"
 
 
-def signal_handler(signum, frame):
+def signal_handler(signum: int, frame: Any) -> None:
     """Handle termination signals by stopping the current test."""
     if current_test_command:
         logger = logging.getLogger(__name__)
@@ -58,7 +59,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 signal.signal(signal.SIGINT, signal_handler)
 
 
-def create_parser():
+def create_parser() -> argparse.ArgumentParser:
     """Create the command-line argument parser."""
     parser = argparse.ArgumentParser(
         prog='diskbench',
@@ -201,7 +202,7 @@ Examples:
     return parser
 
 
-def validate_arguments(args):
+def validate_arguments(args: argparse.Namespace) -> List[str]:
     """Validate command-line arguments and dependencies."""
     errors = []
 
@@ -261,7 +262,7 @@ def validate_arguments(args):
     return errors
 
 
-def main():
+def main() -> int:
     """Main entry point for the diskbench CLI."""
     parser = create_parser()
     args = parser.parse_args()
@@ -274,7 +275,7 @@ def main():
     try:
         # Handle version command
         if args.version:
-            version_info = {
+            version_info: Dict[str, Any] = {
                 'diskbench_version': __version__,
                 'python_version': sys.version,
                 'system_info': get_system_info()
@@ -365,11 +366,11 @@ def main():
                         'duration': config['duration'],
                         'display_label': qlab_patterns.get_test_display_label(test_id)
                     }
-                result = {
+                result_tests = {
                     'tests': tests_info,
                     'order': order
                 }
-                print(json.dumps(result, indent=2))
+                print(json.dumps(result_tests, indent=2))
             else:
                 print("Available test patterns:")
                 for i, test_id in enumerate(qlab_patterns.get_ordered_tests(), 1):
@@ -402,21 +403,21 @@ def main():
             try:
                 if args.test:
                     test_params['test_mode'] = args.test
-                    result = test_cmd.execute_builtin_test(**test_params)
+                    result_test = test_cmd.execute_builtin_test(**test_params)
                 else:
                     test_params['config_file'] = args.custom_config
-                    result = test_cmd.execute_custom_test(**test_params)
+                    result_test = test_cmd.execute_custom_test(**test_params)
             finally:
                 current_test_command = None  # Clear after test completes
 
-            if result is None:
+            if result_test is None:
                 logger.error("Test execution failed")
                 return 1
 
             # Save results to output file
             try:
                 with open(args.output, 'w') as f:
-                    json.dump(result, f, indent=2)
+                    json.dump(result_test, f, indent=2)
                 logger.info(f"Results saved to {args.output}")
             except Exception as e:
                 logger.error(f"Failed to save results: {e}")

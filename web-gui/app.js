@@ -231,48 +231,58 @@ class DiskBenchApp {
     
     renderDiskList(disks) {
         const diskList = document.getElementById('diskList');
+        const template = document.getElementById('disk-item-template');
         
         if (!disks || disks.length === 0) {
             diskList.innerHTML = '<div class="loading"><i class="fas fa-info-circle"></i> No suitable disks found for testing.</div>';
             return;
         }
         
-        const diskItems = disks
-            .filter(disk => disk.suitable_for_testing)
-            .map(disk => this.createDiskItem(disk))
-            .join('');
+        diskList.innerHTML = '';
         
-        diskList.innerHTML = diskItems;
-        
-        // Add event listeners to disk items
-        document.querySelectorAll('.disk-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const diskPath = item.dataset.diskPath;
-                this.selectDisk(diskPath, disks.find(d => d.device === diskPath));
+        disks.filter(disk => disk.suitable_for_testing).forEach(disk => {
+            const clone = template.content.cloneNode(true);
+            const diskItem = clone.querySelector('.disk-item');
+            
+            // Set data attribute
+            diskItem.dataset.diskPath = disk.device;
+            
+            // Set selection state
+            const isSelected = this.selectedDisk && this.selectedDisk.device === disk.device;
+            if (isSelected) {
+                diskItem.classList.add('selected');
+                clone.querySelector('input[type="radio"]').checked = true;
+            }
+            
+            // Set value for radio
+            clone.querySelector('input[type="radio"]').value = disk.device;
+            
+            // Set disk info
+            const alias = this.getDiskAlias(disk.device);
+            const nameEl = clone.querySelector('.disk-name');
+            if (alias) {
+                nameEl.innerHTML = `${alias} <span class="disk-original-name">(${disk.name})</span>`;
+            } else {
+                nameEl.textContent = disk.name;
+            }
+            
+            const detailsText = `${disk.device} • ${disk.size} • ${disk.file_system}${disk.free_space ? ` • ${disk.free_space} free` : ''}`;
+            clone.querySelector('.disk-details').textContent = detailsText;
+            
+            const typeEl = clone.querySelector('.disk-meta'); // Using disk-meta for type to match template structure
+            typeEl.textContent = disk.type;
+            typeEl.className = `disk-type ${disk.type ? disk.type.toLowerCase() : ''}`;
+            
+            // Add event listener
+            diskItem.addEventListener('click', () => {
+                this.selectDisk(disk.device, disk);
             });
+            
+            diskList.appendChild(clone);
         });
     }
     
-    createDiskItem(disk) {
-        const typeClass = (disk.type || '').toLowerCase();
-        const isSelected = this.selectedDisk && this.selectedDisk.device === disk.device;
-        const alias = this.getDiskAlias(disk.device);
-        const nameLine = alias ? `${alias} <span class="disk-original-name">(${disk.name})</span>` : `${disk.name}`;
-        
-        return `
-            <div class="disk-item ${isSelected ? 'selected' : ''}" data-disk-path="${disk.device}">
-                <input type="radio" name="selectedDisk" value="${disk.device}" ${isSelected ? 'checked' : ''}>
-                <div class="disk-info">
-                    <div class="disk-name">${nameLine}</div>
-                    <div class="disk-details">
-                        ${disk.device} • ${disk.size} • ${disk.file_system}
-                        ${disk.free_space ? ` • ${disk.free_space} free` : ''}
-                    </div>
-                </div>
-                <div class="disk-type ${typeClass}">${disk.type}</div>
-            </div>
-        `;
-    }
+
     
     selectDisk(diskPath, diskInfo) {
         this.selectedDisk = diskInfo;
@@ -491,28 +501,54 @@ class DiskBenchApp {
 
     renderTestOptions(testsById, order) {
         const container = document.querySelector('.test-types');
-        if (!container) return;
+        const template = document.getElementById('test-option-template');
+        
+        if (!container || !template) return;
+        
         // Store catalog for later (info modal)
         this.testsCatalog = { tests: testsById, order };
-        const html = order.map((id) => {
+        
+        container.innerHTML = '';
+        
+        order.forEach(id => {
             const t = testsById[id] || {};
-            const minutes = t.duration ? Math.round(t.duration / 60) : null;
-            const durationText = minutes ? `⏱️ Dauer: ${minutes} Minuten` : '';
+            const clone = template.content.cloneNode(true);
+            
+            // Set radio input
+            const radio = clone.querySelector('input[type="radio"]');
+            radio.value = id;
+            if (this.selectedTestType === id) {
+                radio.checked = true;
+            }
+            
+            // Set label and recommended badge
             const label = t.display_label || id;
-            const checked = this.selectedTestType === id ? 'checked' : '';
-            return `
-            <label class="test-option">
-                <input type="radio" name="testType" value="${id}" ${checked}>
-                <div class="test-card${label === 'Test 1' ? ' recommended' : ''}">
-                    <h4>${label}: ${t.name || id}
-                        <i class="fas fa-info-circle info-icon" onclick="showPatternInfo('${id}')" title="Show detailed information"></i>
-                    </h4>
-                    <p>${t.description || ''}</p>
-                    <div class="test-duration">${durationText}</div>
-                </div>
-            </label>`;
-        }).join('');
-        container.innerHTML = html;
+            clone.querySelector('.test-label').textContent = `${label}: ${t.name || id}`;
+            
+            if (label === 'Test 1') { // Or any other logic for recommended
+                clone.querySelector('.test-card').classList.add('recommended');
+                clone.querySelector('.badge').classList.remove('hidden');
+            }
+            
+            // Set info icon click handler
+            const infoIcon = clone.querySelector('.info-icon');
+            infoIcon.onclick = (e) => {
+                e.preventDefault(); // Prevent radio selection when clicking info
+                showPatternInfo(id);
+            };
+            
+            // Set description
+            clone.querySelector('.test-description').textContent = t.description || '';
+            
+            // Set duration
+            const minutes = t.duration ? Math.round(t.duration / 60) : null;
+            if (minutes) {
+                clone.querySelector('.test-duration').textContent = `⏱️ Dauer: ${minutes} Minuten`;
+            }
+            
+            container.appendChild(clone);
+        });
+        
         // Re-bind listeners after dynamic render
         this.bindTestTypeListeners();
         // Update test description for current selection
