@@ -2,7 +2,7 @@
 
 This file provides guidance to WARP (warp.dev) when working with code in this repository.
 
-Version 1.0 – 24.8.2025
+Version 1.1 – 8.9.2025
 
 Hinweis: Lies zuerst 00_infos/llm-context.md (Projektregeln, Phase, HOLDS).
 
@@ -41,13 +41,20 @@ Hinweis: Lies zuerst 00_infos/llm-context.md (Projektregeln, Phase, HOLDS).
   - Nach Code-Änderungen: Server neu starten (Restart-Rule)
 
 - Tests (pytest):
-  - Alle Tests: python -m pytest tests -q
+  - Test-Report (Runner, Artefakte + Coverage): make test-report
+  - Alle Tests (direkt): python -m pytest tests -q
   - Einzelner Test: python -m pytest tests/test_fio_parser.py::TestFioParser::test_parse_current_fio_format -q
-  - Coverage (benötigt pytest-cov): python -m pytest tests --cov=diskbench.core.fio_runner -q
+  - Coverage (direkt): python -m pytest tests --cov=diskbench.core.fio_runner -q
   - Ad-hoc Testscript: python diskbench/test_diskbench.py
 
 - Lint/Format:
   - In diesem Repo nicht konfiguriert (keine .flake8/.ruff/.pylintrc gefunden).
+
+- Auswertung & Cleanup:
+  - Bewertung (diskbench oder fio JSON): python scripts/evaluate_results.py --input /path/to/results.json [--test-type ...]
+    - Alternativ: make evaluate INPUT=/path/to/results.json [TEST_TYPE=...] [OUTPUT=/path/to/report.json]
+  - Kriterien: docs/evaluation-criteria.md
+  - Cleanup Artefakte (neuester Report bleibt): bash scripts/clean.sh
 
 
 2) Big-Picture Architektur und Struktur

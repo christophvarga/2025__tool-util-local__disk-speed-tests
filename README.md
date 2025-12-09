@@ -1,6 +1,6 @@
 # QLab Disk Performance Tester
 
-Version 1.2 – 4.9.2025
+Version 1.3.3 – 9.9.2025
 
 Professionelles Disk Performance Testing Tool optimiert für QLab Audio/Video-Anwendungen. Web-basierte Architektur mit Python Bridge Server und FIO Engine für realistische Show-Pattern-Tests.
 
@@ -31,16 +31,35 @@ Drei-Schichten-Architektur für maximale Flexibilität und einfache Wartung:
 
 ### Offline Start (ohne Internet, ohne SIP‑Eingriff)
 
-Voraussetzung: Vendortes FIO-Binary vorhanden unter `vendor/fio/macos/arm64/fio` (für Apple Silicon). Siehe `vendor/fio/README.md`.
+Variante A – Offline Bundle (empfohlen für neuen Mac ohne Python/Internet):
+1) Bundle bauen (einmalig auf einem Dev-Mac):
+   ```bash
+   bash scripts/build_offline_bundle.sh
+   ```
+   Das erzeugt: `dist/offline_bundle-<arch>/`
+2) Ordner `dist/offline_bundle-<arch>/` auf eine externe SSD kopieren.
+3) Auf dem Ziel-Mac: Doppelklick auf `Start Diskbench Bridge.command`.
+
+Variante B – Aus dem Quellcode (benötigt System-Python):
+Voraussetzung: Vendortes FIO-Binary vorhanden unter `vendor/fio/macos/<arch>/fio` (wird bei Bedarf automatisch aus Homebrew kopiert).
 
 1) Repo auf den Ziel-Mac kopieren (AirDrop/USB)
-2) Doppelklick auf „Start Diskbench Bridge.command“ (Repo-Root)
-3) Browser öffnet `http://localhost:8765/`
+2) Start im Terminal:
+   ```bash
+   bash scripts/start.sh
+   # alternativ
+   ./start.sh
+   ```
+3) Browser öffnet http://localhost:8765/
+
+Variante C – Direktstart per Doppelklick (aus Repo-Root):
+1) Doppelklick auf `Start Diskbench Bridge.command`
+   - nutzt automatisch onedir-/onefile-Build, falls vorhanden; sonst Python-Fallback
+2) Browser öffnet http://localhost:8765/
 
 Hinweise:
-- Falls ein PyInstaller-Build vorhanden ist (`dist/diskbench-bridge`), nutzt der Launcher automatisch dieses Binary (keine System-Python-Abhängigkeit).
-- Falls kein Build vorhanden ist, nutzt der Launcher System-`python3` (typisch auf macOS verfügbar) – weiterhin offline.
-- Keine Homebrew- oder Netzwerkzugriffe; keine Änderungen an SIP erforderlich.
+- Das Bundle enthält eine vendorte FIO-Binary und ist offline lauffähig.
+- Gatekeeper: Beim ersten Start ggf. Rechtsklick → Öffnen bestätigen (kein SIP-Eingriff nötig).
 
 #### Offline Checklist
 - FIO-Binary liegt unter `vendor/fio/macos/arm64/fio` und ist ausführbar (`chmod +x vendor/fio/macos/arm64/fio`).
@@ -49,8 +68,9 @@ Hinweise:
 - Internet: Nicht erforderlich für Laufzeit (UI, Bridge, FIO laufen lokal).
 
 #### Launcher-Übersicht
-- Endnutzer (Doppelklick): `Start Diskbench Bridge.command` – nutzt automatisch das PyInstaller-Binary, sonst `python3`.
-- Entwicklung (Terminal): `bash scripts/start.sh` – gleiches Verhalten, optional `--no-browser`/`--no-venv`.
+- Doppelklick (Repo-Root): `Start Diskbench Bridge.command`
+- Start (Terminal): `bash scripts/start.sh` – nutzt automatisch das PyInstaller-Binary, sonst `python3`; optional `--no-browser`/`--no-venv`.
+- Alternativ: `./start.sh`
 
 ### Online Setup (Alternative)
 
@@ -163,7 +183,14 @@ python main.py --test thermal_maximum --disk /Volumes/Media --size 10 --output t
 
 ## 📊 Understanding Results
 
+- Bewertungstool: `python scripts/evaluate_results.py --input /path/to/results.json [--test-type ...]`  
+  - Alternativ via Makefile: `make evaluate INPUT=/path/to/results.json [TEST_TYPE=...] [OUTPUT=/path/to/report.json]`
+- Kriterien: siehe `docs/evaluation-criteria.md`  
+- Fallback (direktes fio): siehe `docs/fio-fallback/README.md`
+
 ### QLab Performance Analysis
+
+Hinweis: Die Mindestdurchsatzwerte in der Bridge-Oberfläche wurden auf unsere strengeren Ziele angehoben (quick ≥ 300 MB/s, ProRes 422 ≥ 350 MB/s, ProRes 422 HQ ≥ 700 MB/s, Thermal ≥ 400 MB/s).
 
 Results include QLab-specific performance analysis:
 
@@ -212,21 +239,26 @@ The tool provides specific recommendations based on test results:
 ### Project Structure
 
 ```
-├── diskbench/              # Helper binary (unsandboxed)
+├── diskbench/              # CLI entry point + engine
 │   ├── main.py             # CLI entry point
-│   ├── commands/           # Command implementations
-│   ├── core/               # FIO engine and test patterns
+│   ├── commands/           # Commands (test, list-disks, validate, setup)
+│   ├── core/               # FIO runner and QLab patterns
 │   └── utils/              # Utilities and validation
-├── web-gui/                # Web interface (sandboxed)
-│   ├── index.html          # Main interface
-│   ├── styles.css          # Styling
-│   └── app.js              # Application logic
-├── bridge-server/          # HTTP API server
-│   └── server.py           # Bridge communication
+├── bridge-server/          # HTTP API server (Bridge)
+│   └── server.py           # Bridge communication and process mgmt
+├── docs/                   # Documentation
+│   └── fio-fallback/       # Direct FIO usage templates and guide
+├── tests/                  # Unit & integration tests
 └── memory-bank/            # Development documentation
 ```
 
 ### Testing
+
+- Test-Report Runner (LLM-Rule konform):
+  ```bash
+  make test-report
+  # Artefakte unter 89_output/test_reports/<TS>/, symlink: 89_output/test_reports/latest
+  ```
 
 ```bash
 # Test helper binary
@@ -315,6 +347,13 @@ cd diskbench && python main.py --list-disks
 - Check that helper binary is working: `cd diskbench && python main.py --list-disks`
 - Verify browser console for JavaScript errors
 - Ensure all files are in correct locations
+
+### Maintenance
+
+- Aufräumen (nur Artefakte innerhalb des Repos; neueste Testreports bleiben erhalten):
+  ```bash
+  bash scripts/clean.sh
+  ```
 
 ### Getting Help
 

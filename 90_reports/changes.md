@@ -1,3 +1,22 @@
+# Changes Report
+
+Datum: 2025-09-08
+
+Änderungen:
+- Makefile: test-report Runner auf `python -m pytest` + tests/ beschränkt
+- pytest.ini: Header auf [pytest] korrigiert
+- scripts/evaluate_results.py: Neues Evaluationsskript (striktere QLab-Schwellen)
+- docs/evaluation-criteria.md: Kriterien und Mindestwerte dokumentiert
+- docs/fio-fallback/: FIO-Templates + README (vorher hinzugefügt) – Referenzen im README ergänzt
+- scripts/clean.sh: Cleanup-Skript (Artefakte aufräumen, latest-Report erhalten)
+- README.md: Version 1.3.1 – 8.9.2025; Evaluator/Runner/Cleanup-Verweise ergänzt
+- WARP.md: Version 1.1 – 8.9.2025; Runner/Evaluator/Cleanup ergänzt
+- Archiv: README_v1.3_2025-09-05.md, WARP_v1.0_2025-08-24.md
+
+Risiken/HOLDs:
+- Keine Architektur-Änderungen; keine neuen Dependencies. HOLDS (DMG/Signing/Auto-Update) unberührt.
+- Coverage gering (18.09%), akzeptiert da Fokus auf Doku/Runner.
+
 # Change Summary
 
 Date: 2025-09-04 18:50
