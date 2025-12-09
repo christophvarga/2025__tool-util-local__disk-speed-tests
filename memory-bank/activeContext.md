@@ -1,5 +1,11 @@
 # Active Context - QLab Disk Performance Tester
 
+## 🔄 Latest Update (2025-11-04)
+
+- Unit-test suite expanded (security, system_info, logging, retry logic, fio_runner helpers, monitoring, health_checks, state_manager), all 101 tests passing with 1 intentional skip.
+- `diskbench` coverage raised to ~35.7 % (964/2700 lines) via targeted helper/monitoring coverage.
+- Vendored FIO binary confirmed present and executable at `vendor/fio/macos/arm64/fio`; no download required.
+
 ## Current Status: ✅ MVP/ALPHA PHASE - ARCHITECTURE FINALIZED
 
 **Date:** 2025-06-20  
