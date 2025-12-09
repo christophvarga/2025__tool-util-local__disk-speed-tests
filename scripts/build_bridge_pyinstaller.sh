@@ -20,6 +20,28 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
+# Ensure vendored FIO exists; if missing, try to vend a local fio binary (Homebrew) for offline use
+MACHINE_ARCH="$(uname -m)"
+if [[ "$MACHINE_ARCH" == arm64* || "$MACHINE_ARCH" == *aarch64* ]]; then
+  ARCH_DIR=arm64
+else
+  ARCH_DIR=x86_64
+fi
+VENDOR_DIR="$REPO_ROOT/vendor/fio/macos/$ARCH_DIR"
+FIO_VENDOR_BIN="$VENDOR_DIR/fio"
+if [[ ! -x "$FIO_VENDOR_BIN" ]]; then
+  # Try to pull from common locations (Homebrew)
+  if command -v fio >/dev/null 2>&1; then
+    mkdir -p "$VENDOR_DIR"
+    cp "$(command -v fio)" "$FIO_VENDOR_BIN"
+    chmod +x "$FIO_VENDOR_BIN"
+    echo "Vendored fio created at: $FIO_VENDOR_BIN"
+  else
+    echo "Warning: vendored fio not found and no system fio available."
+    echo "Place a macOS fio binary at $FIO_VENDOR_BIN for fully offline operation."
+  fi
+fi
+
 MODE="onefile"
 if [[ "${1-}" == "--onedir" ]]; then
   MODE="onedir"
@@ -40,6 +62,7 @@ COMMON_ARGS=(
   --name "$NAME"
   --add-data "web-gui:web-gui"
   --add-data "diskbench:diskbench"
+  --add-data "vendor/fio:vendor/fio"
   --collect-submodules "diskbench"
   --hidden-import "diskbench"
 )
