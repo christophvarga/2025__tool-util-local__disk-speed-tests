@@ -515,13 +515,28 @@ class DiskBenchBridge:
             from core.qlab_patterns import QLabTestPatterns
             qlab_patterns = QLabTestPatterns()
             
-            if requested_test_type in test_type_mapping:
+            diskbench_test_type = None
+            custom_config_file = None
+            estimated_duration = 60 # Default
+            
+            if requested_test_type == 'custom':
+                # Handle custom test generation
+                try:
+                    custom_config_file = self._generate_custom_fio_config(test_params.get('custom_params', {}))
+                    estimated_duration = int(test_params.get('custom_params', {}).get('duration', 60))
+                    diskbench_test_type = 'custom'
+                except Exception as e:
+                    return {
+                        'success': False,
+                        'error': f"Failed to generate custom config: {str(e)}"
+                    }
+            elif requested_test_type in test_type_mapping:
                 diskbench_test_type = test_type_mapping[requested_test_type]
             elif requested_test_type in qlab_patterns.patterns:
                 diskbench_test_type = requested_test_type
             else:
                 # Unknown test type - return error with valid choices
-                valid_choices = sorted(list(test_type_mapping.keys()) + list(qlab_patterns.patterns.keys()))
+                valid_choices = sorted(list(test_type_mapping.keys()) + list(qlab_patterns.patterns.keys()) + ['custom'])
                 valid_choices_str = "', '".join(valid_choices)
                 return {
                     'success': False,
@@ -531,15 +546,19 @@ class DiskBenchBridge:
             # Generate unique test ID
             test_id = f"test_{int(time.time())}"
             
-            # diskbench_test_type is already determined above during validation
-            
             # Build command arguments
-            args = [
-                '--test', diskbench_test_type,
+            args = []
+            
+            if diskbench_test_type == 'custom' and custom_config_file:
+                args.extend(['--custom-config', custom_config_file])
+            else:
+                args.extend(['--test', diskbench_test_type])
+                
+            args.extend([
                 '--disk', test_params.get('disk_path', '/tmp'),
                 '--size', str(test_params.get('size_gb', 1)),
                 '--json'
-            ]
+            ])
             
             # Add output file
             output_file = f"/tmp/diskbench-{test_id}.json"
@@ -552,18 +571,19 @@ class DiskBenchBridge:
             # Add verbose flag for debugging
             args.append('--verbose')
             
-            # Determine estimated duration based on test type
-            estimated_duration = 0
-            if diskbench_test_type == 'quick_max_speed':
-                estimated_duration = 60   # 1 minute
-            elif diskbench_test_type == 'qlab_prores_422_show':
-                estimated_duration = 9300  # 2.5 hours
-            elif diskbench_test_type == 'qlab_prores_hq_show':
-                estimated_duration = 9300  # 2.5 hours
-            elif diskbench_test_type == 'thermal_maximum':
-                estimated_duration = 5400  # 1.5 hours
-            else:
-                estimated_duration = 60   # Default to 1 minute for unknown tests
+            # Determine estimated duration based on test type if not custom
+            if diskbench_test_type != 'custom':
+                if diskbench_test_type == 'quick_max_speed':
+                    estimated_duration = 60   # 1 minute
+                elif diskbench_test_type == 'qlab_prores_422_show':
+                    estimated_duration = 9300  # 2.5 hours
+                elif diskbench_test_type == 'qlab_prores_hq_show':
+                    estimated_duration = 9300  # 2.5 hours
+                elif diskbench_test_type == 'thermal_maximum':
+                    estimated_duration = 5400  # 1.5 hours
+                elif diskbench_test_type not in ['quick_max_mix', 'prores_422_real', 'prores_422_hq_real', 'thermal_maximum']:
+                     # Fallback for other built-in types if any
+                    estimated_duration = 60
 
             # Store test info
             self.running_tests[test_id] = {
@@ -597,6 +617,70 @@ class DiskBenchBridge:
                 'success': False,
                 'error': str(e)
             }
+
+    def _generate_custom_fio_config(self, params: Dict[str, Any]) -> str:
+        """Generate a temporary FIO configuration file for custom tests."""
+        try:
+            # Extract parameters with defaults
+            name = params.get('name', 'Custom Test')
+            duration = int(params.get('duration', 60))
+            block_size = params.get('block_size', '1M')
+            rw_mix = int(params.get('rw_mix', 50)) # % read
+            numjobs = int(params.get('numjobs', 4))
+            iodepth = int(params.get('iodepth', 32))
+            target_rate = params.get('target_rate', '') # Optional, e.g. "500M"
+            
+            # Determine rw mode based on mix
+            if rw_mix == 100:
+                rw_mode = 'read'
+            elif rw_mix == 0:
+                rw_mode = 'write'
+            else:
+                rw_mode = 'randrw'
+            
+            # Build FIO content
+            config_content = f"""[global]
+ioengine=posixaio
+direct=0
+time_based=1
+group_reporting=1
+thread=1
+norandommap=1
+randrepeat=0
+random_generator=tausworthe64
+runtime={duration}
+log_avg_msec=1000
+write_bw_log=custom_test_bw
+write_lat_log=custom_test_lat
+
+[custom_test]
+filename=${{TEST_FILE}}
+size=${{TEST_SIZE}}
+bs={block_size}
+rw={rw_mode}
+"""
+            if rw_mode == 'randrw':
+                config_content += f"rwmixread={rw_mix}\n"
+                
+            config_content += f"numjobs={numjobs}\n"
+            config_content += f"iodepth={iodepth}\n"
+            
+            if target_rate:
+                config_content += f"rate={target_rate}\n"
+                
+            # Write to temp file
+            timestamp = int(time.time())
+            filename = f"/tmp/custom_test_{timestamp}.fio"
+            
+            with open(filename, 'w') as f:
+                f.write(config_content)
+                
+            self.logger.info(f"Generated custom FIO config: {filename}")
+            return filename
+            
+        except Exception as e:
+            self.logger.error(f"Error generating custom FIO config: {e}")
+            raise
     
     def cleanup_fio_processes(self, test_id: Optional[str] = None) -> List[int]:
         """Find and kill orphaned FIO processes related to our tests."""
