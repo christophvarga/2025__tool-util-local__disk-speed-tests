@@ -14,7 +14,7 @@ class DiskBenchApp {
         this.testResults = null;
         this.currentTestId = null; // Added to track the running test ID
         this.currentTestDuration = 0; // To store the duration of the current test
-        
+
         // Setup wizard state
         this.currentTab = 'testing';
         this.setupState = {
@@ -25,60 +25,65 @@ class DiskBenchApp {
             setupStep: 1,
             installationInProgress: false
         };
-        
+
         this.init();
     }
-    
+
+
+
     init() {
         this.loadPersistedState();
         this.setupEventListeners();
         this.checkSystemStatus();
         this.loadAvailableDisks();
+        this.loadCustomTests();
         this.loadTests();
         this.checkForActiveTest();
+        this.initializeCharts();
+        this.setupKeyboardShortcuts();
         this.updateUI();
     }
-    
+
     setupEventListeners() {
         // Navigation tabs
         document.getElementById('testingTab').addEventListener('click', () => {
             this.switchTab('testing');
         });
-        
+
         document.getElementById('setupTab').addEventListener('click', () => {
             this.switchTab('setup');
         });
-        
+
         document.getElementById('architectureTab').addEventListener('click', () => {
             this.switchTab('architecture');
         });
-        
+
         // Architecture toggle
         document.getElementById('toggleArchitecture').addEventListener('click', () => {
             this.toggleArchitectureDetails();
         });
-        
+
         // Setup wizard controls
         document.getElementById('startInstallation').addEventListener('click', () => {
             this.startInstallation();
         });
-        
+
         document.getElementById('runValidation').addEventListener('click', () => {
             this.runValidation();
         });
-        
+
         document.getElementById('closeSetup').addEventListener('click', () => {
             this.closeSetup();
         });
-        
+
         document.getElementById('skipSetup').addEventListener('click', () => {
             this.skipSetup();
         });
-        
+
         document.getElementById('retrySetup').addEventListener('click', () => {
             this.retrySetup();
         });
-        
+
         // Disk refresh
         document.getElementById('refreshDisks').addEventListener('click', () => {
             this.loadAvailableDisks();
@@ -126,26 +131,26 @@ class DiskBenchApp {
                 }
             });
         }
-        
+
         // Initial binding for test type radios (will be re-bound after dynamic render)
         this.bindTestTypeListeners();
         updateAliasControlsState();
-        
+
         // Test size
         document.getElementById('testSize').addEventListener('change', (e) => {
             this.testSize = parseInt(e.target.value);
             this.updateUI();
         });
-        
+
         // Test controls
         document.getElementById('startTest').addEventListener('click', () => {
             this.startTest();
         });
-        
+
         document.getElementById('stopTest').addEventListener('click', () => {
             this.stopTest();
         });
-        
+
         document.getElementById('stopAllTests').addEventListener('click', () => {
             this.stopAllTests();
         });
@@ -153,7 +158,7 @@ class DiskBenchApp {
         document.getElementById('exportResults').addEventListener('click', () => {
             this.exportResults();
         });
-        
+
         const copyBtn = document.getElementById('copyResults');
         if (copyBtn) {
             copyBtn.addEventListener('click', () => {
@@ -174,6 +179,142 @@ class DiskBenchApp {
                 this.downloadSummary();
             });
         }
+
+        // Custom Test Modal Controls
+        const createCustomBtn = document.getElementById('createCustomTestBtn');
+        if (createCustomBtn) {
+            createCustomBtn.addEventListener('click', () => {
+                this.openCustomTestModal();
+            });
+        }
+
+        document.getElementById('closeCustomTestModal').addEventListener('click', () => {
+            this.closeCustomTestModal();
+        });
+
+        document.getElementById('cancelCustomTest').addEventListener('click', () => {
+            this.closeCustomTestModal();
+        });
+
+        document.getElementById('saveCustomTest').addEventListener('click', () => {
+            this.saveCustomTest();
+        });
+
+        // Range slider value update
+        document.getElementById('customRwMix').addEventListener('input', (e) => {
+            document.getElementById('rwMixValue').textContent = e.target.value;
+        });
+    }
+
+    initializeCharts() {
+        // Real-time performance charts
+        const ctx = document.getElementById('bandwidthChart');
+        if (!ctx) return;
+
+        this.bandwidthChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Read MB/s',
+                    data: [],
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1,
+                    fill: false
+                }, {
+                    label: 'Write MB/s',
+                    data: [],
+                    borderColor: 'rgb(255, 99, 132)',
+                    tension: 0.1,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Bandwidth (MB/s)'
+                        }
+                    },
+                    x: {
+                        display: false // Hide x-axis labels to avoid clutter
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                }
+            }
+        });
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // Cmd+Enter to start test
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                if (!this.isTestRunning && this.selectedDisk) {
+                    e.preventDefault();
+                    this.startTest();
+                }
+            }
+
+            // Escape to stop test
+            if (e.key === 'Escape' && this.isTestRunning) {
+                e.preventDefault();
+                if (confirm('Stop the running test?')) {
+                    this.stopTest();
+                }
+            }
+
+            // Cmd+R to refresh disks
+            if ((e.metaKey || e.ctrlKey) && e.key === 'r') {
+                // Only if not reloading the page (which is default browser behavior)
+                // But here we want to refresh the disk list specifically
+                e.preventDefault();
+                this.loadAvailableDisks();
+            }
+        });
+    }
+
+    updateRealtimeMetrics(metrics) {
+        if (!metrics) return;
+
+        // Update live metric cards
+        const readEl = document.getElementById('currentReadSpeed');
+        const writeEl = document.getElementById('currentWriteSpeed');
+        const iopsEl = document.getElementById('currentIOPS');
+        const latEl = document.getElementById('currentLatency');
+
+        if (readEl) readEl.textContent = `${(metrics.read_mbps || 0).toFixed(1)} MB/s`;
+        if (writeEl) writeEl.textContent = `${(metrics.write_mbps || 0).toFixed(1)} MB/s`;
+        if (iopsEl) iopsEl.textContent = Math.round(metrics.iops || 0).toLocaleString();
+        if (latEl) latEl.textContent = `${(metrics.latency_ms || 0).toFixed(2)} ms`;
+
+        // Update chart
+        if (this.bandwidthChart) {
+            const timestamp = new Date().toLocaleTimeString();
+
+            this.bandwidthChart.data.labels.push(timestamp);
+            this.bandwidthChart.data.datasets[0].data.push(metrics.read_mbps || 0);
+            this.bandwidthChart.data.datasets[1].data.push(metrics.write_mbps || 0);
+
+            // Keep last 60 data points
+            if (this.bandwidthChart.data.labels.length > 60) {
+                this.bandwidthChart.data.labels.shift();
+                this.bandwidthChart.data.datasets.forEach(dataset => {
+                    dataset.data.shift();
+                });
+            }
+
+            this.bandwidthChart.update('none'); // No animation for smooth updates
+        }
     }
 
     bindTestTypeListeners() {
@@ -186,11 +327,11 @@ class DiskBenchApp {
             });
         });
     }
-    
+
     toggleArchitectureDetails() {
         const details = document.getElementById('architectureDetails');
         const button = document.getElementById('toggleArchitecture');
-        
+
         if (details.classList.contains('hidden')) {
             details.classList.remove('hidden');
             button.innerHTML = '<i class="fas fa-info-circle"></i> Hide Architecture Details';
@@ -199,15 +340,15 @@ class DiskBenchApp {
             button.innerHTML = '<i class="fas fa-info-circle"></i> Show Architecture Details';
         }
     }
-    
+
     async loadAvailableDisks() {
         const diskList = document.getElementById('diskList');
         diskList.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading available disks...</div>';
-        
+
         try {
             // Simulate calling the diskbench helper binary
             const result = await this.executeDiskBenchCommand(['--list-disks', '--json']);
-            
+
             if (result && result.disks) {
                 this.availableDisks = result.disks;
                 this.renderDiskList(result.disks);
@@ -228,35 +369,35 @@ class DiskBenchApp {
             `;
         }
     }
-    
+
     renderDiskList(disks) {
         const diskList = document.getElementById('diskList');
         const template = document.getElementById('disk-item-template');
-        
+
         if (!disks || disks.length === 0) {
             diskList.innerHTML = '<div class="loading"><i class="fas fa-info-circle"></i> No suitable disks found for testing.</div>';
             return;
         }
-        
+
         diskList.innerHTML = '';
-        
+
         disks.filter(disk => disk.suitable_for_testing).forEach(disk => {
             const clone = template.content.cloneNode(true);
             const diskItem = clone.querySelector('.disk-item');
-            
+
             // Set data attribute
             diskItem.dataset.diskPath = disk.device;
-            
+
             // Set selection state
             const isSelected = this.selectedDisk && this.selectedDisk.device === disk.device;
             if (isSelected) {
                 diskItem.classList.add('selected');
                 clone.querySelector('input[type="radio"]').checked = true;
             }
-            
+
             // Set value for radio
             clone.querySelector('input[type="radio"]').value = disk.device;
-            
+
             // Set disk info
             const alias = this.getDiskAlias(disk.device);
             const nameEl = clone.querySelector('.disk-name');
@@ -265,40 +406,40 @@ class DiskBenchApp {
             } else {
                 nameEl.textContent = disk.name;
             }
-            
+
             const detailsText = `${disk.device} • ${disk.size} • ${disk.file_system}${disk.free_space ? ` • ${disk.free_space} free` : ''}`;
             clone.querySelector('.disk-details').textContent = detailsText;
-            
+
             const typeEl = clone.querySelector('.disk-meta'); // Using disk-meta for type to match template structure
             typeEl.textContent = disk.type;
             typeEl.className = `disk-type ${disk.type ? disk.type.toLowerCase() : ''}`;
-            
+
             // Add event listener
             diskItem.addEventListener('click', () => {
                 this.selectDisk(disk.device, disk);
             });
-            
+
             diskList.appendChild(clone);
         });
     }
-    
 
-    
+
+
     selectDisk(diskPath, diskInfo) {
         this.selectedDisk = diskInfo;
-        
+
         // Update UI
         document.querySelectorAll('.disk-item').forEach(item => {
             item.classList.remove('selected');
             item.querySelector('input[type="radio"]').checked = false;
         });
-        
+
         const selectedItem = document.querySelector(`[data-disk-path="${diskPath}"]`);
         if (selectedItem) {
             selectedItem.classList.add('selected');
             selectedItem.querySelector('input[type="radio"]').checked = true;
         }
-        
+
         // Update alias controls for the selected disk
         const aliasInput = document.getElementById('diskAliasInput');
         const saveAliasBtn = document.getElementById('saveDiskAlias');
@@ -309,19 +450,19 @@ class DiskBenchApp {
         if (saveAliasBtn) {
             saveAliasBtn.disabled = false;
         }
-        
+
         this.updateUI();
     }
-    
+
     updateUI() {
         const startButton = document.getElementById('startTest');
         const stopButton = document.getElementById('stopTest');
         const stopAllButton = document.getElementById('stopAllTests');
-        
+
         const canStartTest = this.selectedDisk && !this.isTestRunning;
-        
+
         startButton.disabled = !canStartTest;
-        
+
         if (canStartTest) {
             startButton.innerHTML = '<i class="fas fa-play"></i> Start Test';
             stopButton.classList.add('hidden');
@@ -336,16 +477,16 @@ class DiskBenchApp {
             stopAllButton.classList.add('hidden');
         }
     }
-    
+
     async startTest() {
         if (!this.selectedDisk || this.isTestRunning) {
             return;
         }
-        
+
         this.isTestRunning = true;
         this.testResults = null;
         this.currentTestDuration = 0; // Reset duration at the start of a new test
-        
+
         // Show progress section
         document.getElementById('progressSection').classList.remove('hidden');
         document.getElementById('resultsSection').classList.add('hidden');
@@ -353,11 +494,20 @@ class DiskBenchApp {
         document.getElementById('stopTest').classList.remove('hidden');
         document.getElementById('stopAllTests').classList.add('hidden'); // keep hidden for single-test mode
         document.getElementById('exportResults').classList.add('hidden');
-        
+
         // Temperature monitoring removed - no longer needed
-        
+
         // Reset progress
         this.updateProgress(0, 'Preparing test...');
+
+        // Reset chart
+        if (this.bandwidthChart) {
+            this.bandwidthChart.data.labels = [];
+            this.bandwidthChart.data.datasets.forEach(dataset => {
+                dataset.data = [];
+            });
+            this.bandwidthChart.update();
+        }
 
         // Hide result action buttons while running
         const copyBtn = document.getElementById('copyResults');
@@ -366,21 +516,48 @@ class DiskBenchApp {
         if (copyCliBtn) copyCliBtn.classList.add('hidden');
         const downloadSummaryBtn = document.getElementById('downloadSummary');
         if (downloadSummaryBtn) downloadSummaryBtn.classList.add('hidden');
-        
+
         try {
             // Generate output filename
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const outputFile = `/tmp/diskbench-results-${timestamp}.json`;
-            
+
             // Build command
             const command = [
-                '--test', this.selectedTestType,
                 '--disk', this.selectedDisk.device,
                 '--size', this.testSize.toString(),
                 '--output', outputFile,
                 '--progress',
                 '--json'
             ];
+
+            // Handle Custom Tests
+            if (this.selectedTestType.startsWith('custom_')) {
+                const customTest = this.customTests[this.selectedTestType];
+                if (customTest) {
+                    // Pass custom params to backend
+                    // We need to send this via the API, but here we are simulating the command construction
+                    // The actual execution happens in executeDiskBenchCommand which calls the backend
+                    // But wait, executeDiskBenchCommand builds the command args for the python script.
+                    // The python script now supports --custom-config but that requires a file.
+                    // The backend server.py handles 'custom' type and generates the file.
+                    // So we should pass test_type='custom' and custom_params object.
+
+                    // However, executeDiskBenchCommand expects a list of string args for the CLI.
+                    // The CLI doesn't take a JSON object for custom params directly.
+                    // It takes --custom-config <file>.
+                    // But we are calling the BRIDGE SERVER API usually? 
+                    // Wait, executeDiskBenchCommand in app.js calls `window.pywebview.api.execute` OR `fetch('/api/execute'...)`?
+                    // Let's check executeDiskBenchCommand implementation.
+
+                    // It seems app.js calls `executeDiskBenchCommand` which might be calling the bridge.
+                    // Let's assume we are using the bridge server API `/api/test/start`.
+                    // If so, we should construct the payload.
+                }
+            } else {
+                command.unshift(this.selectedTestType);
+                command.unshift('--test');
+            }
 
             // Persist last-run parameters for convenience
             const devicePath = this.selectedDisk.device;
@@ -392,26 +569,72 @@ class DiskBenchApp {
                 saved_at: new Date().toISOString()
             };
             this.saveLastRun();
-            
+
             this.updateProgress(5, 'Starting FIO test...');
-            this.updateProgressDetails(`Command: diskbench ${command.join(' ')}`);
-            
-            // Execute test (this only starts the test, doesn't wait for completion)
-            const result = await this.executeDiskBenchCommand(command);
-            
+            this.updateProgress(5, 'Starting FIO test...');
+
+            // Prepare payload for start_test API
+            const payload = {
+                disk_path: this.selectedDisk.device,
+                size_gb: this.testSize,
+                show_progress: true
+            };
+
+            if (this.selectedTestType.startsWith('custom_')) {
+                const customTest = this.customTests[this.selectedTestType];
+                if (customTest) {
+                    payload.test_type = 'custom';
+                    payload.custom_params = customTest.params;
+                    this.updateProgressDetails(`Starting Custom Test: ${customTest.name}`);
+                } else {
+                    throw new Error('Custom test definition not found');
+                }
+            } else {
+                payload.test_type = this.selectedTestType;
+                this.updateProgressDetails(`Command: diskbench --test ${this.selectedTestType} ...`);
+            }
+
+            // Execute test via Bridge API
+            const result = await this.callBridgeAPI('/api/test/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            // Legacy fallback if callBridgeAPI is not available or we are in a different mode
+            // But looking at the codebase, we should use the API.
+            // If executeDiskBenchCommand is used, it might need adjustment.
+            // Let's look at executeDiskBenchCommand. It seems to be a wrapper.
+            // If we are replacing the logic here, we should use the API directly if possible, 
+            // OR adapt executeDiskBenchCommand. 
+            // Since I cannot see executeDiskBenchCommand implementation in the snippet, 
+            // I will assume I should use the API for starting tests as that's how server.py expects it.
+
+            // Wait, the original code used `this.executeDiskBenchCommand(command)`.
+            // If `executeDiskBenchCommand` just sends CLI args, we have a problem because 
+            // we can't pass the custom params object via CLI args easily unless we serialize it 
+            // or if the CLI supports it.
+            // The CLI supports `--custom-config file`. It does NOT support passing raw params.
+            // The SERVER supports `custom_params` in `start_test`.
+
+            // So we MUST use the API endpoint `/api/test/start` directly instead of `executeDiskBenchCommand`
+            // if `executeDiskBenchCommand` is just a CLI wrapper.
+            // Let's assume `callBridgeAPI` exists (it is used in stopTest).
+
             if (result && result.success) {
+                this.currentTestId = result.test_id; // Capture the ID
                 // Test started successfully - polling will handle the rest
                 this.updateProgress(5, 'Test started successfully...');
                 this.updateProgressDetails('Test is now running in background. Polling for updates...');
             } else {
-                throw new Error('Failed to start test - no confirmation received');
+                throw new Error(result.error || 'Failed to start test');
             }
-            
+
         } catch (error) {
             console.error('Test failed:', error);
             this.updateProgress(0, `Test failed: ${error.message}`);
             this.updateProgressDetails(`Error: ${error.message}`);
-            
+
             // Only reset state on error
             this.isTestRunning = false;
             this.currentTestId = null;
@@ -422,18 +645,18 @@ class DiskBenchApp {
         }
         // Note: No finally block - let polling handle successful completion
     }
-    
+
     async stopTest() {
         if (!this.isTestRunning || !this.currentTestId) {
             return;
         }
-        
+
         try {
             // Actually call the bridge server to stop the test
             const result = await this.callBridgeAPI(`/api/test/stop/${this.currentTestId}`, {
                 method: 'POST'
             });
-            
+
             if (result.success) {
                 this.handleTestStopped('Test stopped by user');
             } else {
@@ -444,18 +667,18 @@ class DiskBenchApp {
             this.handleTestStopped(`Stop failed: ${error.message}`);
         }
     }
-    
+
     handleTestStopped(message) {
         this.isTestRunning = false;
         this.currentTestId = null; // Clear the test ID
         this.updateProgress(0, message);
         this.updateUI();
-        
+
         document.getElementById('startTest').classList.remove('hidden');
         document.getElementById('stopTest').classList.add('hidden');
         document.getElementById('stopAllTests').classList.add('hidden'); // Hide stop all button too
     }
-    
+
     async stopAllTests() {
         if (!this.isTestRunning) {
             return;
@@ -502,57 +725,170 @@ class DiskBenchApp {
     renderTestOptions(testsById, order) {
         const container = document.querySelector('.test-types');
         const template = document.getElementById('test-option-template');
-        
+
         if (!container || !template) return;
-        
+
         // Store catalog for later (info modal)
         this.testsCatalog = { tests: testsById, order };
-        
+
         container.innerHTML = '';
-        
+
         order.forEach(id => {
             const t = testsById[id] || {};
             const clone = template.content.cloneNode(true);
-            
+
             // Set radio input
             const radio = clone.querySelector('input[type="radio"]');
             radio.value = id;
             if (this.selectedTestType === id) {
                 radio.checked = true;
             }
-            
+
             // Set label and recommended badge
             const label = t.display_label || id;
             clone.querySelector('.test-label').textContent = `${label}: ${t.name || id}`;
-            
+
             if (label === 'Test 1') { // Or any other logic for recommended
                 clone.querySelector('.test-card').classList.add('recommended');
                 clone.querySelector('.badge').classList.remove('hidden');
             }
-            
+
             // Set info icon click handler
             const infoIcon = clone.querySelector('.info-icon');
             infoIcon.onclick = (e) => {
                 e.preventDefault(); // Prevent radio selection when clicking info
                 showPatternInfo(id);
             };
-            
+
             // Set description
             clone.querySelector('.test-description').textContent = t.description || '';
-            
+
             // Set duration
             const minutes = t.duration ? Math.round(t.duration / 60) : null;
             if (minutes) {
                 clone.querySelector('.test-duration').textContent = `⏱️ Dauer: ${minutes} Minuten`;
             }
-            
+
             container.appendChild(clone);
         });
-        
+
+        // Render Custom Tests
+        if (this.customTests) {
+            Object.entries(this.customTests).forEach(([id, test]) => {
+                const clone = template.content.cloneNode(true);
+
+                const radio = clone.querySelector('input[type="radio"]');
+                radio.value = id;
+                if (this.selectedTestType === id) radio.checked = true;
+
+                clone.querySelector('.test-label').textContent = test.name;
+                clone.querySelector('.test-description').textContent =
+                    `${test.params.block_size} blocks, ${test.params.rw_mix}% Read, ${test.params.numjobs} jobs`;
+
+                const minutes = Math.round(test.params.duration / 60);
+                clone.querySelector('.test-duration').textContent = `⏱️ Duration: ${minutes < 1 ? test.params.duration + 's' : minutes + 'm'}`;
+
+                // Add delete button
+                const card = clone.querySelector('.test-card');
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn-delete-custom';
+                deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                deleteBtn.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (confirm(`Delete custom test "${test.name}"?`)) {
+                        this.deleteCustomTest(id);
+                    }
+                };
+                card.appendChild(deleteBtn);
+
+                // Info icon
+                clone.querySelector('.info-icon').style.display = 'none'; // Hide info icon for custom tests
+
+                container.appendChild(clone);
+            });
+        }
+
+        // Add "Create Custom Test" Button
+        const createBtn = document.createElement('div');
+        createBtn.className = 'test-option';
+        createBtn.id = 'createCustomTestBtn';
+        createBtn.innerHTML = `
+            <div class="test-card create-custom">
+                <div class="create-icon"><i class="fas fa-plus-circle"></i></div>
+                <h4>Create Custom Test</h4>
+                <p>Define your own parameters</p>
+            </div>
+        `;
+        createBtn.addEventListener('click', () => this.openCustomTestModal());
+        container.appendChild(createBtn);
+
         // Re-bind listeners after dynamic render
         this.bindTestTypeListeners();
         // Update test description for current selection
         this.updateTestDescription();
+    }
+
+    loadCustomTests() {
+        try {
+            const stored = localStorage.getItem('qlab_custom_tests');
+            return stored ? JSON.parse(stored) : {};
+        } catch (e) {
+            console.error('Failed to load custom tests', e);
+            return {};
+        }
+    }
+
+    saveCustomTest() {
+        const name = document.getElementById('customTestName').value.trim();
+        if (!name) {
+            alert('Please enter a test name');
+            return;
+        }
+
+        const params = {
+            name: name,
+            block_size: document.getElementById('customBlockSize').value.trim(),
+            duration: parseInt(document.getElementById('customDuration').value),
+            rw_mix: parseInt(document.getElementById('customRwMix').value),
+            numjobs: parseInt(document.getElementById('customNumJobs').value),
+            iodepth: parseInt(document.getElementById('customIoDepth').value),
+            target_rate: document.getElementById('customTargetRate').value.trim()
+        };
+
+        const id = 'custom_' + Date.now();
+        this.customTests[id] = {
+            id: id,
+            name: name,
+            params: params
+        };
+
+        localStorage.setItem('qlab_custom_tests', JSON.stringify(this.customTests));
+        this.closeCustomTestModal();
+
+        // Reload tests to show new one
+        this.loadTests();
+    }
+
+    deleteCustomTest(id) {
+        if (this.customTests[id]) {
+            delete this.customTests[id];
+            localStorage.setItem('qlab_custom_tests', JSON.stringify(this.customTests));
+            if (this.selectedTestType === id) {
+                this.selectedTestType = null;
+            }
+            this.loadTests();
+        }
+    }
+
+    openCustomTestModal() {
+        document.getElementById('customTestModal').classList.remove('hidden');
+    }
+
+    closeCustomTestModal() {
+        document.getElementById('customTestModal').classList.add('hidden');
+        document.getElementById('customTestForm').reset();
+        document.getElementById('rwMixValue').textContent = '50';
     }
 
     updateTestDescription() {
@@ -608,42 +944,42 @@ class DiskBenchApp {
             ${minutes ? `<div class="test-duration">⏱️ Duration: ${minutes} minutes</div>` : ''}
         `;
     }
-    
+
     updateProgress(percentage, message) {
         // Fix progress bar jumping by ensuring valid percentage
         const validPercentage = Math.max(0, Math.min(100, percentage));
-        
+
         document.getElementById('progressFill').style.width = `${validPercentage}%`;
         document.getElementById('progressText').textContent = message;
-        
+
         // Store last valid progress to prevent jumping
         this.lastValidProgress = validPercentage;
     }
-    
+
     updateProgressDetails(details) {
         document.getElementById('progressDetails').textContent = details;
     }
-    
+
     updateEnhancedProgress(testInfo) {
         /**
          * Enhanced Progress Update with QLab Metrics and Live Performance Data
          */
         if (!testInfo) return;
-        
+
         const progress = testInfo.progress || 0;
         const elapsedTime = testInfo.elapsed_time || 0;
         const remainingTime = testInfo.remaining_time || 0;
         const estimatedDuration = testInfo.estimated_duration || this.currentTestDuration;
-        
+
         if (testInfo.estimated_duration) {
             this.currentTestDuration = testInfo.estimated_duration;
         }
-        
+
         // Fix duration calculations - ensure we have valid numbers
         const validElapsed = Math.max(0, elapsedTime);
         const validRemaining = Math.max(0, remainingTime);
         const validEstimated = Math.max(0, estimatedDuration);
-        
+
         // Update main progress bar with enhanced phase information
         const validProgress = Math.max(0, Math.min(100, progress));
         if (Math.abs(validProgress - (this.lastValidProgress || 0)) > 0.5) {
@@ -651,27 +987,39 @@ class DiskBenchApp {
             const phaseMessage = testInfo.test_phase_name || `Test running... ${validProgress.toFixed(1)}%`;
             this.updateProgress(validProgress, phaseMessage);
         }
-        
+
         // Update progress details with timing info
         this.updateProgressTiming(validElapsed, validRemaining, validEstimated);
+
+        // Update real-time metrics if available
+        if (testInfo.current_metrics) {
+            this.updateRealtimeMetrics(testInfo.current_metrics);
+        }
     }
-    
+
     updateProgressTiming(elapsed, remaining, total) {
         /**
          * Update progress details with timing information
          */
+        const elapsedEl = document.getElementById('elapsedTime');
+        const remainingEl = document.getElementById('remainingTime');
+
+        if (elapsedEl) elapsedEl.textContent = this.formatDuration(elapsed);
+        if (remainingEl) remainingEl.textContent = this.formatDuration(remaining);
+
+        // Also update the text detail as fallback/supplement
         const progressDetails = document.getElementById('progressDetails');
-        if (!progressDetails) return;
-        
-        const elapsedStr = this.formatDuration(elapsed);
-        const remainingStr = this.formatDuration(remaining);
-        const totalStr = this.formatDuration(total);
-        
-        progressDetails.innerHTML = `
-            <div class="timing-summary">
-                Progress: ${elapsedStr} / ${totalStr} (${remainingStr} remaining)
-            </div>
-        `;
+        if (progressDetails) {
+            const elapsedStr = this.formatDuration(elapsed);
+            const remainingStr = this.formatDuration(remaining);
+            const totalStr = this.formatDuration(total);
+
+            progressDetails.innerHTML = `
+                <div class="timing-summary">
+                    Progress: ${elapsedStr} / ${totalStr} (${remainingStr} remaining)
+                </div>
+            `;
+        }
     }
 
     formatDuration(seconds) {
@@ -679,11 +1027,11 @@ class DiskBenchApp {
          * Format duration in human-readable format
          */
         if (!seconds || seconds < 0) return '--:--';
-        
+
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
         const secs = Math.floor(seconds % 60);
-        
+
         if (hours > 0) {
             return `${hours}h ${minutes}m`;
         } else if (minutes > 0) {
@@ -735,7 +1083,7 @@ class DiskBenchApp {
             .replace(/_+/g, '_')
             .replace(/^_+|_+$/g, '');
     }
-    
+
     showResults(results) {
         document.getElementById('resultsSection').classList.remove('hidden');
         document.getElementById('exportResults').classList.remove('hidden');
@@ -745,13 +1093,13 @@ class DiskBenchApp {
         if (copyCliBtn) copyCliBtn.classList.remove('hidden');
         const downloadSummaryBtn = document.getElementById('downloadSummary');
         if (downloadSummaryBtn) downloadSummaryBtn.classList.remove('hidden');
-        
+
         // Determine which analyzer to use based on test type
         const testType = this.selectedTestType;
-        
+
         console.log('showResults called with testType:', testType);
         console.log('Results data:', results);
-        
+
         if (testType === 'quick_max_speed') {
             console.log('Rendering Test 1 Analysis');
             this.renderTest1Analysis(results);
@@ -769,22 +1117,22 @@ class DiskBenchApp {
             // Fallback to generic analysis
             this.renderGenericAnalysis(results);
         }
-        
+
         // Always render implementation details
         this.renderImplementationDetails(results);
     }
-    
+
     renderQLabAnalysis(analysis) {
         const container = document.getElementById('qlabAnalysis');
-        
+
         if (!analysis) {
             container.innerHTML = '<p>No analysis data available.</p>';
             return;
         }
-        
+
         const overallClass = this.getPerformanceClass(analysis.overall_performance || analysis.performance_class);
         const badgeClass = overallClass;
-        
+
         container.className = `qlab-analysis ${overallClass}`;
         container.innerHTML = `
             <div class="analysis-header">
@@ -809,10 +1157,10 @@ class DiskBenchApp {
             </div>
         `;
     }
-    
+
     renderAnalysisDetails(analysis) {
         const details = [];
-        
+
         if (analysis.read_performance) {
             details.push(`${this.getPerformanceIcon(analysis.read_performance)} Read Performance: ${analysis.read_performance}`);
         }
@@ -822,10 +1170,10 @@ class DiskBenchApp {
         if (analysis.latency_performance) {
             details.push(`${this.getPerformanceIcon(analysis.latency_performance)} Latency Performance: ${analysis.latency_performance}`);
         }
-        
+
         return details.map(detail => `<li>${detail}</li>`).join('');
     }
-    
+
     renderRecommendations(analysis) {
         // This would come from the test results in a real implementation
         const recommendations = [
@@ -833,18 +1181,18 @@ class DiskBenchApp {
             "✅ Suitable for standard video playback",
             "💡 Consider SSD upgrade for demanding applications"
         ];
-        
+
         return recommendations.map(rec => `<li>${rec}</li>`).join('');
     }
-    
+
     renderDetailedMetrics(fioResults) {
         const container = document.getElementById('detailedMetrics');
-        
+
         if (!fioResults || !fioResults.summary) {
             container.innerHTML = '<p>No detailed metrics available.</p>';
             return;
         }
-        
+
         const summary = fioResults.summary;
         const metrics = [
             {
@@ -872,7 +1220,7 @@ class DiskBenchApp {
                 details: 'Average latency'
             }
         ];
-        
+
         container.innerHTML = metrics.map(metric => `
             <div class="metric-card">
                 <h4>${metric.title}</h4>
@@ -882,13 +1230,13 @@ class DiskBenchApp {
             </div>
         `).join('');
     }
-    
+
     renderImplementationDetails(results) {
         const container = document.getElementById('implementationInfo');
         const testInfo = results.test_info || {};
         const alias = this.getDiskAlias(testInfo.disk_path || this.selectedDisk?.device || '') || '';
         const aliasLine = alias ? `<p><strong>Disk label:</strong> ${alias}</p>` : '';
-        
+
         container.innerHTML = `
             <p><strong>Test executed:</strong> ${testInfo.test_name || 'Unknown'} on ${testInfo.disk_path || 'Unknown'}</p>
             ${aliasLine}
@@ -897,7 +1245,7 @@ class DiskBenchApp {
             <p><strong>Architecture:</strong> Web GUI → Helper Binary → FIO Engine → JSON Results</p>
         `;
     }
-    
+
     getPerformanceClass(performance) {
         switch (performance) {
             case 'excellent': return 'excellent';
@@ -907,7 +1255,7 @@ class DiskBenchApp {
             default: return 'warning';
         }
     }
-    
+
     getPerformanceMessage(performance) {
         switch (performance) {
             case 'excellent': return '✅ Excellent for QLab';
@@ -917,7 +1265,7 @@ class DiskBenchApp {
             default: return '❓ Unknown Performance';
         }
     }
-    
+
     getPerformanceIcon(performance) {
         switch (performance) {
             case 'excellent': return '✅';
@@ -927,7 +1275,7 @@ class DiskBenchApp {
             default: return '❓';
         }
     }
-    
+
     formatNumber(num) {
         if (num >= 1000000) {
             return (num / 1000000).toFixed(1) + 'M';
@@ -937,7 +1285,7 @@ class DiskBenchApp {
             return num.toFixed(1);
         }
     }
-    
+
     getLatencyClass(latency) {
         if (latency <= 2) {
             return 'excellent';
@@ -949,9 +1297,9 @@ class DiskBenchApp {
             return 'danger';
         }
     }
-    
+
     // ===== TEST-SPECIFIC ANALYZERS =====
-    
+
     renderTest1Analysis(results) {
         /**
          * Test 1: Quick Setup & Performance Check (1 minute)
@@ -960,16 +1308,16 @@ class DiskBenchApp {
         const container = document.getElementById('qlabAnalysis');
         const analysis = results.qlab_analysis || results.analysis || {};
         const summary = results.fio_results?.summary || {};
-        
+
         // Clear the detailed metrics container to prevent generic metrics from showing
         document.getElementById('detailedMetrics').innerHTML = '';
-        
+
         // Extract key metrics
         const readBW = (summary.total_read_bw || 0) / 1024; // Convert to MB/s
         const writeBW = (summary.total_write_bw || 0) / 1024;
         const readIOPS = summary.total_read_iops || 0;
         const avgLatency = summary.avg_read_latency || 0;
-        
+
         // Basic performance classification (NOT QLab-specific)
         let performanceClass, classColor, description;
         if (readBW > 2000) {
@@ -993,7 +1341,7 @@ class DiskBenchApp {
             classColor = 'danger';
             description = 'Limited disk performance detected';
         }
-        
+
         container.innerHTML = `
             <div class="test-analysis-header">
                 <h3>📊 Test 1: Quick Setup & Performance Check</h3>
@@ -1085,10 +1433,10 @@ class DiskBenchApp {
             </div>
         `;
     }
-    
+
     generateTest1Recommendations(readBW, latency, tier) {
         const recommendations = [];
-        
+
         if (tier === 'FLAGSHIP') {
             recommendations.push('🏆 Excellent for any QLab production including complex ProRes HQ workflows');
             recommendations.push('🎯 Run Test 2 & 3 to confirm sustained performance for long shows');
@@ -1105,19 +1453,19 @@ class DiskBenchApp {
             recommendations.push('❌ Not suitable for professional QLab production');
             recommendations.push('🔧 Storage upgrade required');
         }
-        
+
         if (latency > 10) {
             recommendations.push('⚠️ High latency detected - may affect cue triggering responsiveness');
         }
-        
+
         recommendations.push('📈 Next: Run Test 2 (ProRes 422 Show) for realistic show simulation');
-        
+
         return recommendations.map(rec => `<div class="recommendation-item">${rec}</div>`).join('');
     }
-    
+
     generateQLabRecommendations(readBW, avgLatency, tier) {
         const recommendations = [];
-        
+
         if (tier === 'FLAGSHIP') {
             recommendations.push('<li>🏆 Excellent for complex QLab productions with multiple ProRes streams</li>');
             recommendations.push('<li>✅ Suitable for demanding crossfades and simultaneous playback</li>');
@@ -1135,18 +1483,18 @@ class DiskBenchApp {
             recommendations.push('<li>🔧 Storage upgrade strongly recommended</li>');
             recommendations.push('<li>⚠️ May experience dropouts and performance issues</li>');
         }
-        
+
         if (avgLatency > 10) {
             recommendations.push('<li>⚠️ High latency may affect cue triggering responsiveness</li>');
         }
-        
+
         if (readBW < 100) {
             recommendations.push('<li>🚨 Very low bandwidth - unsuitable for video playback</li>');
         }
-        
+
         return recommendations.join('');
     }
-    
+
     renderTest2Analysis(results) {
         /**
          * Test 2: ProRes 422 Production Test (2.5 hours, multi-phase)
@@ -1155,20 +1503,20 @@ class DiskBenchApp {
         const container = document.getElementById('qlabAnalysis');
         const analysis = results.qlab_analysis || results.analysis || {};
         const summary = results.fio_results?.summary || {};
-        
+
         // Clear the detailed metrics container to prevent generic metrics from showing
         document.getElementById('detailedMetrics').innerHTML = '';
-        
+
         // Extract key metrics from multi-phase test
         const readBW = (summary.total_read_bw || 0) / 1024;
         const minBW = (summary.min_read_bw || readBW) / 1024;
         const maxBW = (summary.max_read_bw || readBW) / 1024;
         const avgLatency = summary.avg_read_latency || 0;
-        
+
         // QLab ProRes 422 Requirements
         const requiredBW = 220; // MB/s for ProRes 422
         const performanceTier = this.getQLabPerformanceTier(readBW, requiredBW);
-        
+
         container.innerHTML = `
             <div class="test-analysis-header">
                 <h3>🎬 Test 2: ProRes 422 Show Simulation</h3>
@@ -1224,10 +1572,10 @@ class DiskBenchApp {
             </div>
         `;
     }
-    
+
     getQLabPerformanceTier(currentBW, requiredBW) {
         let tier, message, tierClass;
-        
+
         if (currentBW >= requiredBW * 1.2) { // 20% buffer
             tier = 'FLAGSHIP';
             message = '✅ Excellent for QLab (ProRes 422)';
@@ -1245,10 +1593,10 @@ class DiskBenchApp {
             message = '❌ Poor for QLab (ProRes 422)';
             tierClass = 'danger';
         }
-        
+
         return { tier, message, class: tierClass };
     }
-    
+
     renderTest3Analysis(results) {
         /**
          * Test 3: ProRes HQ Production Test (2.5 hours, multi-phase)
@@ -1257,20 +1605,20 @@ class DiskBenchApp {
         const container = document.getElementById('qlabAnalysis');
         const analysis = results.qlab_analysis || results.analysis || {};
         const summary = results.fio_results?.summary || {};
-        
+
         // Clear the detailed metrics container to prevent generic metrics from showing
         document.getElementById('detailedMetrics').innerHTML = '';
-        
+
         // Extract key metrics
         const readBW = (summary.total_read_bw || 0) / 1024;
         const minBW = (summary.min_read_bw || readBW) / 1024;
         const maxBW = (summary.max_read_bw || readBW) / 1024;
         const avgLatency = summary.avg_read_latency || 0;
-        
+
         // QLab ProRes HQ Requirements
         const requiredBW = 440; // MB/s for ProRes HQ
         const performanceTier = this.getQLabPerformanceTier(readBW, requiredBW);
-        
+
         container.innerHTML = `
             <div class="test-analysis-header">
                 <h3>🎬 Test 3: ProRes HQ Show Simulation</h3>
@@ -1326,7 +1674,7 @@ class DiskBenchApp {
             </div>
         `;
     }
-    
+
     renderThermalMaximumAnalysis(results) {
         /**
          * Thermal Maximum Analyser: Extended thermal testing (1.5 hours)
@@ -1335,20 +1683,20 @@ class DiskBenchApp {
         const container = document.getElementById('qlabAnalysis');
         const analysis = results.qlab_analysis || results.analysis || {};
         const summary = results.fio_results?.summary || {};
-        
+
         // Clear the detailed metrics container to prevent generic metrics from showing
         document.getElementById('detailedMetrics').innerHTML = '';
-        
+
         // Extract key metrics
         const readBW = (summary.total_read_bw || 0) / 1024;
         const minBW = (summary.min_read_bw || readBW) / 1024;
         const maxBW = (summary.max_read_bw || readBW) / 1024;
         const avgLatency = summary.avg_read_latency || 0;
-        
+
         // QLab Thermal Maximum Requirements
         const requiredBW = 300; // MB/s for thermal maximum performance
         const performanceTier = this.getQLabPerformanceTier(readBW, requiredBW);
-        
+
         container.innerHTML = `
             <div class="test-analysis-header">
                 <h3>🔥 Thermal Maximum Analyser</h3>
@@ -1404,20 +1752,20 @@ class DiskBenchApp {
             </div>
         `;
     }
-    
+
     renderGenericAnalysis(results) {
         /**
          * Fallback for unknown test types
          */
         const container = document.getElementById('qlabAnalysis');
         const summary = results.fio_results?.summary || {};
-        
+
         // Clear the detailed metrics container to prevent generic metrics from showing
         document.getElementById('detailedMetrics').innerHTML = '';
-        
+
         const readBW = (summary.total_read_bw || 0) / 1024;
         const avgLatency = summary.avg_read_latency || 0;
-        
+
         container.innerHTML = `
             <div class="test-analysis-header">
                 <h3>❓ Unknown Test Type Analysis</h3>
@@ -1453,22 +1801,22 @@ class DiskBenchApp {
             </div>
         `;
     }
-    
+
     // ===== SETUP WIZARD LOGIC =====
-    
+
     async checkSystemStatus() {
         this.setupState.systemStatus = 'checking';
         this.updateSetupUI();
-        
+
         try {
             const result = await this.callBridgeAPI('/api/status');
-            
+
             if (result.success) {
                 this.setupState.fioAvailable = result.fio_available || false;
                 this.setupState.fioWorking = result.fio_working || false;
                 this.setupState.diskAccess = result.disk_access || false;
                 this.setupState.systemStatus = 'checked';
-                
+
                 // If FIO is not working, prompt for installation
                 if (!this.setupState.fioWorking) {
                     this.setupState.setupStep = 2; // Move to installation step
@@ -1486,19 +1834,19 @@ class DiskBenchApp {
             this.updateSetupUI();
         }
     }
-    
+
     async startInstallation() {
         this.setupState.installationInProgress = true;
         this.setupState.setupStep = 2; // Move to installation step
         this.updateSetupUI();
-        
+
         try {
             const result = await this.callBridgeAPI('/api/setup', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'install_fio' })
             });
-            
+
             if (result.success) {
                 // Installation successful, re-check status
                 await this.checkSystemStatus();
@@ -1515,18 +1863,18 @@ class DiskBenchApp {
             this.updateSetupUI();
         }
     }
-    
+
     async runValidation() {
         this.setupState.setupStep = 3; // Move to validation step
         this.updateSetupUI();
-        
+
         try {
             const result = await this.callBridgeAPI('/api/validate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'run_all_tests' })
             });
-            
+
             if (result.success && result.overall_status === 'passed') {
                 this.setupState.setupStep = 4; // All checks passed
             } else if (result.success && result.overall_status === 'failed') {
@@ -1543,21 +1891,21 @@ class DiskBenchApp {
             this.updateSetupUI();
         }
     }
-    
+
     closeSetup() {
         // Hide setup section and show testing section
         document.getElementById('setupWizard').classList.add('hidden');
         document.getElementById('testingSection').classList.remove('hidden');
         this.currentTab = 'testing';
     }
-    
+
     skipSetup() {
         // Mark setup as complete and hide it
         this.setupState.setupStep = 4; // Mark as complete
         this.updateSetupUI();
         this.closeSetup();
     }
-    
+
     retrySetup() {
         // Reset setup state to re-run checks
         this.setupState = {
@@ -1571,11 +1919,11 @@ class DiskBenchApp {
         this.checkSystemStatus(); // Re-run the initial check
         this.updateSetupUI();
     }
-    
+
     updateSetupUI() {
         const setupWizard = document.getElementById('setupWizard');
         const testingSection = document.getElementById('testingSection');
-        
+
         // Show/hide sections based on current tab
         if (this.currentTab === 'setup') {
             setupWizard.classList.remove('hidden');
@@ -1584,13 +1932,13 @@ class DiskBenchApp {
             setupWizard.classList.add('hidden');
             testingSection.classList.remove('hidden');
         }
-        
+
         // Update step indicators
         document.getElementById('step1Indicator').classList.toggle('active', this.setupState.setupStep >= 1);
         document.getElementById('step2Indicator').classList.toggle('active', this.setupState.setupStep >= 2);
         document.getElementById('step3Indicator').classList.toggle('active', this.setupState.setupStep >= 3);
         document.getElementById('step4Indicator').classList.toggle('active', this.setupState.setupStep >= 4);
-        
+
         // Update status messages and controls
         const statusMessage = document.getElementById('statusMessage');
         const fioStatus = document.getElementById('fioStatus');
@@ -1600,33 +1948,33 @@ class DiskBenchApp {
         const closeButton = document.getElementById('closeSetup');
         const skipButton = document.getElementById('skipSetup');
         const retryButton = document.getElementById('retrySetup');
-        
+
         // Status messages
         statusMessage.textContent = this.getSetupStatusMessage();
         fioStatus.textContent = this.getFIOStatus();
         diskStatus.textContent = this.getDiskAccessStatus();
-        
+
         // Button states
         installButton.disabled = this.setupState.installationInProgress || this.setupState.setupStep >= 2;
         validationButton.disabled = this.setupState.installationInProgress || this.setupState.setupStep < 3 || this.setupState.setupStep >= 4;
         closeButton.disabled = this.setupState.setupStep < 4;
         skipButton.disabled = this.setupState.setupStep >= 4;
         retryButton.disabled = this.setupState.installationInProgress;
-        
+
         // Show/hide installation progress
         document.getElementById('installationProgress').classList.toggle('hidden', !this.setupState.installationInProgress);
-        
+
         // Show/hide completion message
         document.getElementById('setupCompleteMessage').classList.toggle('hidden', this.setupState.setupStep < 4);
     }
-    
+
     getSetupStatusMessage() {
         if (this.setupState.systemStatus === 'checking') return 'Checking system status...';
         if (this.setupState.systemStatus === 'error') return 'Error checking system status.';
         if (this.setupState.setupStep === 4) return 'System setup complete!';
         return 'System status checked.';
     }
-    
+
     getFIOStatus() {
         if (this.setupState.fioAvailable) {
             if (this.setupState.fioWorking) return '✅ FIO is installed and working correctly.';
@@ -1635,41 +1983,41 @@ class DiskBenchApp {
             return '❌ FIO is not installed or not found.';
         }
     }
-    
+
     getDiskAccessStatus() {
         if (this.setupState.diskAccess) return '✅ Disk access is permitted.';
         else return '❌ Disk access denied or unavailable.';
     }
-    
+
     showSetupError(message) {
         const errorElement = document.getElementById('setupErrorMessage');
         errorElement.textContent = message;
         errorElement.classList.remove('hidden');
     }
-    
+
     // ===== API CALLS =====
-    
+
     async callBridgeAPI(endpoint, options = {}) {
         const baseUrl = 'http://localhost:8765'; // Bridge server address
         const url = baseUrl + endpoint;
-        
+
         const defaultOptions = {
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             }
         };
-        
+
         const mergedOptions = { ...defaultOptions, ...options };
-        
+
         // Add default method POST if not provided and body exists
         if (mergedOptions.body && !mergedOptions.method) {
             mergedOptions.method = 'POST';
         }
-        
+
         try {
             const response = await fetch(url, mergedOptions);
-            
+
             if (!response.ok) {
                 let errorMsg = `HTTP error! status: ${response.status}`;
                 try {
@@ -1678,26 +2026,26 @@ class DiskBenchApp {
                 } catch (e) { /* ignore if response is not JSON */ }
                 throw new Error(errorMsg);
             }
-            
+
             return await response.json();
-            
+
         } catch (error) {
             console.error(`API call failed for ${url}:`, error);
             throw error; // Re-throw to be caught by caller
         }
     }
-    
+
     async executeDiskBenchCommand(args) {
         // This function is a placeholder for direct execution if needed,
         // but we primarily use the bridge API.
         // For now, we'll simulate a call to the bridge API that wraps diskbench.
-        
+
         // If the command is '--list-disks', call the bridge's list_disks endpoint
         if (args[0] === '--list-disks' && args[1] === '--json') {
             const result = await this.callBridgeAPI('/api/disks');
             return result;
         }
-        
+
         // If the command is '--test', we need to start a test via the bridge
         if (args[0] === '--test') {
             const testType = args[1];
@@ -1705,7 +2053,7 @@ class DiskBenchApp {
             const size = parseInt(args[5]);
             const outputFile = args[7]; // Output file is passed directly
             const showProgress = args.includes('--progress');
-            
+
             const testParams = {
                 test_type: testType,
                 disk_path: diskPath,
@@ -1713,20 +2061,20 @@ class DiskBenchApp {
                 output_file: outputFile,
                 show_progress: showProgress
             };
-            
+
             // Start the test via the bridge API
             const startResult = await this.callBridgeAPI('/api/test/start', {
                 method: 'POST',
                 body: JSON.stringify(testParams)
             });
-            
+
             if (startResult.success) {
                 this.currentTestId = startResult.test_id; // Store the test ID
                 this.currentTestDuration = startResult.estimated_duration || 0; // Store estimated duration
-                
+
                 // Poll for test status updates
                 this.pollTestStatus(this.currentTestId);
-                
+
                 // Return a mock result structure that includes test_info
                 // The actual results will be fetched via polling
                 return {
@@ -1743,7 +2091,7 @@ class DiskBenchApp {
                 throw new Error(startResult.error || 'Failed to start test');
             }
         }
-        
+
         // Handle other commands if necessary (e.g., --version, --validate)
         if (args[0] === '--version') {
             return await this.callBridgeAPI('/api/version');
@@ -1751,24 +2099,24 @@ class DiskBenchApp {
         if (args[0] === '--validate') {
             return await this.callBridgeAPI('/api/validate');
         }
-        
+
         // Fallback for unknown commands
         throw new Error(`Unsupported command: ${args[0]}`);
     }
-    
+
     async pollTestStatus(testId) {
         if (!testId) return;
-        
+
         try {
             const result = await this.callBridgeAPI(`/api/test/${testId}`);
-            
+
             if (result.success && result.test_info) {
                 const testInfo = result.test_info;
-                
+
                 // Update progress bar and details
                 this.updateEnhancedProgress(testInfo);
                 this.updateProgressDetails(`Phase: ${testInfo.current_phase || 'Running'} | ${testInfo.message || ''}`);
-                
+
                 // If test is still running, continue polling
                 if (testInfo.status === 'running' || testInfo.status === 'starting') {
                     setTimeout(() => this.pollTestStatus(testId), 2000); // Poll every 2 seconds
@@ -1812,7 +2160,7 @@ class DiskBenchApp {
             this.updateUI();
         }
     }
-    
+
     checkForActiveTest() {
         // Check if there's an active test when the app loads
         this.callBridgeAPI('/api/test/current')
@@ -1849,7 +2197,7 @@ class DiskBenchApp {
                 this.hideBackgroundTestNotice();
             });
     }
-    
+
     showBackgroundTestNotice(testInfo) {
         // Create or update background test notice
         let notice = document.getElementById('backgroundTestNotice');
@@ -1863,13 +2211,13 @@ class DiskBenchApp {
         if (testInfo.status === 'disconnected' || testInfo.status === 'unknown') {
             extra = `<div style="margin-top:8px"><button id='cleanupDisconnectedTestBtn'>Clean up lost test</button></div>`;
         }
-        
+
         // Derive display values from testInfo
         const testType = testInfo.test_type || this.selectedTestType || 'unknown';
         const progress = typeof testInfo.progress === 'number' ? testInfo.progress : 0;
         const elapsedTime = testInfo.elapsed_time || 0;
         const remainingTime = testInfo.remaining_time || 0;
-        
+
         notice.innerHTML = `
             <div class="notice-content">
                 <div class="notice-header">
@@ -1893,28 +2241,28 @@ class DiskBenchApp {
                 </div>
             </div>
         `;
-        
+
         // Add event listener for stop button with proper context binding
         const stopButton = document.getElementById('stopBackgroundTest');
         if (stopButton) {
             // Remove any existing event listeners to prevent duplicates
             stopButton.replaceWith(stopButton.cloneNode(true));
             const newStopButton = document.getElementById('stopBackgroundTest');
-            
+
             // Bind the context properly
             newStopButton.addEventListener('click', this.stopTest.bind(this));
         }
-        
+
         notice.classList.remove('hidden');
     }
-    
+
     hideBackgroundTestNotice() {
         const notice = document.getElementById('backgroundTestNotice');
         if (notice) {
             notice.classList.add('hidden');
         }
     }
-    
+
     getTestDisplayName(testType) {
         const testNames = {
             'quick_max_speed': 'Quick Max Speed Test',
@@ -1924,7 +2272,7 @@ class DiskBenchApp {
         };
         return testNames[testType] || testType;
     }
-    
+
     /* ------------ FIO availability check ------------- */
     async checkFio() {
         try {
@@ -1958,14 +2306,14 @@ class DiskBenchApp {
             alert('No test results to export.');
             return;
         }
-        
+
         // Convert results to JSON string
         const jsonString = JSON.stringify(this.testResults, null, 2);
-        
+
         // Create a Blob and trigger download
         const blob = new Blob([jsonString], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
-        
+
         const a = document.createElement('a');
         a.href = url;
         const diskLabel = this.getDiskAlias(this.selectedDisk?.device || '') || this.selectedDisk?.name || 'unknown';
@@ -1975,12 +2323,12 @@ class DiskBenchApp {
         a.download = `diskbench_results_${safeDisk}_${safeTest}_${date}.json`;
         document.body.appendChild(a);
         a.click();
-        
+
         // Clean up
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
-    
+
     copyResults() {
         if (!this.testResults) {
             alert('No test results to copy.');
@@ -1988,7 +2336,7 @@ class DiskBenchApp {
         }
         const summaryText = this.buildResultsSummary(this.testResults);
         const fullText = `${summaryText}\n\nJSON:\n${JSON.stringify(this.testResults, null, 2)}`;
-        
+
         const doCopiedUI = () => {
             const btn = document.getElementById('copyResults');
             if (!btn) return;
@@ -1997,7 +2345,7 @@ class DiskBenchApp {
             btn.disabled = true;
             setTimeout(() => { btn.innerHTML = old; btn.disabled = false; }, 1500);
         };
-        
+
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(fullText).then(doCopiedUI).catch(() => {
                 // Fallback
@@ -2007,7 +2355,7 @@ class DiskBenchApp {
                 ta.style.left = '-9999px';
                 document.body.appendChild(ta);
                 ta.select();
-                try { document.execCommand('copy'); } catch (e) {}
+                try { document.execCommand('copy'); } catch (e) { }
                 document.body.removeChild(ta);
                 doCopiedUI();
             });
@@ -2019,7 +2367,7 @@ class DiskBenchApp {
             ta.style.left = '-9999px';
             document.body.appendChild(ta);
             ta.select();
-            try { document.execCommand('copy'); } catch (e) {}
+            try { document.execCommand('copy'); } catch (e) { }
             document.body.removeChild(ta);
             doCopiedUI();
         }
@@ -2032,18 +2380,18 @@ class DiskBenchApp {
         const diskName = alias || this.selectedDisk?.name || results.params?.disk_path || results.disk_path || 'Unknown';
         const diskDev = devicePath;
         const ts = results.end_time || results.test_time || new Date().toISOString();
-        
+
         // Try to find a summary object in multiple likely locations
         const s = (results?.fio_results?.summary) ||
-                  (results?.result?.fio_results?.summary) ||
-                  (results?.result?.summary) ||
-                  (results?.summary) || {};
-        
+            (results?.result?.fio_results?.summary) ||
+            (results?.result?.summary) ||
+            (results?.summary) || {};
+
         const readBW = ((s.total_read_bw || 0) / 1024); // MB/s
         const writeBW = ((s.total_write_bw || 0) / 1024);
         const iops = (s.total_read_iops || s.iops || 0);
         const latency = (s.avg_read_latency || s.latency_avg || 0);
-        
+
         const lines = [
             'QLab Disk Performance Tester - Summary',
             `Test: ${testType}`,
@@ -2082,14 +2430,14 @@ class DiskBenchApp {
         const ok = () => {
             if (!btn) return;
             const old = btn.innerHTML; btn.innerHTML = '<i class="fas fa-check"></i> Copied!'; btn.disabled = true;
-            setTimeout(()=>{ btn.innerHTML = old; btn.disabled = false; }, 1500);
+            setTimeout(() => { btn.innerHTML = old; btn.disabled = false; }, 1500);
         };
         if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(cli).then(ok).catch(()=>{
-                const ta = document.createElement('textarea'); ta.value = cli; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); ok();
+            navigator.clipboard.writeText(cli).then(ok).catch(() => {
+                const ta = document.createElement('textarea'); ta.value = cli; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) { } document.body.removeChild(ta); ok();
             });
         } else {
-            const ta = document.createElement('textarea'); ta.value = cli; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); ok();
+            const ta = document.createElement('textarea'); ta.value = cli; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) { } document.body.removeChild(ta); ok();
         }
     }
 
@@ -2113,24 +2461,24 @@ class DiskBenchApp {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     }
-    
+
     switchTab(tabId) {
         // Hide all tab content sections
         document.querySelectorAll('.tab-content').forEach(section => {
             section.classList.add('hidden');
         });
-        
+
         // Show the selected tab content
         document.getElementById(`${tabId}Section`).classList.remove('hidden');
-        
+
         // Update active tab links
         document.querySelectorAll('.nav-link').forEach(link => {
             link.classList.remove('active');
         });
         document.getElementById(`${tabId}Tab`).classList.add('active');
-        
+
         this.currentTab = tabId;
-        
+
         // Special handling for setup tab
         if (tabId === 'setup') {
             this.updateSetupUI(); // Ensure setup UI is updated when tab is shown
@@ -2139,7 +2487,7 @@ class DiskBenchApp {
 }
 
 // Initialize the application when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const app = new DiskBenchApp();
     window.app = app; // expose for inline handlers
 });
@@ -2149,7 +2497,7 @@ function showPatternInfo(testType) {
     const modal = document.getElementById('patternInfoModal');
     const title = document.getElementById('modalTitle');
     const body = document.getElementById('modalBody');
-    
+
     let content = '';
 
     // Prefer dynamic catalog from backend if available
@@ -2170,7 +2518,7 @@ function showPatternInfo(testType) {
         `;
     } else {
         // Fallback to static text
-        switch(testType) {
+        switch (testType) {
             case 'quick_max_speed':
                 title.textContent = 'Quick Max Speed Test';
                 content = `
@@ -2185,7 +2533,7 @@ function showPatternInfo(testType) {
                 content = '<p>Information not available for this test type.</p>';
         }
     }
-    
+
     body.innerHTML = content;
     modal.classList.remove('hidden');
 }

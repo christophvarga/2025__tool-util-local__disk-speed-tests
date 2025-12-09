@@ -10,7 +10,7 @@
     --light-color: #f8f9fa;
     --dark-color: #343a40;
     --border-color: #dee2e6;
-    --shadow: 0 2px 4px rgba(0,0,0,0.1);
+    --shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     --border-radius: 8px;
     --transition: all 0.3s ease;
 }
@@ -150,8 +150,8 @@ body {
     font-weight: 700;
     border-bottom: 3px solid var(--primary-color);
     padding-bottom: 12px;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-    background: linear-gradient(135deg, rgba(0,123,255,0.15) 0%, rgba(0,123,255,0.05) 100%);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    background: linear-gradient(135deg, rgba(0, 123, 255, 0.15) 0%, rgba(0, 123, 255, 0.05) 100%);
     padding: 12px 15px;
     border-radius: 6px;
 }
@@ -164,8 +164,8 @@ h2 {
     font-weight: 700;
     border-bottom: 3px solid var(--primary-color);
     padding-bottom: 0.8rem;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-    background: linear-gradient(135deg, rgba(0,123,255,0.2) 0%, rgba(0,123,255,0.1) 100%);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    background: linear-gradient(135deg, rgba(0, 123, 255, 0.2) 0%, rgba(0, 123, 255, 0.1) 100%);
     padding: 15px 20px;
     border-left: 4px solid var(--primary-color);
     border-radius: 8px;
@@ -193,7 +193,7 @@ h2 {
 
 .btn:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .btn:active {
@@ -328,7 +328,7 @@ h2 {
     background: var(--light-color);
 }
 
-.test-option input[type="radio"]:checked + .test-card {
+.test-option input[type="radio"]:checked+.test-card {
     border-color: var(--primary-color);
     background: rgba(0, 123, 255, 0.1);
 }
@@ -397,6 +397,34 @@ h2 {
     margin-bottom: 20px;
 }
 
+.progress-header-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    background: var(--light-color);
+    padding: 10px 15px;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+}
+
+.stat-item {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.stat-label {
+    color: var(--secondary-color);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.stat-value {
+    color: var(--dark-color);
+    font-weight: 600;
+    font-family: 'Monaco', 'Menlo', monospace;
+}
+
 .progress-bar {
     width: 100%;
     height: 20px;
@@ -417,6 +445,46 @@ h2 {
     text-align: center;
     font-weight: 500;
     color: var(--dark-color);
+}
+
+.live-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.live-metric-card {
+    background: white;
+    padding: 15px;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.live-metric-card .metric-label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--secondary-color);
+    margin-bottom: 5px;
+}
+
+.live-metric-card .metric-value {
+    display: block;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.chart-container {
+    background: white;
+    padding: 15px;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    margin-bottom: 20px;
+    height: 300px;
+    position: relative;
 }
 
 .progress-details {
@@ -713,6 +781,7 @@ h2 {
         opacity: 0;
         transform: translateY(-50px) scale(0.9);
     }
+
     to {
         opacity: 1;
         transform: translateY(0) scale(1);
@@ -728,6 +797,92 @@ h2 {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     border-radius: 12px 12px 0 0;
+}
+
+/* Custom Test Card */
+.test-card.create-custom {
+    border-style: dashed;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    cursor: pointer;
+    background: rgba(0, 123, 255, 0.02);
+}
+
+.test-card.create-custom:hover {
+    background: rgba(0, 123, 255, 0.08);
+    transform: translateY(-2px);
+}
+
+.create-icon {
+    font-size: 2rem;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+}
+
+/* Form Styles */
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-row {
+    display: flex;
+    gap: 15px;
+}
+
+.form-row .form-group {
+    flex: 1;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: var(--dark-color);
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    font-size: 1rem;
+}
+
+.form-group input[type="range"] {
+    width: 100%;
+    margin: 10px 0;
+}
+
+.range-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: var(--secondary-color);
+}
+
+.hint {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--secondary-color);
+    margin-top: 4px;
+}
+
+.modal-footer {
+    padding: 20px 25px;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    background: #f8f9fa;
+    border-radius: 0 0 12px 12px;
+}
+
+.modal-body {
+    padding: 25px;
 }
 
 .modal-header h3 {
@@ -1120,7 +1275,7 @@ h2 {
     max-height: 300px;
     overflow-y: auto;
     border: 1px solid #333;
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .installation-progress .log-line {
@@ -1267,32 +1422,32 @@ h2 {
     .container {
         padding: 15px;
     }
-    
+
     .header h1 {
         font-size: 2rem;
     }
-    
+
     .architecture-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .test-types {
         grid-template-columns: 1fr;
     }
-    
+
     .metrics-grid {
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     }
-    
+
     .controls {
         flex-direction: column;
         align-items: stretch;
     }
-    
+
     .control-buttons {
         justify-content: center;
     }
-    
+
     .analysis-header {
         flex-direction: column;
         gap: 10px;
@@ -1306,6 +1461,7 @@ h2 {
         opacity: 0;
         transform: translateY(20px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -1533,19 +1689,19 @@ h2 {
         grid-template-columns: 1fr;
         gap: 8px;
     }
-    
+
     .performance-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .reliability-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .enhanced-metrics {
         margin-top: 10px;
     }
-    
+
     .progress-section,
     .performance-section,
     .qlab-section {
@@ -1560,32 +1716,32 @@ h2 {
         --dark-color: #e2e8f0;
         --border-color: #4a5568;
     }
-    
+
     body {
         background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
         color: var(--dark-color);
     }
-    
+
     .section,
     .header,
     .architecture-details {
         background: #2d3748;
         color: var(--dark-color);
     }
-    
+
     .arch-component,
     .qlab-analysis,
     .metric-card,
     .implementation-details {
         background: #4a5568;
     }
-    
+
     /* Enhanced Metrics Dark Mode */
     .enhanced-metrics {
         background: #374151;
         border-color: #4b5563;
     }
-    
+
     .timing-item,
     .perf-metric,
     .reliability-item,
@@ -1594,7 +1750,7 @@ h2 {
         border-color: #6b7280;
         color: #e5e7eb;
     }
-    
+
     .timing-summary {
         background: #374151;
         border-color: #4b5563;
@@ -1642,7 +1798,7 @@ h2 {
 }
 
 .live-metric:hover {
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     transform: translateY(-2px);
 }
 
@@ -1679,12 +1835,12 @@ h2 {
         grid-template-columns: 1fr;
         gap: 8px;
     }
-    
+
     .progress-live-metrics {
         margin-top: 10px;
         padding: 12px;
     }
-    
+
     .live-metric .metric-value {
         font-size: 1.1rem;
     }
@@ -1696,20 +1852,20 @@ h2 {
         background: #374151;
         border-color: #4b5563;
     }
-    
+
     .live-metrics-header {
         color: #e5e7eb;
     }
-    
+
     .live-metric {
         background: #4b5563;
         border-color: #6b7280;
     }
-    
+
     .live-metric .metric-label {
         color: #9ca3af;
     }
-    
+
     .live-metric .metric-value {
         color: #34d399;
     }
@@ -1722,7 +1878,7 @@ h2 {
     margin-top: 15px;
     border: 1px solid #e9ecef;
     overflow: hidden;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .metrics-grid {
@@ -1773,7 +1929,7 @@ h2 {
     padding: 8px 12px;
     border-radius: 6px;
     text-align: center;
-    border: 1px solid rgba(0,0,0,0.1);
+    border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .timing-label {
@@ -1803,7 +1959,7 @@ h2 {
     padding: 10px 8px;
     border-radius: 6px;
     text-align: center;
-    border: 1px solid rgba(0,0,0,0.1);
+    border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .perf-value {
@@ -1834,7 +1990,7 @@ h2 {
     background: rgba(255, 255, 255, 0.8);
     padding: 12px 15px;
     border-radius: 6px;
-    border: 1px solid rgba(0,0,0,0.1);
+    border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .phase-name {
@@ -1857,24 +2013,24 @@ h2 {
         grid-template-columns: 1fr;
         gap: 8px;
     }
-    
+
     .performance-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: 6px;
     }
-    
+
     .metrics-section {
         padding: 12px 15px;
     }
-    
+
     .perf-metric {
         padding: 8px 6px;
     }
-    
+
     .perf-value {
         font-size: 0.9rem;
     }
-    
+
     .phase-info {
         padding: 10px 12px;
     }
@@ -1884,12 +2040,12 @@ h2 {
     .performance-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .timing-item,
     .perf-metric {
         padding: 6px 8px;
     }
-    
+
     .timing-value,
     .perf-value {
         font-size: 0.85rem;
@@ -1902,46 +2058,46 @@ h2 {
         background: #374151;
         border-color: #4b5563;
     }
-    
+
     .metrics-section {
         border-color: #4b5563;
     }
-    
+
     .timing-section {
         background: linear-gradient(135deg, #1e3a8a 0%, #7c3aed 100%);
     }
-    
+
     .performance-section {
         background: linear-gradient(135deg, #065f46 0%, #166534 100%);
     }
-    
+
     .phase-section {
         background: linear-gradient(135deg, #92400e 0%, #be185d 100%);
     }
-    
+
     .timing-item,
     .perf-metric,
     .phase-info {
         background: rgba(255, 255, 255, 0.1);
         border-color: rgba(255, 255, 255, 0.2);
     }
-    
+
     .timing-label,
     .perf-unit,
     .phase-details {
         color: #d1d5db;
     }
-    
+
     .timing-value,
     .perf-label,
     .phase-name {
         color: #f3f4f6;
     }
-    
+
     .perf-value {
         color: #34d399;
     }
-    
+
     .metrics-section h4 {
         color: #f3f4f6;
     }
@@ -1979,7 +2135,7 @@ h2 {
     font-size: 0.9rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .tier-badge.excellent {
@@ -2031,7 +2187,7 @@ h2 {
 
 .metric-item:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .metric-item.good {
@@ -2070,15 +2226,17 @@ h2 {
     font-weight: 600;
     padding: 4px 8px;
     border-radius: 12px;
-    background: rgba(255,255,255,0.8);
+    background: rgba(255, 255, 255, 0.8);
 }
 
 /* QLab Suitability Section */
-.qlab-suitability, .show-suitability {
+.qlab-suitability,
+.show-suitability {
     margin-bottom: 25px;
 }
 
-.qlab-suitability h4, .show-suitability h4 {
+.qlab-suitability h4,
+.show-suitability h4 {
     color: #495057;
     margin-bottom: 15px;
     font-size: 1.1rem;
@@ -2402,39 +2560,39 @@ h2 {
         margin: -20px -20px 15px -20px;
         padding: 15px;
     }
-    
+
     .test-analysis-header h3 {
         font-size: 1.2rem;
     }
-    
+
     .metrics-grid {
         grid-template-columns: 1fr;
         gap: 10px;
     }
-    
+
     .capability-checklist {
         grid-template-columns: 1fr;
     }
-    
+
     .phase-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .performance-summary {
         grid-template-columns: 1fr;
         gap: 15px;
     }
-    
+
     .performance-value {
         font-size: 2rem;
     }
-    
+
     .capability-row {
         grid-template-columns: 1fr;
         gap: 8px;
         text-align: center;
     }
-    
+
     .capability-requirement,
     .capability-status {
         text-align: center;
@@ -2446,7 +2604,7 @@ h2 {
     .test-analysis-header {
         background: linear-gradient(135deg, #4c51bf 0%, #553c9a 100%);
     }
-    
+
     .metric-item,
     .suitability-assessment,
     .capability-item,
@@ -2458,33 +2616,33 @@ h2 {
         border-color: #4b5563;
         color: #e5e7eb;
     }
-    
+
     .metric-item.good,
     .suitability-assessment.excellent,
     .capability-item.supported {
         background: linear-gradient(135deg, #065f46 0%, #047857 100%);
         border-color: #10b981;
     }
-    
+
     .metric-item.warning,
     .suitability-assessment.warning {
         background: linear-gradient(135deg, #92400e 0%, #b45309 100%);
         border-color: #f59e0b;
     }
-    
+
     .metric-item.danger,
     .suitability-assessment.danger,
     .capability-item.not-supported {
         background: linear-gradient(135deg, #991b1b 0%, #b91c1c 100%);
         border-color: #ef4444;
     }
-    
+
     .metric-label,
     .detail-label,
     .capability-requirement {
         color: #9ca3af;
     }
-    
+
     .metric-value,
     .performance-value,
     .suitability-tier,
@@ -2492,11 +2650,11 @@ h2 {
     .detail-value {
         color: #f3f4f6;
     }
-    
+
     .performance-value {
         color: #34d399;
     }
-    
+
     .capability-row:nth-child(even) {
         background: #4b5563;
     }
@@ -2518,6 +2676,7 @@ h2 {
         opacity: 0;
         transform: translateY(-20px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -2582,7 +2741,8 @@ h2 {
     flex-wrap: wrap;
 }
 
-.elapsed, .remaining {
+.elapsed,
+.remaining {
     font-weight: 500;
 }
 
@@ -2604,21 +2764,21 @@ h2 {
         align-items: stretch;
         gap: 15px;
     }
-    
+
     .notice-header {
         justify-content: center;
     }
-    
+
     .test-info {
         justify-content: center;
         text-align: center;
     }
-    
+
     .timing-info {
         justify-content: center;
         text-align: center;
     }
-    
+
     .notice-actions {
         justify-content: center;
     }
@@ -2631,20 +2791,20 @@ h2 {
         border-color: #f59e0b;
         color: #fbbf24;
     }
-    
+
     .notice-header {
         color: #fbbf24;
     }
-    
+
     .test-name {
         color: #f3f4f6;
     }
-    
+
     .test-progress {
         background: rgba(0, 0, 0, 0.3);
         color: #fbbf24;
     }
-    
+
     .timing-info {
         color: #d1d5db;
     }

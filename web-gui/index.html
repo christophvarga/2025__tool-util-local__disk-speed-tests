@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QLab Disk Performance Tester</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Offline build: Font Awesome CDN removed to avoid network dependency -->
 </head>
+
 <body>
     <div class="container">
         <header class="header">
@@ -27,7 +30,7 @@
                 <h2><i class="fas fa-tools"></i> System Setup & Diagnostics</h2>
                 <p>Follow these steps to configure your system for optimal disk testing</p>
             </div>
-            
+
             <div class="setup-steps">
                 <div id="step1" class="setup-step active">
                     <div class="step-header">
@@ -93,7 +96,7 @@
                     <i class="fas fa-redo"></i> Retry Setup
                 </button>
             </div>
-            
+
             <!-- Step Indicators (hidden elements for JavaScript) -->
             <div style="display: none;">
                 <div id="step1Indicator"></div>
@@ -123,7 +126,7 @@
             <button id="toggleArchitecture" class="btn btn-info">
                 <i class="fas fa-info-circle"></i> Show Architecture Details
             </button>
-            
+
             <div id="architectureDetails" class="architecture-details hidden">
                 <h3><i class="fas fa-sitemap"></i> System Architecture</h3>
                 <div class="architecture-grid">
@@ -184,13 +187,16 @@
                 <button id="refreshDisks" class="btn btn-secondary">
                     <i class="fas fa-sync-alt"></i> Refresh Disk List
                 </button>
-                <div class="disk-alias-controls" style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <div class="disk-alias-controls"
+                    style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                     <label for="diskAliasInput" style="min-width:140px;">Disk Label (optional):</label>
-                    <input id="diskAliasInput" type="text" placeholder="e.g., 'Samsung T7 Pro'" style="flex:1; min-width:220px;" disabled>
+                    <input id="diskAliasInput" type="text" placeholder="e.g., 'Samsung T7 Pro'"
+                        style="flex:1; min-width:220px;" disabled>
                     <button id="saveDiskAlias" class="btn btn-secondary" disabled>
                         <i class="fas fa-save"></i> Save Label
                     </button>
-                    <span id="diskAliasStatus" class="small-hint hidden" style="color: var(--success-color);">Saved</span>
+                    <span id="diskAliasStatus" class="small-hint hidden"
+                        style="color: var(--success-color);">Saved</span>
                 </div>
             </div>
 
@@ -201,47 +207,64 @@
                     <label class="test-option">
                         <input type="radio" name="testType" value="quick_max_speed">
                         <div class="test-card">
-                            <h4>Quick Max Speed Test 
-                                <i class="fas fa-info-circle info-icon" onclick="showPatternInfo('quick_max_speed')" title="Show detailed information"></i>
+                            <h4>Quick Max Speed Test
+                                <i class="fas fa-info-circle info-icon" onclick="showPatternInfo('quick_max_speed')"
+                                    title="Show detailed information"></i>
                             </h4>
                             <p>Maximum performance test in 1 minute</p>
                             <div class="test-duration">⏱️ Duration: 1 minute</div>
                         </div>
                     </label>
-                    
+
                     <label class="test-option">
                         <input type="radio" name="testType" value="qlab_prores_422_show" checked>
                         <div class="test-card recommended">
-                            <h4>QLab ProRes 422 Show Pattern 
-                                <i class="fas fa-info-circle info-icon" onclick="showPatternInfo('qlab_prores_422_show')" title="Show detailed information"></i>
+                            <h4>QLab ProRes 422 Show Pattern
+                                <i class="fas fa-info-circle info-icon"
+                                    onclick="showPatternInfo('qlab_prores_422_show')"
+                                    title="Show detailed information"></i>
                                 <span class="badge">RECOMMENDED</span>
                             </h4>
                             <p>Realistic show pattern: 1x4K + 3xHD ProRes 422 with crossfades</p>
                             <div class="test-duration">⏱️ Duration: 2.75 hours</div>
                         </div>
                     </label>
-                    
+
                     <label class="test-option">
                         <input type="radio" name="testType" value="qlab_prores_hq_show">
                         <div class="test-card">
-                            <h4>QLab ProRes HQ Show Pattern 
-                                <i class="fas fa-info-circle info-icon" onclick="showPatternInfo('qlab_prores_hq_show')" title="Show detailed information"></i>
+                            <h4>QLab ProRes HQ Show Pattern
+                                <i class="fas fa-info-circle info-icon" onclick="showPatternInfo('qlab_prores_hq_show')"
+                                    title="Show detailed information"></i>
                             </h4>
                             <p>Realistic show pattern: 1x4K + 3xHD ProRes HQ with crossfades</p>
                             <div class="test-duration">⏱️ Duration: 2.75 hours</div>
                         </div>
                     </label>
-                    
+
                     <label class="test-option">
                         <input type="radio" name="testType" value="thermal_maximum_analyser">
                         <div class="test-card">
-                            <h4>Thermal Maximum Analyser 
-                                <i class="fas fa-info-circle info-icon" onclick="showPatternInfo('thermal_maximum_analyser')" title="Show detailed information"></i>
+                            <h4>Thermal Maximum Analyser
+                                <i class="fas fa-info-circle info-icon"
+                                    onclick="showPatternInfo('thermal_maximum_analyser')"
+                                    title="Show detailed information"></i>
                             </h4>
                             <p>Continuous maximum load for 1.5 hours (thermal testing)</p>
                             <div class="test-duration">⏱️ Duration: 1.5 hours</div>
                         </div>
                     </label>
+
+                    <!-- Custom Test Creator -->
+                    <div class="test-option" id="createCustomTestBtn">
+                        <div class="test-card create-custom">
+                            <div class="create-icon">
+                                <i class="fas fa-plus-circle"></i>
+                            </div>
+                            <h4>Create Custom Test</h4>
+                            <p>Define your own parameters</p>
+                        </div>
+                    </div>
                 </div>
                 <div id="testDescription" class="test-description">
                     <div class="loading">
@@ -258,12 +281,12 @@
                         <label for="testSize">Test Size (GB):</label>
                         <input type="number" id="testSize" min="1" max="100" value="10">
                     </div>
-                    
+
                     <div class="control-buttons">
                         <button id="startTest" class="btn btn-primary" disabled>
                             <i class="fas fa-play"></i> Start Test
                         </button>
-                        
+
                         <button id="stopTest" class="btn btn-danger hidden">
                             <i class="fas fa-stop-circle"></i> Stop Test
                         </button>
@@ -278,51 +301,152 @@
                         </button>
                     </div>
                 </div>
-                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Section -->
+    <div id="progressSection" class="section hidden">
+        <h3><i class="fas fa-chart-line"></i> Test Progress</h3>
+
+        <div class="progress-header-stats">
+            <div class="stat-item">
+                <span class="stat-label">Elapsed:</span>
+                <span id="elapsedTime" class="stat-value">00:00</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Remaining:</span>
+                <span id="remainingTime" class="stat-value">--:--</span>
             </div>
         </div>
 
-        <!-- Progress Section -->
-        <div id="progressSection" class="section hidden">
-            <h3><i class="fas fa-chart-line"></i> Test Progress</h3>
-            <div class="progress-container">
-                <div class="progress-bar">
-                    <div id="progressFill" class="progress-fill"></div>
-                </div>
-                <div id="progressText" class="progress-text">Preparing test...</div>
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div id="progressFill" class="progress-fill"></div>
             </div>
-            <div id="progressDetails" class="progress-details"></div>
+            <div id="progressText" class="progress-text">Preparing test...</div>
         </div>
 
-        <!-- Results Section -->
-        <div id="resultsSection" class="section hidden">
-            <h3><i class="fas fa-chart-bar"></i> Test Results</h3>
-            
-            <!-- QLab Analysis -->
-            <div id="qlabAnalysis" class="qlab-analysis"></div>
-            
-            <!-- Detailed Metrics -->
-            <div id="detailedMetrics" class="metrics-grid"></div>
-            
-            <!-- Implementation Details -->
-            <div class="implementation-details">
-                <h4><i class="fas fa-info-circle"></i> Implementation Details</h4>
-                <div class="implementation-actions" style="margin-bottom:12px; display:flex; gap:10px; flex-wrap: wrap;">
-                    <button id="copyCli" class="btn btn-secondary hidden">
-                        <i class="fas fa-terminal"></i> Copy CLI
-                    </button>
-                    <button id="downloadSummary" class="btn btn-secondary hidden">
-                        <i class="fas fa-file-alt"></i> Download Summary
-                    </button>
-                </div>
-                <div id="implementationInfo" class="implementation-info"></div>
+        <div class="live-metrics-grid">
+            <div class="live-metric-card">
+                <span class="metric-label">Read Speed</span>
+                <span class="metric-value" id="currentReadSpeed">-- MB/s</span>
+            </div>
+            <div class="live-metric-card">
+                <span class="metric-label">Write Speed</span>
+                <span class="metric-value" id="currentWriteSpeed">-- MB/s</span>
+            </div>
+            <div class="live-metric-card">
+                <span class="metric-label">IOPS</span>
+                <span class="metric-value" id="currentIOPS">--</span>
+            </div>
+            <div class="live-metric-card">
+                <span class="metric-label">Latency</span>
+                <span class="metric-value" id="currentLatency">-- ms</span>
             </div>
         </div>
 
-        <!-- Footer -->
-        <footer class="footer">
-<p>QLab Disk Performance Tester v1.0.0-beta | Architecture: Web GUI → Helper Binary → FIO Engine</p>
-        </footer>
+        <div class="chart-container">
+            <canvas id="bandwidthChart"></canvas>
+        </div>
+
+        <div id="progressDetails" class="progress-details"></div>
+    </div>
+
+    <!-- Results Section -->
+    <div id="resultsSection" class="section hidden">
+        <h3><i class="fas fa-chart-bar"></i> Test Results</h3>
+
+        <!-- QLab Analysis -->
+        <div id="qlabAnalysis" class="qlab-analysis"></div>
+
+        <!-- Detailed Metrics -->
+        <div id="detailedMetrics" class="metrics-grid"></div>
+
+        <!-- Implementation Details -->
+        <div class="implementation-details">
+            <h4><i class="fas fa-info-circle"></i> Implementation Details</h4>
+            <div class="implementation-actions" style="margin-bottom:12px; display:flex; gap:10px; flex-wrap: wrap;">
+                <button id="copyCli" class="btn btn-secondary hidden">
+                    <i class="fas fa-terminal"></i> Copy CLI
+                </button>
+                <button id="downloadSummary" class="btn btn-secondary hidden">
+                    <i class="fas fa-file-alt"></i> Download Summary
+                </button>
+            </div>
+            <div id="implementationInfo" class="implementation-info"></div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>QLab Disk Performance Tester v1.0.0-beta | Architecture: Web GUI → Helper Binary → FIO Engine</p>
+    </footer>
+    </div>
+
+    <!-- Custom Test Editor Modal -->
+    <div id="customTestModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-edit"></i> Create Custom Test</h3>
+                <button class="modal-close" id="closeCustomTestModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="customTestForm">
+                    <div class="form-group">
+                        <label for="customTestName">Test Name</label>
+                        <input type="text" id="customTestName" placeholder="e.g., Random 4K Read" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="customBlockSize">Block Size</label>
+                            <input type="text" id="customBlockSize" placeholder="e.g., 4k, 1M, 4k,1M" value="1M"
+                                required>
+                            <small class="hint">Use 'k' or 'M' suffix. Comma separate for mix.</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="customDuration">Duration (seconds)</label>
+                            <input type="number" id="customDuration" value="60" min="10" max="3600" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="customRwMix">Read/Write Mix (<span id="rwMixValue">50</span>% Read)</label>
+                        <input type="range" id="customRwMix" min="0" max="100" value="50" step="5">
+                        <div class="range-labels">
+                            <span>Write (0%)</span>
+                            <span>Read (100%)</span>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="customNumJobs">Num Jobs (Threads)</label>
+                            <input type="number" id="customNumJobs" value="4" min="1" max="32">
+                        </div>
+                        <div class="form-group">
+                            <label for="customIoDepth">IO Depth</label>
+                            <input type="number" id="customIoDepth" value="32" min="1" max="128">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="customTargetRate">Target Rate (Optional)</label>
+                        <input type="text" id="customTargetRate" placeholder="e.g., 500M">
+                        <small class="hint">Leave empty for max speed. Use 'k' or 'M' suffix.</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelCustomTest">Cancel</button>
+                <button class="btn btn-primary" id="saveCustomTest">
+                    <i class="fas fa-save"></i> Save Test
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Test Pattern Info Modal -->
@@ -379,4 +503,5 @@
 
     <script src="app.js"></script>
 </body>
+
 </html>
