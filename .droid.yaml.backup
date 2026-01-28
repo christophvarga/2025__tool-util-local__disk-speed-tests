@@ -1,0 +1,27 @@
+review:
+  path_filters:
+    - "!**/*.log"
+    - "!89_output/**"
+    - "!99_archiv/**"
+
+  guidelines:
+    - path: "**/*"
+      guideline: "Folge den kanonischen Projektregeln; bei Unklarheiten zuerst das Kontextdokument prüfen."
+      context_document_path: "00_infos/llm-context.md"
+    - path: "**/*"
+      guideline: "Architektur-Entscheidungen müssen mit der Architektur-Skizze übereinstimmen."
+      context_document_path: "00_infos/details/architecture.md"
+    - path: "**/*"
+      guideline: "Scope/Plan folgt dem Grand/Master-Plan."
+      context_document_path: "00_infos/details/grand-plan.md"
+
+    - path: "**/*"
+      guideline: "Jede relevante Änderung braucht passende Tests; fehlende Tests im PR begründen."
+    - path: "**/*"
+      guideline: "Keine Secrets im Code; Konfiguration ausschließlich über Umgebungsvariablen."
+    - path: "**/*"
+      guideline: "Modular bleiben, Dateien möglichst <300 Zeilen; keinen auskommentierten toten Code."
+    - path: "**/*"
+      guideline: "Tests nach Konvention organisieren (87_tests/*; Go-Unit paketlokal erlaubt)."
+    - path: "**/*"
+      guideline: "HOLD beachten: bei offenen HOLDs nicht mergen (siehe 00_infos/meta/open-questions.md)."
