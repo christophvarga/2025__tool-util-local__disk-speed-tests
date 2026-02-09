@@ -1,26 +1,30 @@
 """Mixin for FIO testing utilities: functionality tests, direct FIO execution,
-QLab direct tests, and optimal path resolution.
-"""
+QLab direct tests, config generation, and optimal path resolution."""
 
 import json
 import os
 import subprocess
+import tempfile
 import time
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 
 class FioUtilsMixin:
     """FIO binary testing, direct execution, and QLab test patterns."""
 
+    @staticmethod
+    def _make_fio_logger(logs_list, logger):
+        def log_cb(level, message):
+            ts = datetime.now().strftime('%H:%M:%S')
+            logs_list.append({'timestamp': ts, 'level': level, 'message': message})
+            logger.info(f"[{level.upper()}] {message}")
+        return log_cb
+
     def test_fio_functionality(self):
         """Test FIO functionality from unsandboxed bridge server."""
         logs = []
-
-        def log_cb(level, message):
-            ts = datetime.now().strftime('%H:%M:%S')
-            logs.append({'timestamp': ts, 'level': level, 'message': message})
-            self.logger.info(f"[{level.upper()}] {message}")
+        log_cb = self._make_fio_logger(logs, self.logger)
 
         try:
             log_cb('info', 'Starting FIO functionality test from bridge server')
@@ -92,11 +96,7 @@ class FioUtilsMixin:
     def run_direct_fio_test(self, test_params=None):
         """Run direct FIO test with macOS-safe parameters."""
         logs = []
-
-        def log_cb(level, message):
-            ts = datetime.now().strftime('%H:%M:%S')
-            logs.append({'timestamp': ts, 'level': level, 'message': message})
-            self.logger.info(f"[{level.upper()}] {message}")
+        log_cb = self._make_fio_logger(logs, self.logger)
 
         try:
             log_cb('info', 'Starting DIRECT FIO test from bridge server')
@@ -184,11 +184,7 @@ class FioUtilsMixin:
     def run_qlab_test_direct(self, test_params):
         """Run QLab-specific performance tests using direct FIO."""
         logs = []
-
-        def log_cb(level, message):
-            ts = datetime.now().strftime('%H:%M:%S')
-            logs.append({'timestamp': ts, 'level': level, 'message': message})
-            self.logger.info(f"[{level.upper()}] {message}")
+        log_cb = self._make_fio_logger(logs, self.logger)
 
         try:
             test_type = test_params.get('test_type', 'quick_max_speed')
@@ -215,25 +211,6 @@ class FioUtilsMixin:
             log_cb('error', f'QLab test exception: {e}')
             return {'success': False, 'error': str(e), 'logs': logs}
 
-    def get_optimal_fio_path(self):
-        """Get the optimal FIO path, preferring the no-shm version."""
-        candidates = [
-            '/usr/local/bin/fio-nosmh',
-            '/opt/homebrew/bin/fio',
-            '/usr/local/bin/fio',
-        ]
-        for path in candidates:
-            if os.path.exists(path) and os.access(path, os.X_OK):
-                self.logger.info(f"Selected FIO: {path}")
-                return path
-        import shutil
-        path = shutil.which('fio')
-        if path:
-            self.logger.info(f"Selected system FIO: {path}")
-            return path
-        self.logger.warning("No FIO binary found")
-        return None
-
     # -----------------------------------------------------------------
     # Internal helper
     # -----------------------------------------------------------------
@@ -255,3 +232,62 @@ class FioUtilsMixin:
                 return p
         import shutil
         return shutil.which('fio')
+
+    # ----- FIO environment & timeout helpers -----
+    @staticmethod
+    def _build_fio_env() -> dict:
+        """Build an environment dict suitable for FIO execution."""
+        env = os.environ.copy()
+        env['FIO_DISABLE_SHM'] = '1'
+        env['TMPDIR'] = '/tmp'
+        machine = __import__('platform').machine().lower()
+        arch_dir = 'arm64' if ('arm' in machine or 'aarch64' in machine) else 'x86_64'
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        vendor_path = os.path.join(repo_root, 'vendor', 'fio', 'macos', arch_dir)
+        env['PATH'] = f"{vendor_path}:/opt/homebrew/bin:/usr/local/bin:{env.get('PATH', '')}"
+        env['PYTHONPATH'] = repo_root
+        return env
+
+    @staticmethod
+    def _compute_timeout(args: list) -> int:
+        timeout = 300
+        if '--test' in args:
+            idx = args.index('--test')
+            if idx + 1 < len(args):
+                tt = args[idx + 1]
+                if 'show' in tt:
+                    timeout = 11000
+                elif 'max_sustained' in tt:
+                    timeout = 6000
+        return timeout
+
+    # ----- custom FIO config generation -----
+    def _generate_custom_fio_config(self, params: Dict[str, Any]) -> str:
+        """Generate a temporary FIO config file for custom tests."""
+        _s = lambda v: str(v).replace('\n', '').replace('\r', '')
+        duration = int(params.get('duration', 60))
+        bs = _s(params.get('block_size', '1M'))
+        rw_mix = int(params.get('rw_mix', 50))
+        nj = int(params.get('numjobs', 4))
+        iod = int(params.get('iodepth', 32))
+        rate = _s(params.get('target_rate', ''))
+        rw = 'read' if rw_mix == 100 else ('write' if rw_mix == 0 else 'randrw')
+        cfg = (
+            "[global]\nioengine=posixaio\ndirect=0\ntime_based=1\n"
+            "group_reporting=1\nthread=1\nnorandommap=1\n"
+            "randrepeat=0\nrandom_generator=tausworthe64\n"
+            f"runtime={duration}\nlog_avg_msec=1000\n"
+            "write_bw_log=custom_test_bw\nwrite_lat_log=custom_test_lat\n\n"
+            f"[custom_test]\nfilename=${{TEST_FILE}}\nsize=${{TEST_SIZE}}\n"
+            f"bs={bs}\nrw={rw}\n"
+        )
+        if rw == 'randrw':
+            cfg += f"rwmixread={rw_mix}\n"
+        cfg += f"numjobs={nj}\niodepth={iod}\n"
+        if rate:
+            cfg += f"rate={rate}\n"
+        fd, fn = tempfile.mkstemp(suffix='.fio', prefix='diskbench_custom_')
+        with os.fdopen(fd, 'w') as f:
+            f.write(cfg)
+        self.logger.info(f"Generated custom FIO config: {fn}")
+        return fn

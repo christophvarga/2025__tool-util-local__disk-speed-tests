@@ -1,7 +1,7 @@
-"""Mixin for subprocess execution, FIO config generation,
-background test threads, and orphan-process cleanup.
+"""Mixin for subprocess execution, background test threads,
+and orphan-process cleanup.
 """
-import json, os, subprocess, sys, tempfile, time
+import json, os, subprocess, sys, time
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
@@ -65,65 +65,6 @@ class ProcessManagerMixin:
             self.logger.error(error_msg)
             return {'success': False, 'error': error_msg,
                     'command': cmd_str if 'cmd_str' in locals() else str(cmd)}
-
-    # ----- helpers -----
-    @staticmethod
-    def _build_fio_env() -> dict:
-        """Build an environment dict suitable for FIO execution."""
-        env = os.environ.copy()
-        env['FIO_DISABLE_SHM'] = '1'
-        env['TMPDIR'] = '/tmp'
-        machine = __import__('platform').machine().lower()
-        arch_dir = 'arm64' if ('arm' in machine or 'aarch64' in machine) else 'x86_64'
-        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        vendor_path = os.path.join(repo_root, 'vendor', 'fio', 'macos', arch_dir)
-        env['PATH'] = f"{vendor_path}:/opt/homebrew/bin:/usr/local/bin:{env.get('PATH', '')}"
-        env['PYTHONPATH'] = repo_root
-        return env
-
-    @staticmethod
-    def _compute_timeout(args: list) -> int:
-        timeout = 300
-        if '--test' in args:
-            idx = args.index('--test')
-            if idx + 1 < len(args):
-                tt = args[idx + 1]
-                if 'show' in tt:
-                    timeout = 11000
-                elif 'max_sustained' in tt:
-                    timeout = 6000
-        return timeout
-
-    # ----- custom FIO config -----
-    def _generate_custom_fio_config(self, params: Dict[str, Any]) -> str:
-        """Generate a temporary FIO config file for custom tests."""
-        _s = lambda v: str(v).replace('\n', '').replace('\r', '')
-        duration = int(params.get('duration', 60))
-        bs = _s(params.get('block_size', '1M'))
-        rw_mix = int(params.get('rw_mix', 50))
-        nj = int(params.get('numjobs', 4))
-        iod = int(params.get('iodepth', 32))
-        rate = _s(params.get('target_rate', ''))
-        rw = 'read' if rw_mix == 100 else ('write' if rw_mix == 0 else 'randrw')
-        cfg = (
-            "[global]\nioengine=posixaio\ndirect=0\ntime_based=1\n"
-            "group_reporting=1\nthread=1\nnorandommap=1\n"
-            "randrepeat=0\nrandom_generator=tausworthe64\n"
-            f"runtime={duration}\nlog_avg_msec=1000\n"
-            "write_bw_log=custom_test_bw\nwrite_lat_log=custom_test_lat\n\n"
-            f"[custom_test]\nfilename=${{TEST_FILE}}\nsize=${{TEST_SIZE}}\n"
-            f"bs={bs}\nrw={rw}\n"
-        )
-        if rw == 'randrw':
-            cfg += f"rwmixread={rw_mix}\n"
-        cfg += f"numjobs={nj}\niodepth={iod}\n"
-        if rate:
-            cfg += f"rate={rate}\n"
-        fd, fn = tempfile.mkstemp(suffix='.fio', prefix='diskbench_custom_')
-        with os.fdopen(fd, 'w') as f:
-            f.write(cfg)
-        self.logger.info(f"Generated custom FIO config: {fn}")
-        return fn
 
     # ----- FIO orphan cleanup -----
     def cleanup_fio_processes(self, test_id: Optional[str] = None) -> List[int]:

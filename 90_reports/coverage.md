@@ -1,12 +1,12 @@
 # Coverage Report
 
-Datum: 2026-02-09 10:13
-Gesamt-Stmts: 3800
-Covered: 1276
-Coverage (Line-Rate): 33.58%
-Delta: +2.54% (gegenueber 31.04% nach Security-Hardening)
+Datum: 2026-02-09 11:26
+Gesamt-Stmts: 3786
+Covered: 1278
+Coverage (Line-Rate): 33.76%
+Delta: +0.18% (gegenueber 33.58% nach All-Done)
 
-Artefakt: 89_output/test_reports/20260209-1013/coverage-py.xml
+Artefakt: 89_output/test_reports/20260209-1126/coverage-py.xml
 
 ## Top-Module nach Coverage
 
@@ -20,7 +20,7 @@ Artefakt: 89_output/test_reports/20260209-1013/coverage-py.xml
 | diskbench/core/state_manager.py | 151 | 39 | 74.17% |
 | diskbench/commands/test.py | 179 | 52 | 70.95% |
 | diskbench/utils/system_info.py | 141 | 56 | 60.28% |
-| bridge-server/process_manager.py | 239 | 109 | 54.39% |
+| bridge-server/process_manager.py | 195 | 102 | 47.69% |
 
 ## Coverage-Luecken (kritisch)
 
@@ -31,13 +31,13 @@ Artefakt: 89_output/test_reports/20260209-1013/coverage-py.xml
 | diskbench/commands/list_disks.py | 0.00% | 135 Stmts ungetestet |
 | diskbench/core/enhanced_fio_runner.py | 0.00% | 173 Stmts ungetestet |
 | bridge-server/fio_setup.py | 4.85% | 165 Stmts, FIO-Kompilierung |
-| bridge-server/fio_utils.py | 8.50% | 153 Stmts, FIO-Tests |
+| bridge-server/fio_utils.py | 28.42% | 183 Stmts, FIO-Tests |
 | diskbench/commands/validate.py | 22.22% | Validation-Logik braucht Tests |
 
 ## Bewertung
 
-Gesamt 33.58% -- Kategorie: **Niedrig** (< 60%)
+Gesamt 33.76% -- Kategorie: **Niedrig** (< 60%)
 Getesteter Code (unit/): durchschnittlich ~75% -- akzeptabel.
-Verbesserung: +36 neue Tests in dieser Session (Security + Process-Cleanup).
 Hauptproblem: Grosse Module ohne Tests (main.py, setup.py, list_disks.py, fio_setup.py).
+Frontend (web-gui/): 0% Coverage (kein Test-Framework, HOLD-010).
 

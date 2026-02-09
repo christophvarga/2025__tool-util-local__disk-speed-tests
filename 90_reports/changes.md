@@ -1,6 +1,50 @@
 # Changes Report
 
 
+## [2026-02-09 11:26] Modularisierung: app.js + Python LOC-Compliance
+
+### MF-3: app.js Modularisierung
+app.js (2749 LOC) in 9 Dateien aufgeteilt (Prototype-Pattern, kein Bundler):
+
+| Datei | LOC | Inhalt |
+|-------|-----|--------|
+| app-core.js | 298 | Klasse, Constructor, Init, Utilities |
+| app-api.js | 236 | Bridge API, Polling, Circuit Breaker |
+| app-disks.js | 270 | Disk-Liste, Test-Typen, Custom Tests |
+| app-test-control.js | 231 | Start/Stop, Active Test Check, FIO Check |
+| app-progress.js | 83 | Fortschrittsanzeige, Timing, Metriken |
+| app-results.js | 206 | Ergebnis-Rendering, Analyse-Views |
+| app-setup.js | 164 | Setup-Wizard, FIO-Installation |
+| app-persistence.js | 162 | LocalStorage, Export, Clipboard |
+| app.js | 75 | Bootstrap + globale Helpers |
+
+### Python LOC-Compliance
+- process_manager.py: 334->274 LOC (_build_fio_env, _compute_timeout, _generate_custom_fio_config nach fio_utils.py verschoben)
+- fio_utils.py: 317->293 LOC (unbenutzte get_optimal_fio_path entfernt, DRY _make_fio_logger)
+
+### llm-context.md Update
+- v1.2 -> v1.3: Neue Modulstruktur dokumentiert, Security-Hardening, geloeschte Verzeichnisse
+
+### Betroffene Dateien
+- web-gui/app-core.js (NEU)
+- web-gui/app-api.js (NEU)
+- web-gui/app-disks.js (NEU)
+- web-gui/app-test-control.js (NEU)
+- web-gui/app-progress.js (NEU)
+- web-gui/app-results.js (NEU)
+- web-gui/app-setup.js (NEU)
+- web-gui/app-persistence.js (NEU)
+- web-gui/app.js (2749->75 LOC)
+- web-gui/index.html (9 script-Tags statt 1)
+- bridge-server/process_manager.py (334->274 LOC)
+- bridge-server/fio_utils.py (317->293 LOC)
+- 00_infos/llm-context.md (v1.2->v1.3)
+
+Tests: 137 passed, 0 failed, 1 skipped (33.76% Coverage)
+Risiken/HOLDs: HOLD-010 (Frontend-Tests) unveraendert.
+
+---
+
 ## [2026-02-09 10:24] Session 20260209-102440
 
 ### Commits
