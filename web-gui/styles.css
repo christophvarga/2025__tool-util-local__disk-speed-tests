@@ -2808,4 +2808,54 @@ h2 {
     .timing-info {
         color: #d1d5db;
     }
+
+    .connection-warning-banner {
+        background: rgba(220, 53, 69, 0.15);
+        border-color: #dc3545;
+    }
+
+    .connection-warning-text span {
+        color: #f8d7da;
+    }
+
+    .connection-warning-text i {
+        color: #dc3545;
+    }
+}
+
+/* ===== Connection Warning Banner ===== */
+
+.connection-warning-banner {
+    background: #fff3cd;
+    border: 1px solid var(--warning-color);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    animation: slideInFromTop 0.4s ease-out;
+}
+
+.connection-warning-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.connection-warning-text {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 500;
+    color: #856404;
+}
+
+.connection-warning-text i {
+    color: var(--danger-color);
+    font-size: 1.1rem;
+}
+
+#reconnectBtn {
+    white-space: nowrap;
+    flex-shrink: 0;
 }
