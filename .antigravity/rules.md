@@ -76,8 +76,8 @@ source: rules.db
 - Cloudflare Access uebernimmt Userverwaltung (Service Tokens fuer CI/CD).
 - GHCR privat: Am Zielserver einmalig `docker login ghcr.io`.
 
-**Details & Templates**: Repository `0000_01_ci-cd`
-- Pfad: `/Users/christophvarga/Documents/03_code_repos/0000_01_ci-cd`
+**Details & Templates**: Repository `infra--ci-cd`
+- Pfad: `/Users/christophvarga/Documents/03_code_repos/infra--ci-cd`
 
 
 ## Ordnerstruktur (kanonisch)
