@@ -6,11 +6,11 @@ from pathlib import Path
 # Ensure diskbench package is importable
 TEST_DIR = Path(__file__).resolve().parent
 # tests/unit -> parent is tests; parent of that is repo root
-DISKBENCH_DIR = TEST_DIR.parents[1] / "diskbench"
-if str(DISKBENCH_DIR) not in sys.path:
-    sys.path.insert(0, str(DISKBENCH_DIR))
+REPO_ROOT = TEST_DIR.parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from commands.test import DiskTestCommand
+from diskbench.commands.test import DiskTestCommand
 
 
 @pytest.fixture()
@@ -59,7 +59,7 @@ def cmd(monkeypatch):
 
 def test_execute_builtin_invalid_disk_path_returns_none(cmd, monkeypatch):
     # Mock validation functions
-    import commands.test as cmd_mod
+    import diskbench.commands.test as cmd_mod
     monkeypatch.setattr(cmd_mod, "validate_disk_path", lambda p: False)
 
     res = cmd.execute_builtin_test(
@@ -74,7 +74,7 @@ def test_execute_builtin_invalid_disk_path_returns_none(cmd, monkeypatch):
 
 
 def test_execute_builtin_insufficient_space_returns_none(cmd, monkeypatch):
-    import commands.test as cmd_mod
+    import diskbench.commands.test as cmd_mod
     monkeypatch.setattr(cmd_mod, "validate_disk_path", lambda p: True)
     monkeypatch.setattr(cmd_mod, "check_available_space", lambda p, gb: False)
 
@@ -91,7 +91,7 @@ def test_execute_builtin_insufficient_space_returns_none(cmd, monkeypatch):
 
 def test_execute_builtin_deprecated_mapping_and_success(cmd, monkeypatch):
     # Valid path and enough space
-    import commands.test as cmd_mod
+    import diskbench.commands.test as cmd_mod
     monkeypatch.setattr(cmd_mod, "validate_disk_path", lambda p: True)
     monkeypatch.setattr(cmd_mod, "check_available_space", lambda p, gb: True)
 

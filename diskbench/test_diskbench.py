@@ -3,8 +3,8 @@
 Unit tests for diskbench helper binary.
 """
 
-from commands.test import DiskTestCommand
-from core.qlab_patterns import QLabTestPatterns
+from diskbench.commands.test import DiskTestCommand
+from diskbench.core.qlab_patterns import QLabTestPatterns
 import sys
 import os
 import subprocess
@@ -13,9 +13,10 @@ import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 
-# Add the current directory to Python path for imports
+# Add the repo root to Python path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, current_dir)
+repo_root = os.path.dirname(current_dir)
+sys.path.insert(0, repo_root)
 
 # Import diskbench modules
 

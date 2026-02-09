@@ -138,7 +138,6 @@ open http://localhost:8765/
 
 Hinweise zu Imports
 - Innerhalb der Codebasis nutzen wir absolute Paket-Imports (from diskbench.…. import …). Das ist robust gegen unterschiedliche Startverzeichnisse.
-- Für Legacy-Tests existieren Kompatibilitäts-Shims (commands/*, core/*) auf Root-Ebene, die alte Imports (from commands.… / from core.… ) weiterleiten. Langfristig bitte auf diskbench.* umstellen.
 
 ## 🔧 Diskbench CLI Befehle
 

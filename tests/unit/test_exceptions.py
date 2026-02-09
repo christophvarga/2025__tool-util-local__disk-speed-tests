@@ -2,12 +2,12 @@ import sys
 from pathlib import Path
 import pytest
 
-DISKBENCH_DIR = Path(__file__).resolve().parents[2] / "diskbench"
-if str(DISKBENCH_DIR) not in sys.path:
-    sys.path.insert(0, str(DISKBENCH_DIR))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from core.exceptions import (
-    DiskBenchError, FIOExecutionError, DiskNotAvailableError, 
+from diskbench.core.exceptions import (
+    DiskBenchError, FIOExecutionError, DiskNotAvailableError,
     InsufficientSpaceError, InvalidTestConfigError, JSONParsingError
 )
 

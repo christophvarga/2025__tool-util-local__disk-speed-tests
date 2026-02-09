@@ -12,12 +12,12 @@ import os
 import sys
 from pathlib import Path
 
-# Add the diskbench directory to the path for imports
+# Add the repo root to the path for imports
 test_dir = Path(__file__).parent
-diskbench_dir = test_dir.parent / "diskbench"
-sys.path.insert(0, str(diskbench_dir))
+repo_root = test_dir.parent
+sys.path.insert(0, str(repo_root))
 
-from core.fio_runner import FioRunner
+from diskbench.core.fio_runner import FioRunner
 
 
 class TestFioParser(unittest.TestCase):

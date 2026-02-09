@@ -3,11 +3,11 @@ import pytest
 from pathlib import Path
 
 # Import the FioRunner from diskbench
-DISKBENCH_DIR = Path(__file__).resolve().parents[2] / "diskbench"
-if str(DISKBENCH_DIR) not in sys.path:
-    sys.path.insert(0, str(DISKBENCH_DIR))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from core.fio_runner import FioRunner
+from diskbench.core.fio_runner import FioRunner
 
 
 @pytest.fixture()

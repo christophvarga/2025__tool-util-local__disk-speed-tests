@@ -73,7 +73,7 @@ class TestControlMixin:
                 'thermal_maximum_analyser': 'thermal_maximum',
             }
 
-            from core.qlab_patterns import QLabTestPatterns
+            from diskbench.core.qlab_patterns import QLabTestPatterns
             qlab_patterns = QLabTestPatterns()
 
             diskbench_test_type = None

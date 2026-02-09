@@ -5,11 +5,11 @@ from pathlib import Path
 import pytest
 
 # Ensure diskbench is importable
-DISKBENCH_DIR = Path(__file__).resolve().parents[2] / "diskbench"
-if str(DISKBENCH_DIR) not in sys.path:
-    sys.path.insert(0, str(DISKBENCH_DIR))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from commands.test import DiskTestCommand
+from diskbench.commands.test import DiskTestCommand
 
 
 @pytest.fixture()
@@ -36,7 +36,7 @@ def cmd(monkeypatch):
 
 
 def test_custom_invalid_disk_path_returns_none(cmd, monkeypatch):
-    import commands.test as cmd_mod
+    import diskbench.commands.test as cmd_mod
     monkeypatch.setattr(cmd_mod, "validate_disk_path", lambda p: False)
 
     # Create a temp config file to satisfy existence check
@@ -55,7 +55,7 @@ def test_custom_invalid_disk_path_returns_none(cmd, monkeypatch):
 
 
 def test_custom_missing_config_returns_none(cmd, monkeypatch):
-    import commands.test as cmd_mod
+    import diskbench.commands.test as cmd_mod
     monkeypatch.setattr(cmd_mod, "validate_disk_path", lambda p: True)
 
     # Non-existent file path
@@ -71,7 +71,7 @@ def test_custom_missing_config_returns_none(cmd, monkeypatch):
 
 
 def test_custom_success_placeholders_injected(cmd, monkeypatch):
-    import commands.test as cmd_mod
+    import diskbench.commands.test as cmd_mod
     monkeypatch.setattr(cmd_mod, "validate_disk_path", lambda p: True)
     monkeypatch.setattr(cmd_mod, "check_available_space", lambda p, gb: True)
 
