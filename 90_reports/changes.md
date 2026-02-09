@@ -1,5 +1,18 @@
 # Changes Report
 
+
+## [2026-02-09 08:46] Session 20260209-084606
+
+### Commits
+714c1f1 fix(security): harden bridge-server input validation + frontend timeouts
+
+### Staged Changes
+- Keine staged Changes
+
+### Unstaged Changes
+- Keine unstaged Changes
+
+---
 Datum: 2026-02-09
 
 Aenderungen (Security Hardening - Quick Wins):
