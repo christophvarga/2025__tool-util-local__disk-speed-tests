@@ -1,6 +1,24 @@
 # Changes Report
 
 
+## [2026-02-09 10:01] Mittelfristige Massnahmen (MF-1, MF-2, MF-5)
+
+### C-4/MF-1: innerHTML XSS-Fix
+- _escapeHTML() Hilfsmethode zur DiskBenchApp Klasse hinzugefuegt
+- 20+ innerHTML-Stellen mit dynamischen Backend-Daten durch _escapeHTML() abgesichert
+- Statische HTML-Templates (Icons, Layout) bewusst belassen
+- Betroffene Datei: web-gui/app.js
+
+### H-6/MF-5: Circuit Breaker + Retry-Logik
+- 3-State Circuit Breaker (closed/open/half-open) fuer Status-Polling
+- Exponential Backoff: 2s -> 4s -> 8s -> ... -> 30s max bei Fehlern
+- Max 5 konsekutive Fehler -> Circuit Open, Max 30 total -> Hard Stop
+- Reconnect-Button bei offenem Circuit
+- Connection-Warning-Banner mit CSS (inkl. Dark Mode)
+- Betroffene Dateien: web-gui/app.js, web-gui/styles.css
+
+---
+
 ## [2026-02-09 09:59] Refactor: Split server.py into modules
 
 ### Aenderung
