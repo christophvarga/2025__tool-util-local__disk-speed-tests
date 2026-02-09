@@ -2,7 +2,7 @@
 import json, logging, os, sys, socketserver
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-from validation import _sanitize_error
+from validation import _sanitize_error, validate_disk_path, is_system_path
 
 class BridgeRequestHandler(BaseHTTPRequestHandler):
     """HTTP request handler for the bridge server."""
@@ -57,10 +57,10 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
             parsed_path = urlparse(self.path)
             path = parsed_path.path
             length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(length) if length > 0 else b''
+            body = self.rfile.read(length) if length > 0 else b''
 
             if path == '/api/test/start':
-                self._handle_start_test()
+                self._handle_start_test(body)
             elif path.startswith('/api/test/stop/'):
                 self._handle_stop_test(path.split('/')[-1])
             elif path == '/api/test/stop-all':
@@ -70,9 +70,9 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
             elif path == '/api/test/cleanup-all-background':
                 self._handle_cleanup_all_background_tests()
             elif path == '/api/setup':
-                self._handle_setup_action()
+                self._handle_setup_action(body)
             elif path == '/api/validate':
-                self._handle_validate_action()
+                self._handle_validate_action(body)
             else:
                 self._send_error(404, f'Unknown POST endpoint: {path}')
         except Exception as e:
@@ -123,18 +123,14 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
                 )
 
     def _json_serializer(self, obj):
-        if hasattr(obj, 'isoformat'):
-            return obj.isoformat()
-        elif hasattr(obj, '__dict__'):
-            return obj.__dict__
-        elif isinstance(obj, bytes):
-            return obj.decode('utf-8', errors='replace')
+        if hasattr(obj, 'isoformat'): return obj.isoformat()
+        if hasattr(obj, '__dict__'): return obj.__dict__
+        if isinstance(obj, bytes): return obj.decode('utf-8', errors='replace')
         return str(obj)
 
     def _send_error(self, status_code, message):
         self._send_json_response({'success': False, 'error': message}, status_code)
 
-    # ----- GET route handlers -----
     def _handle_list_disks(self):
         self._send_json_response(self.bridge.list_disks())
 
@@ -169,7 +165,11 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
         if 'rw' in qp:
             tp['rw'] = qp['rw'][0]
         if 'target_path' in qp:
-            tp['target_path'] = qp['target_path'][0]
+            target = qp['target_path'][0]
+            if not validate_disk_path(target) or is_system_path(target):
+                self._send_error(400, 'Invalid or prohibited target path')
+                return
+            tp['target_path'] = target
         if 'duration' in qp:
             try:
                 tp['duration'] = int(qp['duration'][0])
@@ -188,7 +188,7 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
             info = self.bridge._verify_fio()
             self._send_json_response({'success': True, 'fio': info})
         except OSError as e:
-            self._send_json_response({'success': False, 'error': str(e)})
+            self._send_json_response({'success': False, 'error': _sanitize_error(e)})
 
     def _handle_background_tests_status(self):
         self._send_json_response(self.bridge.get_background_tests_status())
@@ -199,11 +199,9 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
     def _handle_test_status(self, test_id):
         self._send_json_response(self.bridge.get_test_status(test_id))
 
-    # ----- POST route handlers -----
-    def _handle_start_test(self):
+    def _handle_start_test(self, body):
         try:
-            cl = int(self.headers['Content-Length'])
-            data = json.loads(self.rfile.read(cl).decode('utf-8'))
+            data = json.loads(body.decode('utf-8'))
             self._send_json_response(self.bridge.start_test(data))
         except json.JSONDecodeError:
             self._send_error(400, 'Invalid JSON data')
@@ -222,18 +220,17 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
     def _handle_cleanup_all_background_tests(self):
         self._send_json_response(self.bridge.cleanup_all_background_tests())
 
-    def _handle_setup_action(self):
+    def _handle_setup_action(self, body):
         self._dispatch_post_action(
-            {'install_fio': lambda: self.bridge.install_fio()}, 'setup')
+            body, {'install_fio': lambda: self.bridge.install_fio()}, 'setup')
 
-    def _handle_validate_action(self):
+    def _handle_validate_action(self, body):
         self._dispatch_post_action(
-            {'run_all_tests': lambda: self.bridge.validate_setup()}, 'validation')
+            body, {'run_all_tests': lambda: self.bridge.validate_setup()}, 'validation')
 
-    def _dispatch_post_action(self, action_map, label):
+    def _dispatch_post_action(self, body, action_map, label):
         try:
-            cl = int(self.headers['Content-Length'])
-            data = json.loads(self.rfile.read(cl).decode('utf-8'))
+            data = json.loads(body.decode('utf-8'))
             action = data.get('action', '')
             handler = action_map.get(action)
             if handler:
@@ -245,7 +242,6 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             self._send_error(500, _sanitize_error(e))
 
-    # ----- static file serving -----
     def _serve_web_gui(self):
         base_dir = getattr(sys, '_MEIPASS', None)
         if base_dir and os.path.isdir(os.path.join(base_dir, 'web-gui')):
@@ -261,9 +257,14 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
             file_path = url_path[1:]
         base_dir = getattr(sys, '_MEIPASS', None)
         if base_dir and os.path.isdir(os.path.join(base_dir, 'web-gui')):
-            full = os.path.join(base_dir, 'web-gui', file_path)
+            web_gui_dir = os.path.realpath(os.path.join(base_dir, 'web-gui'))
         else:
-            full = os.path.join(os.path.dirname(__file__), '..', 'web-gui', file_path)
+            web_gui_dir = os.path.realpath(
+                os.path.join(os.path.dirname(__file__), '..', 'web-gui'))
+        full = os.path.realpath(os.path.join(web_gui_dir, file_path))
+        if not full.startswith(web_gui_dir + os.sep) and full != web_gui_dir:
+            self._send_error(403, 'Forbidden')
+            return
         ct_map = {'.css': 'text/css', '.js': 'application/javascript', '.html': 'text/html'}
         ct = ct_map.get(os.path.splitext(file_path)[1], 'application/octet-stream')
         self._serve_file(full, ct)

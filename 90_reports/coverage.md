@@ -1,12 +1,12 @@
 # Coverage Report
 
-Datum: 2026-02-09 11:26
-Gesamt-Stmts: 3786
+Datum: 2026-02-09 12:20
+Gesamt-Stmts: 3789
 Covered: 1278
-Coverage (Line-Rate): 33.76%
-Delta: +0.18% (gegenueber 33.58% nach All-Done)
+Coverage (Line-Rate): 33.73%
+Delta: -0.03% (minimale Aenderung durch Security-Fixes, zusaetzliche Statements)
 
-Artefakt: 89_output/test_reports/20260209-1126/coverage-py.xml
+Artefakt: 89_output/test_reports/20260209-1220/coverage-py.xml
 
 ## Top-Module nach Coverage
 

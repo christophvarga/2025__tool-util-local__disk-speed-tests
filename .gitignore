@@ -75,8 +75,9 @@ pids
 *.seed
 *.pid.lock
 
-# Coverage directory used by tools like istanbul
+# Coverage
 coverage/
+.coverage
 
 # nyc test coverage
 .nyc_output
@@ -108,3 +109,7 @@ node_modules/
 # Temporary files
 tmp/
 temp/
+
+# Claude Code artifacts
+~/.claude/
+**/~/.claude/

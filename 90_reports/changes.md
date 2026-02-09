@@ -1,6 +1,36 @@
 # Changes Report
 
 
+## [2026-02-09 12:20] Security-Fixes + Git-Hygiene + HOLD-Update
+
+### Security-Fixes (H-1, H-2, M-8)
+- **H-1: Path Traversal in Static Serving**: `_serve_static_file()` prueft jetzt via `os.path.realpath()` + Prefix-Check, dass Pfade innerhalb `web-gui/` bleiben. Request auf `../../etc/passwd` gibt 403.
+- **H-2: Direct-FIO Path-Validierung**: `/api/test-direct-fio` validiert `target_path` jetzt mit `validate_disk_path()` + `is_system_path()` - analog zu `start_test`.
+- **M-8: Error Sanitizing**: `_handle_fio_info()` nutzt jetzt `_sanitize_error()` statt `str(e)`.
+
+### Code-Fix (M-1)
+- **POST Body Double-Read**: Body wird einmal in `do_POST()` gelesen und als Parameter an Handler durchgereicht. Vorher: Body gelesen und verworfen, Handler las nochmals von Stream.
+
+### Git-Hygiene (M-2/M-3)
+- `-` (45KB JSON-Artefakt), `.coverage` (53KB Binary), `~/.claude/` aus Git-Tracking entfernt
+- `.gitignore` um `.coverage` und `~/.claude/` erweitert
+
+### Dokumentation (M-5/M-6)
+- `open-questions.md` v1.0 -> v2.0: Komplett bereinigt, veraltete Sprint-Referenzen/Reviews/Decision-Log entfernt
+- HOLD-010 (Frontend-Tests) als aktiver HOLD ergaenzt
+- Alte offene Fragen als geloeste HOLDs archiviert
+
+### Betroffene Dateien
+- bridge-server/http_handlers.py (Security-Fixes + POST-Body-Fix)
+- .gitignore (erweitert)
+- 00_infos/meta/open-questions.md (v2.0)
+- 90_reports/* (aktualisiert)
+
+Tests: 137 passed, 0 failed, 1 skipped (33.73% Coverage)
+Risiken/HOLDs: Keine neuen.
+
+---
+
 ## [2026-02-09 11:36] Session 20260209-113624
 
 ### Commits

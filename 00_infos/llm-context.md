@@ -1,5 +1,5 @@
 # QLab Disk Performance Tester - LLM Context
-*Version 1.3 – 9.2.2026*
+*Version 1.4 – 9.2.2026*
 
 ## Projekt-Mission
 Ein professionelles Disk Performance Testing Tool speziell für QLab Video-Playback-Anforderungen. Web-basierte GUI mit FIO-Engine für realistische Show-Pattern-Tests.
