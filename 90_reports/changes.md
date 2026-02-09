@@ -1,6 +1,41 @@
 # Changes Report
 
 
+## [2026-02-09 09:59] Refactor: Split server.py into modules
+
+### Aenderung
+server.py (2773 LOC) in 9 Module aufgeteilt (je <=300 LOC, gesamt 2041 LOC):
+- validation.py (75): Regex-Konstanten, _sanitize_error, _validate_custom_fio_params
+- bridge_core.py (252): DiskBenchBridgeCore Basisklasse (init, state, JSON, commands)
+- bridge_status.py (224): BridgeStatusMixin (background tests, live metrics)
+- process_manager.py (236): ProcessManagerMixin (subprocess, FIO config, cleanup)
+- test_control.py (300): TestControlMixin (start/stop/stop-all)
+- fio_utils.py (257): FioUtilsMixin (direct FIO, QLab tests)
+- fio_setup.py (299): FioSetupMixin (SHM detection, compilation, auto-fix)
+- http_handlers.py (299): BridgeRequestHandler + ThreadedHTTPServer
+- server.py (99): Thin entry-point, composite class, re-exports
+
+### Pattern
+Mixin-Pattern mit Mehrfachvererbung. server.py assembliert DiskBenchBridge
+aus 6 Mixins. Alle `import server as bridge` Patterns bleiben kompatibel
+durch Modul-Re-Exports.
+
+### Betroffene Dateien
+- bridge-server/server.py (rewritten)
+- bridge-server/validation.py (NEU)
+- bridge-server/bridge_core.py (NEU)
+- bridge-server/bridge_status.py (NEU)
+- bridge-server/process_manager.py (NEU)
+- bridge-server/test_control.py (NEU)
+- bridge-server/fio_utils.py (NEU)
+- bridge-server/fio_setup.py (NEU)
+- bridge-server/http_handlers.py (NEU)
+
+Tests: 0 geaendert, 126 passed (alle unveraendert)
+Risiken/HOLDs: Keine neuen.
+
+---
+
 ## [2026-02-09 09:48] Session 20260209-094832
 
 ### Commits
