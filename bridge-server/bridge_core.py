@@ -20,7 +20,7 @@ class DiskBenchBridgeCore:
         self.running_processes: Dict[str, subprocess.Popen] = {}
         self.logger: logging.Logger = logging.getLogger(__name__)
         self._fio_checked: Optional[Dict[str, str]] = None
-        self.state_file: str = 'memory-bank/diskbench_bridge_state.json'
+        self.state_file: str = '.state/diskbench_bridge_state.json'
 
         self._load_persistent_state()
         self._discover_orphaned_processes()

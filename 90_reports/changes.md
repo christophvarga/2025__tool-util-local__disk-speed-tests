@@ -1,6 +1,41 @@
 # Changes Report
 
 
+## [2026-02-09 10:09] Legacy Cleanup
+
+### Aenderung
+Entfernung von Legacy-Verzeichnissen und Konsolidierung von TODO-Dateien.
+
+### Teil 1: qlab-disk-tester/ entfernt
+- Keine produktiven Referenzen gefunden (nur in Claude-Plan-Datei)
+- `rm -rf qlab-disk-tester/`
+
+### Teil 2: memory-bank/ entfernt
+- 2 Code-Referenzen gefunden und migriert:
+  - bridge-server/bridge_core.py: state_file Pfad `memory-bank/` -> `.state/`
+  - diskbench/core/state_manager.py: db_dir Pfad `memory-bank/` -> `.state/`
+- `.state/` in .gitignore aufgenommen
+- `rm -rf memory-bank/`
+
+### Teil 3: TODO-Dateien konsolidiert
+- 7 TODO_*.md (alle zum selben nie ausgefuehrten Test-ID-Refactoring) konsolidiert
+- Archiviert nach: 99_archiv/TODO_consolidated_legacy.md
+- Geloescht: TODO_app_js.md, TODO_bridge_server.md, TODO_main.md,
+  TODO_MASTER_REFACTOR_PLAN.md, TODO_memory_bank.md, TODO_qlab_patterns.md,
+  TODO_web-gui_index.md
+
+### Betroffene Dateien
+- bridge-server/bridge_core.py (state_file Pfad geaendert)
+- diskbench/core/state_manager.py (db_dir Pfad geaendert)
+- .gitignore (.state/ hinzugefuegt)
+- 99_archiv/TODO_consolidated_legacy.md (NEU)
+- 90_reports/test-report.md, changes.md (aktualisiert)
+
+Tests: 126 passed, 0 failed, 1 skipped
+Risiken/HOLDs: Keine neuen.
+
+---
+
 ## [2026-02-09 10:08] Session 20260209-100801
 
 ### Commits

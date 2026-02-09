@@ -25,8 +25,8 @@ class StateManager:
             db_path: Path to SQLite database file. If None, uses default location.
         """
         if db_path is None:
-            # Default to memory-bank directory for consistency with existing JSON state
-            db_dir = Path("memory-bank")
+            # Default to .state directory for persistent state data
+            db_dir = Path(".state")
             db_dir.mkdir(exist_ok=True)
             self.db_path = str(db_dir / "diskbench_state.db")
         else:
