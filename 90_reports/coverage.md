@@ -1,20 +1,18 @@
 # Coverage Report
 
-Datum: 2026-02-09 08:44
-Gesamt-Stmts: 4066
-Covered: 1262
-Coverage (Line-Rate): 31.04%
-Delta: -4.58% (gegenueber 35.62% am 2026-01-31)
+Datum: 2026-02-09 10:13
+Gesamt-Stmts: 3800
+Covered: 1276
+Coverage (Line-Rate): 33.58%
+Delta: +2.54% (gegenueber 31.04% nach Security-Hardening)
 
-Artefakt: 89_output/test_reports/20260209-0844/coverage-py.xml
-
-Hinweis: Coverage-Rueckgang durch neue Validierungslogik in server.py (60+ LOC)
-die nur ueber unit-mocks, nicht via HTTP-Integration getestet wird.
+Artefakt: 89_output/test_reports/20260209-1013/coverage-py.xml
 
 ## Top-Module nach Coverage
 
 | Modul | Stmts | Miss | Cover |
 |-------|-------|------|-------|
+| bridge-server/validation.py | 37 | 2 | 94.59% |
 | diskbench/core/monitoring.py | 132 | 10 | 92.42% |
 | diskbench/core/exceptions.py | 41 | 4 | 90.24% |
 | diskbench/core/retry_logic.py | 91 | 9 | 90.11% |
@@ -22,6 +20,7 @@ die nur ueber unit-mocks, nicht via HTTP-Integration getestet wird.
 | diskbench/core/state_manager.py | 151 | 39 | 74.17% |
 | diskbench/commands/test.py | 179 | 52 | 70.95% |
 | diskbench/utils/system_info.py | 141 | 56 | 60.28% |
+| bridge-server/process_manager.py | 239 | 109 | 54.39% |
 
 ## Coverage-Luecken (kritisch)
 
@@ -31,12 +30,14 @@ die nur ueber unit-mocks, nicht via HTTP-Integration getestet wird.
 | diskbench/commands/setup.py | 0.00% | 451 Stmts ungetestet |
 | diskbench/commands/list_disks.py | 0.00% | 135 Stmts ungetestet |
 | diskbench/core/enhanced_fio_runner.py | 0.00% | 173 Stmts ungetestet |
+| bridge-server/fio_setup.py | 4.85% | 165 Stmts, FIO-Kompilierung |
+| bridge-server/fio_utils.py | 8.50% | 153 Stmts, FIO-Tests |
 | diskbench/commands/validate.py | 22.22% | Validation-Logik braucht Tests |
-| diskbench/core/health_checks.py | 43.47% | Error-Paths ungetestet |
 
 ## Bewertung
 
-Gesamt 35.62% -- Kategorie: **Niedrig** (< 60%, kritisch)
+Gesamt 33.58% -- Kategorie: **Niedrig** (< 60%)
 Getesteter Code (unit/): durchschnittlich ~75% -- akzeptabel.
-Hauptproblem: Grosse Module ohne jegliche Tests (main.py, setup.py, list_disks.py).
+Verbesserung: +36 neue Tests in dieser Session (Security + Process-Cleanup).
+Hauptproblem: Grosse Module ohne Tests (main.py, setup.py, list_disks.py, fio_setup.py).
 
