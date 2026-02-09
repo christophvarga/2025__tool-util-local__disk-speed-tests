@@ -10,8 +10,10 @@ executes the appropriate diskbench commands.
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import fcntl
@@ -34,6 +36,61 @@ for _p in possible_diskbench_paths:
     if os.path.isdir(_p) and _p not in sys.path:
         sys.path.insert(0, _p)
         break
+
+# Import security utilities for input validation
+_repo_root = os.path.abspath(os.path.join(_base_dir, '..'))
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
+from diskbench.utils.security import (
+    validate_disk_path,
+    is_system_path,
+    check_available_space,
+)
+
+
+# --- Input validation helpers for custom FIO parameters ---
+
+_BLOCK_SIZE_RE = re.compile(r'^\d+[kKmMgG]$')
+_RATE_RE = re.compile(r'^\d+[kKmMgG]?$')
+
+_PARAM_LIMITS = {
+    'duration': (1, 43200),       # 1s – 12h
+    'numjobs': (1, 16),
+    'iodepth': (1, 256),
+    'rw_mix': (0, 100),
+}
+
+
+def _sanitize_error(exc: Exception) -> str:
+    """Return a generic error message without leaking system paths."""
+    return f"Internal error: {type(exc).__name__}"
+
+
+def _validate_custom_fio_params(params: dict) -> None:
+    """Validate custom FIO parameters. Raises ValueError on bad input."""
+    for key, (lo, hi) in _PARAM_LIMITS.items():
+        raw = params.get(key)
+        if raw is not None:
+            try:
+                val = int(raw)
+            except (TypeError, ValueError):
+                raise ValueError(f"Parameter '{key}' must be an integer")
+            if not (lo <= val <= hi):
+                raise ValueError(f"Parameter '{key}' must be between {lo} and {hi}")
+
+    bs = params.get('block_size', '1M')
+    if not _BLOCK_SIZE_RE.match(str(bs)):
+        raise ValueError(
+            f"Invalid block_size '{bs}'. Must match pattern like '4k', '1M', '2G'."
+        )
+
+    rate = params.get('target_rate', '')
+    if rate and not _RATE_RE.match(str(rate)):
+        raise ValueError(
+            f"Invalid target_rate '{rate}'. Must match pattern like '500M', '1G'."
+        )
+
 
 class DiskBenchBridge:
 
@@ -482,24 +539,43 @@ class DiskBenchBridge:
             }
     
     def start_test(self, test_params: Dict[str, Any]) -> Dict[str, Any]:
+        """Start a disk performance test with single-instance enforcement."""
         # Verify fio is available first
         try:
             self._verify_fio()
         except OSError as e:
             return {'success': False, 'error': str(e)}
 
-        """Start a disk performance test with single-instance enforcement."""
         try:
+            # --- Input validation (C-1, H-4) ---
+            disk_path = test_params.get('disk_path', '/tmp')
+            if not validate_disk_path(disk_path):
+                return {
+                    'success': False,
+                    'error': f'Invalid or inaccessible disk path: {disk_path}'
+                }
+            if is_system_path(disk_path):
+                return {
+                    'success': False,
+                    'error': f'Refusing to test on system path: {disk_path}'
+                }
+            size_gb = float(test_params.get('size_gb', 1))
+            if not check_available_space(disk_path, size_gb):
+                return {
+                    'success': False,
+                    'error': f'Insufficient disk space at {disk_path} for {size_gb} GB test'
+                }
+
             # Check for running tests - only allow one test at a time
-            running_test_ids = [tid for tid, info in self.running_tests.items() 
+            running_test_ids = [tid for tid, info in self.running_tests.items()
                                if info.get('status') == 'running']
-            
+
             if running_test_ids:
                 return {
                     'success': False,
                     'error': f'Test already running (ID: {running_test_ids[0]}). Stop current test before starting a new one.'
                 }
-            
+
             # Validate test type early
             requested_test_type = test_params.get('test_type', 'quick_max_speed')
             
@@ -520,15 +596,24 @@ class DiskBenchBridge:
             estimated_duration = 60 # Default
             
             if requested_test_type == 'custom':
-                # Handle custom test generation
+                # Validate custom params before generating config (C-2)
+                custom_params = test_params.get('custom_params', {})
                 try:
-                    custom_config_file = self._generate_custom_fio_config(test_params.get('custom_params', {}))
-                    estimated_duration = int(test_params.get('custom_params', {}).get('duration', 60))
-                    diskbench_test_type = 'custom'
-                except Exception as e:
+                    _validate_custom_fio_params(custom_params)
+                except ValueError as e:
                     return {
                         'success': False,
-                        'error': f"Failed to generate custom config: {str(e)}"
+                        'error': f"Invalid custom test parameter: {e}"
+                    }
+                try:
+                    custom_config_file = self._generate_custom_fio_config(custom_params)
+                    estimated_duration = int(custom_params.get('duration', 60))
+                    diskbench_test_type = 'custom'
+                except Exception as e:
+                    self.logger.error(f"Custom config generation failed: {e}")
+                    return {
+                        'success': False,
+                        'error': "Failed to generate custom config"
                     }
             elif requested_test_type in test_type_mapping:
                 diskbench_test_type = test_type_mapping[requested_test_type]
@@ -555,13 +640,14 @@ class DiskBenchBridge:
                 args.extend(['--test', diskbench_test_type])
                 
             args.extend([
-                '--disk', test_params.get('disk_path', '/tmp'),
-                '--size', str(test_params.get('size_gb', 1)),
+                '--disk', disk_path,
+                '--size', str(size_gb),
                 '--json'
             ])
-            
-            # Add output file
-            output_file = f"/tmp/diskbench-{test_id}.json"
+
+            # Use tempfile instead of predictable /tmp path (C-3)
+            fd, output_file = tempfile.mkstemp(suffix='.json', prefix=f'diskbench-{test_id}-')
+            os.close(fd)
             args.extend(['--output', output_file])
             
             # Add progress flag
@@ -613,32 +699,36 @@ class DiskBenchBridge:
             }
             
         except Exception as e:
+            self.logger.error(f"start_test failed: {e}")
             return {
                 'success': False,
-                'error': str(e)
+                'error': _sanitize_error(e)
             }
 
     def _generate_custom_fio_config(self, params: Dict[str, Any]) -> str:
-        """Generate a temporary FIO configuration file for custom tests."""
+        """Generate a temporary FIO configuration file for custom tests.
+
+        Callers MUST run _validate_custom_fio_params() before invoking this.
+        """
         try:
-            # Extract parameters with defaults
-            name = params.get('name', 'Custom Test')
+            # Strip newlines from every string value to prevent INI injection
+            def _safe(val: str) -> str:
+                return str(val).replace('\n', '').replace('\r', '')
+
             duration = int(params.get('duration', 60))
-            block_size = params.get('block_size', '1M')
-            rw_mix = int(params.get('rw_mix', 50)) # % read
+            block_size = _safe(params.get('block_size', '1M'))
+            rw_mix = int(params.get('rw_mix', 50))
             numjobs = int(params.get('numjobs', 4))
             iodepth = int(params.get('iodepth', 32))
-            target_rate = params.get('target_rate', '') # Optional, e.g. "500M"
-            
-            # Determine rw mode based on mix
+            target_rate = _safe(params.get('target_rate', ''))
+
             if rw_mix == 100:
                 rw_mode = 'read'
             elif rw_mix == 0:
                 rw_mode = 'write'
             else:
                 rw_mode = 'randrw'
-            
-            # Build FIO content
+
             config_content = f"""[global]
 ioengine=posixaio
 direct=0
@@ -661,20 +751,18 @@ rw={rw_mode}
 """
             if rw_mode == 'randrw':
                 config_content += f"rwmixread={rw_mix}\n"
-                
+
             config_content += f"numjobs={numjobs}\n"
             config_content += f"iodepth={iodepth}\n"
-            
+
             if target_rate:
                 config_content += f"rate={target_rate}\n"
-                
-            # Write to temp file
-            timestamp = int(time.time())
-            filename = f"/tmp/custom_test_{timestamp}.fio"
-            
-            with open(filename, 'w') as f:
+
+            # Use tempfile instead of predictable /tmp path (C-3)
+            fd, filename = tempfile.mkstemp(suffix='.fio', prefix='diskbench_custom_')
+            with os.fdopen(fd, 'w') as f:
                 f.write(config_content)
-                
+
             self.logger.info(f"Generated custom FIO config: {filename}")
             return filename
             
@@ -2285,7 +2373,7 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
                 self._send_error(404, 'Not Found')
                 
         except Exception as e:
-            self._send_error(500, str(e))
+            self._send_error(500, _sanitize_error(e))
     
     def do_POST(self):
         """Handle POST requests."""
@@ -2315,16 +2403,27 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
                 self._send_error(404, f'Unknown POST endpoint: {path}')
                 
         except Exception as e:
-            self._send_error(500, str(e))
-    
+            logging.getLogger(__name__).error(f"POST handler error: {e}")
+            self._send_error(500, _sanitize_error(e))
+
     def do_OPTIONS(self):
         """Handle OPTIONS requests for CORS."""
         self._send_cors_headers()
         self.end_headers()
     
     def _send_cors_headers(self):
-        """Send CORS headers."""
-        self.send_header('Access-Control-Allow-Origin', '*')
+        """Send CORS headers restricted to localhost origins (C-5)."""
+        origin = self.headers.get('Origin', '')
+        # Only allow requests from localhost (any port)
+        if origin and (
+            origin.startswith('http://localhost:')
+            or origin.startswith('http://127.0.0.1:')
+            or origin == 'http://localhost'
+            or origin == 'http://127.0.0.1'
+        ):
+            self.send_header('Access-Control-Allow-Origin', origin)
+        else:
+            self.send_header('Access-Control-Allow-Origin', 'http://localhost')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
     
@@ -2490,7 +2589,7 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             self._send_error(400, 'Invalid JSON data')
         except Exception as e:
-            self._send_error(500, str(e))
+            self._send_error(500, _sanitize_error(e))
     
     def _handle_test_status(self, test_id):
         """Handle test status request."""
@@ -2534,7 +2633,7 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             self._send_error(400, 'Invalid JSON data')
         except Exception as e:
-            self._send_error(500, str(e))
+            self._send_error(500, _sanitize_error(e))
     
     def _handle_validate_action(self):
         """Handle validation action POST request."""
@@ -2558,7 +2657,7 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             self._send_error(400, 'Invalid JSON data')
         except Exception as e:
-            self._send_error(500, str(e))
+            self._send_error(500, _sanitize_error(e))
     
     def _serve_web_gui(self):
         """Serve the main web GUI."""
@@ -2610,7 +2709,7 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
             else:
                 self._send_error(404, 'File not found')
         except Exception as e:
-            self._send_error(500, str(e))
+            self._send_error(500, _sanitize_error(e))
     
     def log_message(self, format, *args):
         """Override to use our logger."""

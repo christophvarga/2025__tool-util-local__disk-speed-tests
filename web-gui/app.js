@@ -6,14 +6,17 @@
  */
 
 class DiskBenchApp {
+    static BRIDGE_URL = 'http://localhost:8765';
+    static API_TIMEOUT_MS = 30000;
+
     constructor() {
         this.selectedDisk = null;
         this.selectedTestType = null;
         this.testSize = 10;
         this.isTestRunning = false;
         this.testResults = null;
-        this.currentTestId = null; // Added to track the running test ID
-        this.currentTestDuration = 0; // To store the duration of the current test
+        this.currentTestId = null;
+        this.currentTestDuration = 0;
 
         // Setup wizard state
         this.currentTab = 'testing';
@@ -1998,19 +2001,23 @@ class DiskBenchApp {
     // ===== API CALLS =====
 
     async callBridgeAPI(endpoint, options = {}) {
-        const baseUrl = 'http://localhost:8765'; // Bridge server address
-        const url = baseUrl + endpoint;
+        const url = DiskBenchApp.BRIDGE_URL + endpoint;
+        const timeoutMs = options.timeout || DiskBenchApp.API_TIMEOUT_MS;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
         const defaultOptions = {
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
-            }
+            },
+            signal: controller.signal
         };
 
         const mergedOptions = { ...defaultOptions, ...options };
+        delete mergedOptions.timeout;
 
-        // Add default method POST if not provided and body exists
         if (mergedOptions.body && !mergedOptions.method) {
             mergedOptions.method = 'POST';
         }
@@ -2030,8 +2037,13 @@ class DiskBenchApp {
             return await response.json();
 
         } catch (error) {
+            if (error.name === 'AbortError') {
+                throw new Error(`Request to ${endpoint} timed out after ${timeoutMs}ms`);
+            }
             console.error(`API call failed for ${url}:`, error);
-            throw error; // Re-throw to be caught by caller
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
         }
     }
 

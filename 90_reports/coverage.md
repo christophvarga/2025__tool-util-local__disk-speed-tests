@@ -1,12 +1,15 @@
 # Coverage Report
 
-Datum: 2026-01-31 23:19
-Gesamt-Stmts: 2706
-Covered: 964
-Coverage (Line-Rate): 35.62%
-Delta: +17.53% (gegenueber 18.09% am 2025-09-05)
+Datum: 2026-02-09 08:44
+Gesamt-Stmts: 4066
+Covered: 1262
+Coverage (Line-Rate): 31.04%
+Delta: -4.58% (gegenueber 35.62% am 2026-01-31)
 
-Artefakt: 89_output/test_reports/20260131-2319/coverage-py.xml
+Artefakt: 89_output/test_reports/20260209-0844/coverage-py.xml
+
+Hinweis: Coverage-Rueckgang durch neue Validierungslogik in server.py (60+ LOC)
+die nur ueber unit-mocks, nicht via HTTP-Integration getestet wird.
 
 ## Top-Module nach Coverage
 

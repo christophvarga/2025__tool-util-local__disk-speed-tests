@@ -1,5 +1,32 @@
 # Changes Report
 
+Datum: 2026-02-09
+
+Aenderungen (Security Hardening - Quick Wins):
+- C-1: validate_disk_path() + is_system_path() + check_available_space() im Bridge-Server integriert
+- C-2: _validate_custom_fio_params() mit Range-Checks (duration, numjobs, iodepth) und Whitelist (block_size, target_rate)
+- C-2: Newline-Stripping in _generate_custom_fio_config() gegen INI-Injection
+- C-3: tempfile.mkstemp() statt vorhersagbarer /tmp Pfade (output + config)
+- C-5: CORS von '*' auf localhost-Origins eingeschraenkt
+- H-1: AbortController + 30s Timeout in callBridgeAPI() (Frontend)
+- H-2: Konfigurierbare BRIDGE_URL als statisches Klassenattribut
+- H-5: _sanitize_error() fuer alle Exception-an-Client Stellen (5 Stellen)
+
+Betroffene Dateien:
+- bridge-server/server.py (Imports, Validierung, tempfile, CORS, Exception-Handling)
+- web-gui/app.js (AbortController, Timeout, BRIDGE_URL)
+- tests/unit/test_bridge_security.py (NEU: 25 Tests)
+- tests/unit/test_bridge_server_logic.py (Anpassung fuer neue Validierung)
+- 90_reports/test-report.md, coverage.md, changes.md
+
+Tests added: 25 neue Security-Tests
+Tests updated: 2 (test_bridge_server_logic.py Disk-Validation-Mocking)
+Risiken/HOLDs: Keine neuen. HOLD-001 bis HOLD-005 unveraendert.
+
+---
+
+# Changes Report (vorherig)
+
 Datum: 2025-09-08
 
 Änderungen:
