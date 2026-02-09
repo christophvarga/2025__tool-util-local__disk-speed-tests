@@ -29,10 +29,34 @@ class DiskBenchApp {
             installationInProgress: false
         };
 
+        // Circuit breaker for status polling
+        this.circuitBreaker = {
+            state: 'closed',           // 'closed' (normal), 'open' (tripped), 'half-open' (probing)
+            consecutiveFailures: 0,
+            totalFailures: 0,
+            maxConsecutiveFailures: 5,  // Open circuit after 5 consecutive failures
+            maxTotalRetries: 30,        // Stop polling after 30 total failures (~60s at 2s)
+            currentIntervalMs: 2000,    // Start at 2s
+            baseIntervalMs: 2000,
+            maxIntervalMs: 30000,       // Cap backoff at 30s
+            lastFailureTime: null,
+            pollTimerId: null,          // Track the setTimeout ID for cleanup
+        };
+
         this.init();
     }
 
 
+
+    /**
+     * Escape a string for safe insertion into HTML.
+     * Prevents XSS when interpolating dynamic (backend/user) data into innerHTML templates.
+     */
+    _escapeHTML(str) {
+        const div = document.createElement('div');
+        div.textContent = String(str ?? '');
+        return div.innerHTML;
+    }
 
     init() {
         this.loadPersistedState();
@@ -405,7 +429,7 @@ class DiskBenchApp {
             const alias = this.getDiskAlias(disk.device);
             const nameEl = clone.querySelector('.disk-name');
             if (alias) {
-                nameEl.innerHTML = `${alias} <span class="disk-original-name">(${disk.name})</span>`;
+                nameEl.innerHTML = `${this._escapeHTML(alias)} <span class="disk-original-name">(${this._escapeHTML(disk.name)})</span>`;
             } else {
                 nameEl.textContent = disk.name;
             }
@@ -674,6 +698,8 @@ class DiskBenchApp {
     handleTestStopped(message) {
         this.isTestRunning = false;
         this.currentTestId = null; // Clear the test ID
+        this.resetCircuitBreaker();
+        this.hideConnectionWarning();
         this.updateProgress(0, message);
         this.updateUI();
 
@@ -941,10 +967,10 @@ class DiskBenchApp {
         descEl.innerHTML = `
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;color:var(--dark-color)">
                 <i class="fas fa-circle-info" style="color:var(--info-color)"></i>
-                <strong>${title}</strong>
+                <strong>${this._escapeHTML(title)}</strong>
             </div>
-            <p>${desc}</p>
-            ${minutes ? `<div class="test-duration">⏱️ Duration: ${minutes} minutes</div>` : ''}
+            <p>${this._escapeHTML(desc)}</p>
+            ${minutes ? `<div class="test-duration">⏱️ Duration: ${this._escapeHTML(minutes)} minutes</div>` : ''}
         `;
     }
 
@@ -1019,7 +1045,7 @@ class DiskBenchApp {
 
             progressDetails.innerHTML = `
                 <div class="timing-summary">
-                    Progress: ${elapsedStr} / ${totalStr} (${remainingStr} remaining)
+                    Progress: ${this._escapeHTML(elapsedStr)} / ${this._escapeHTML(totalStr)} (${this._escapeHTML(remainingStr)} remaining)
                 </div>
             `;
         }
@@ -1140,8 +1166,8 @@ class DiskBenchApp {
         container.innerHTML = `
             <div class="analysis-header">
                 <h3 class="analysis-title">QLab Performance Analysis</h3>
-                <div class="analysis-badge ${badgeClass}">
-                    ${this.getPerformanceMessage(analysis.overall_performance || analysis.performance_class)}
+                <div class="analysis-badge ${this._escapeHTML(badgeClass)}">
+                    ${this._escapeHTML(this.getPerformanceMessage(analysis.overall_performance || analysis.performance_class))}
                 </div>
             </div>
             <div class="analysis-grid">
@@ -1165,13 +1191,13 @@ class DiskBenchApp {
         const details = [];
 
         if (analysis.read_performance) {
-            details.push(`${this.getPerformanceIcon(analysis.read_performance)} Read Performance: ${analysis.read_performance}`);
+            details.push(`${this.getPerformanceIcon(analysis.read_performance)} Read Performance: ${this._escapeHTML(analysis.read_performance)}`);
         }
         if (analysis.write_performance) {
-            details.push(`${this.getPerformanceIcon(analysis.write_performance)} Write Performance: ${analysis.write_performance}`);
+            details.push(`${this.getPerformanceIcon(analysis.write_performance)} Write Performance: ${this._escapeHTML(analysis.write_performance)}`);
         }
         if (analysis.latency_performance) {
-            details.push(`${this.getPerformanceIcon(analysis.latency_performance)} Latency Performance: ${analysis.latency_performance}`);
+            details.push(`${this.getPerformanceIcon(analysis.latency_performance)} Latency Performance: ${this._escapeHTML(analysis.latency_performance)}`);
         }
 
         return details.map(detail => `<li>${detail}</li>`).join('');
@@ -1226,10 +1252,10 @@ class DiskBenchApp {
 
         container.innerHTML = metrics.map(metric => `
             <div class="metric-card">
-                <h4>${metric.title}</h4>
-                <div class="metric-value">${metric.value}</div>
-                <div class="metric-unit">${metric.unit}</div>
-                <div class="metric-details">${metric.details}</div>
+                <h4>${this._escapeHTML(metric.title)}</h4>
+                <div class="metric-value">${this._escapeHTML(metric.value)}</div>
+                <div class="metric-unit">${this._escapeHTML(metric.unit)}</div>
+                <div class="metric-details">${this._escapeHTML(metric.details)}</div>
             </div>
         `).join('');
     }
@@ -1238,13 +1264,13 @@ class DiskBenchApp {
         const container = document.getElementById('implementationInfo');
         const testInfo = results.test_info || {};
         const alias = this.getDiskAlias(testInfo.disk_path || this.selectedDisk?.device || '') || '';
-        const aliasLine = alias ? `<p><strong>Disk label:</strong> ${alias}</p>` : '';
+        const aliasLine = alias ? `<p><strong>Disk label:</strong> ${this._escapeHTML(alias)}</p>` : '';
 
         container.innerHTML = `
-            <p><strong>Test executed:</strong> ${testInfo.test_name || 'Unknown'} on ${testInfo.disk_path || 'Unknown'}</p>
+            <p><strong>Test executed:</strong> ${this._escapeHTML(testInfo.test_name || 'Unknown')} on ${this._escapeHTML(testInfo.disk_path || 'Unknown')}</p>
             ${aliasLine}
-            <p><strong>Timestamp:</strong> ${testInfo.timestamp ? new Date(testInfo.timestamp).toLocaleString() : 'Unknown'}</p>
-            <p><strong>CLI Command:</strong> <code>diskbench --test ${this.selectedTestType} --disk ${this.selectedDisk?.device} --output result.json</code></p>
+            <p><strong>Timestamp:</strong> ${this._escapeHTML(testInfo.timestamp ? new Date(testInfo.timestamp).toLocaleString() : 'Unknown')}</p>
+            <p><strong>CLI Command:</strong> <code>diskbench --test ${this._escapeHTML(this.selectedTestType)} --disk ${this._escapeHTML(this.selectedDisk?.device)} --output result.json</code></p>
             <p><strong>Architecture:</strong> Web GUI → Helper Binary → FIO Engine → JSON Results</p>
         `;
     }
@@ -1345,6 +1371,7 @@ class DiskBenchApp {
             description = 'Limited disk performance detected';
         }
 
+        const _e = (s) => this._escapeHTML(s);
         container.innerHTML = `
             <div class="test-analysis-header">
                 <h3>📊 Test 1: Quick Setup & Performance Check</h3>
@@ -1353,70 +1380,70 @@ class DiskBenchApp {
                     <strong>Purpose:</strong> Basic disk performance check and system validation<br>
                     <strong>Note:</strong> This is NOT a QLab-specific test
                 </div>
-                <div class="tier-badge ${classColor}">⚡ ${performanceClass}</div>
+                <div class="tier-badge ${_e(classColor)}">⚡ ${_e(performanceClass)}</div>
             </div>
-            
+
             <div class="basic-metrics">
                 <h4>📈 Basic Performance Metrics</h4>
                 <div class="metrics-grid">
                     <div class="metric-item">
                         <div class="metric-label">Sequential Read</div>
                         <div class="metric-value-with-bar">
-                            <div class="metric-value-large">${readBW.toFixed(0)}</div>
+                            <div class="metric-value-large">${_e(readBW.toFixed(0))}</div>
                             <div class="metric-unit-inline">MB/s</div>
                         </div>
                         <div class="performance-bar-container">
-                            <div class="performance-bar ${classColor}" style="width: ${Math.min(100, (readBW / 3000) * 100)}%"></div>
+                            <div class="performance-bar ${_e(classColor)}" style="width: ${Math.min(100, (readBW / 3000) * 100)}%"></div>
                         </div>
                         <div class="metric-benchmark">Max theoretical: ~3000 MB/s</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Sequential Write</div>
                         <div class="metric-value-with-bar">
-                            <div class="metric-value-large">${writeBW.toFixed(0)}</div>
+                            <div class="metric-value-large">${_e(writeBW.toFixed(0))}</div>
                             <div class="metric-unit-inline">MB/s</div>
                         </div>
                         <div class="performance-bar-container">
-                            <div class="performance-bar ${classColor}" style="width: ${Math.min(100, (writeBW / 3000) * 100)}%"></div>
+                            <div class="performance-bar ${_e(classColor)}" style="width: ${Math.min(100, (writeBW / 3000) * 100)}%"></div>
                         </div>
                         <div class="metric-benchmark">Max theoretical: ~3000 MB/s</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Random Access</div>
                         <div class="metric-value-with-bar">
-                            <div class="metric-value-large">${this.formatNumber(readIOPS)}</div>
+                            <div class="metric-value-large">${_e(this.formatNumber(readIOPS))}</div>
                             <div class="metric-unit-inline">IOPS</div>
                         </div>
                         <div class="performance-bar-container">
-                            <div class="performance-bar ${classColor}" style="width: ${Math.min(100, (readIOPS / 100000) * 100)}%"></div>
+                            <div class="performance-bar ${_e(classColor)}" style="width: ${Math.min(100, (readIOPS / 100000) * 100)}%"></div>
                         </div>
                         <div class="metric-benchmark">Max theoretical: ~100k IOPS</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Response Time</div>
                         <div class="metric-value-with-bar">
-                            <div class="metric-value-large">${avgLatency.toFixed(1)}</div>
+                            <div class="metric-value-large">${_e(avgLatency.toFixed(1))}</div>
                             <div class="metric-unit-inline">ms</div>
                         </div>
                         <div class="performance-bar-container">
-                            <div class="performance-bar ${this.getLatencyClass(avgLatency)}" style="width: ${100 - Math.min(100, (avgLatency / 20) * 100)}%"></div>
+                            <div class="performance-bar ${_e(this.getLatencyClass(avgLatency))}" style="width: ${100 - Math.min(100, (avgLatency / 20) * 100)}%"></div>
                         </div>
                         <div class="metric-benchmark">Lower is better (target: <5ms)</div>
                     </div>
                 </div>
             </div>
-            
+
             <div class="system-assessment">
                 <h4>🔧 System Assessment</h4>
-                <div class="assessment-summary ${classColor}">
-                    <div class="assessment-result">${description}</div>
+                <div class="assessment-summary ${_e(classColor)}">
+                    <div class="assessment-result">${_e(description)}</div>
                     <div class="assessment-note">
-                        This quick test provides a basic performance overview. 
+                        This quick test provides a basic performance overview.
                         For QLab-specific analysis, run Test 2 or Test 3.
                     </div>
                 </div>
             </div>
-            
+
             <div class="next-steps">
                 <h4>➡️ Next Steps</h4>
                 <div class="recommendation-list">
@@ -1430,7 +1457,7 @@ class DiskBenchApp {
                         ⚡ <strong>For Sustained Performance:</strong> Run Test 4 (Max Sustained)
                     </div>
                     <div class="recommendation-item">
-                        💡 <strong>Performance Class:</strong> ${performanceClass} - ${description.toLowerCase()}
+                        💡 <strong>Performance Class:</strong> ${_e(performanceClass)} - ${_e(description.toLowerCase())}
                     </div>
                 </div>
             </div>
@@ -1520,6 +1547,7 @@ class DiskBenchApp {
         const requiredBW = 220; // MB/s for ProRes 422
         const performanceTier = this.getQLabPerformanceTier(readBW, requiredBW);
 
+        const _e = (s) => this._escapeHTML(s);
         container.innerHTML = `
             <div class="test-analysis-header">
                 <h3>🎬 Test 2: ProRes 422 Show Simulation</h3>
@@ -1527,42 +1555,42 @@ class DiskBenchApp {
                     <strong>Test Duration:</strong> ~2.5 hours (multi-phase)<br>
                     <strong>Purpose:</strong> Simulate realistic show conditions and assess thermal stability
                 </div>
-                <div class="tier-badge ${performanceTier.class}">${performanceTier.message}</div>
+                <div class="tier-badge ${_e(performanceTier.class)}">${_e(performanceTier.message)}</div>
             </div>
-            
+
             <div class="qlab-metrics">
                 <h4>📊 QLab Performance Metrics</h4>
                 <div class="metrics-grid">
                     <div class="metric-item">
                         <div class="metric-label">Average Read Speed</div>
-                        <div class="metric-value">${readBW.toFixed(0)} MB/s</div>
+                        <div class="metric-value">${_e(readBW.toFixed(0))} MB/s</div>
                         <div class="metric-status">Overall average</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Min Read Speed</div>
-                        <div class="metric-value">${minBW.toFixed(0)} MB/s</div>
+                        <div class="metric-value">${_e(minBW.toFixed(0))} MB/s</div>
                         <div class="metric-status">Lowest sustained speed</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Max Read Speed</div>
-                        <div class="metric-value">${maxBW.toFixed(0)} MB/s</div>
+                        <div class="metric-value">${_e(maxBW.toFixed(0))} MB/s</div>
                         <div class="metric-status">Peak speed during test</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Average Latency</div>
-                        <div class="metric-value">${avgLatency.toFixed(1)} ms</div>
+                        <div class="metric-value">${_e(avgLatency.toFixed(1))} ms</div>
                         <div class="metric-status">Cue response time</div>
                     </div>
                 </div>
             </div>
-            
+
             <div class="qlab-analysis">
                 <h4>💡 QLab Performance Analysis</h4>
                 <div class="analysis-grid">
                     <div class="analysis-section">
                         <h5>Performance Tier</h5>
                         <ul>
-                            <li>${performanceTier.message}</li>
+                            <li>${_e(performanceTier.message)}</li>
                         </ul>
                     </div>
                     <div class="analysis-section">
@@ -1622,6 +1650,7 @@ class DiskBenchApp {
         const requiredBW = 440; // MB/s for ProRes HQ
         const performanceTier = this.getQLabPerformanceTier(readBW, requiredBW);
 
+        const _e = (s) => this._escapeHTML(s);
         container.innerHTML = `
             <div class="test-analysis-header">
                 <h3>🎬 Test 3: ProRes HQ Show Simulation</h3>
@@ -1629,42 +1658,42 @@ class DiskBenchApp {
                     <strong>Test Duration:</strong> ~2.5 hours (multi-phase)<br>
                     <strong>Purpose:</strong> Simulate high-demand 4K ProRes HQ show conditions
                 </div>
-                <div class="tier-badge ${performanceTier.class}">${performanceTier.message}</div>
+                <div class="tier-badge ${_e(performanceTier.class)}">${_e(performanceTier.message)}</div>
             </div>
-            
+
             <div class="qlab-metrics">
                 <h4>📊 QLab Performance Metrics</h4>
                 <div class="metrics-grid">
                     <div class="metric-item">
                         <div class="metric-label">Average Read Speed</div>
-                        <div class="metric-value">${readBW.toFixed(0)} MB/s</div>
+                        <div class="metric-value">${_e(readBW.toFixed(0))} MB/s</div>
                         <div class="metric-status">Overall average</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Min Read Speed</div>
-                        <div class="metric-value">${minBW.toFixed(0)} MB/s</div>
+                        <div class="metric-value">${_e(minBW.toFixed(0))} MB/s</div>
                         <div class="metric-status">Lowest sustained speed</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Max Read Speed</div>
-                        <div class="metric-value">${maxBW.toFixed(0)} MB/s</div>
+                        <div class="metric-value">${_e(maxBW.toFixed(0))} MB/s</div>
                         <div class="metric-status">Peak speed during test</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Average Latency</div>
-                        <div class="metric-value">${avgLatency.toFixed(1)} ms</div>
+                        <div class="metric-value">${_e(avgLatency.toFixed(1))} ms</div>
                         <div class="metric-status">Cue response time</div>
                     </div>
                 </div>
             </div>
-            
+
             <div class="qlab-analysis">
                 <h4>💡 QLab Performance Analysis</h4>
                 <div class="analysis-grid">
                     <div class="analysis-section">
                         <h5>Performance Tier</h5>
                         <ul>
-                            <li>${performanceTier.message}</li>
+                            <li>${_e(performanceTier.message)}</li>
                         </ul>
                     </div>
                     <div class="analysis-section">
@@ -1700,6 +1729,7 @@ class DiskBenchApp {
         const requiredBW = 300; // MB/s for thermal maximum performance
         const performanceTier = this.getQLabPerformanceTier(readBW, requiredBW);
 
+        const _e = (s) => this._escapeHTML(s);
         container.innerHTML = `
             <div class="test-analysis-header">
                 <h3>🔥 Thermal Maximum Analyser</h3>
@@ -1707,42 +1737,42 @@ class DiskBenchApp {
                     <strong>Test Duration:</strong> ~1.5 hours<br>
                     <strong>Purpose:</strong> Assess long-term thermal stability and throttling behavior
                 </div>
-                <div class="tier-badge ${performanceTier.class}">${performanceTier.message}</div>
+                <div class="tier-badge ${_e(performanceTier.class)}">${_e(performanceTier.message)}</div>
             </div>
-            
+
             <div class="qlab-metrics">
                 <h4>📊 Thermal Performance Metrics</h4>
                 <div class="metrics-grid">
                     <div class="metric-item">
                         <div class="metric-label">Average Read Speed</div>
-                        <div class="metric-value">${readBW.toFixed(0)} MB/s</div>
+                        <div class="metric-value">${_e(readBW.toFixed(0))} MB/s</div>
                         <div class="metric-status">Overall average</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Min Read Speed</div>
-                        <div class="metric-value">${minBW.toFixed(0)} MB/s</div>
+                        <div class="metric-value">${_e(minBW.toFixed(0))} MB/s</div>
                         <div class="metric-status">Lowest sustained speed</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Max Read Speed</div>
-                        <div class="metric-value">${maxBW.toFixed(0)} MB/s</div>
+                        <div class="metric-value">${_e(maxBW.toFixed(0))} MB/s</div>
                         <div class="metric-status">Peak speed during test</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Average Latency</div>
-                        <div class="metric-value">${avgLatency.toFixed(1)} ms</div>
+                        <div class="metric-value">${_e(avgLatency.toFixed(1))} ms</div>
                         <div class="metric-status">Cue response time</div>
                     </div>
                 </div>
             </div>
-            
+
             <div class="qlab-analysis">
                 <h4>💡 Thermal Performance Analysis</h4>
                 <div class="analysis-grid">
                     <div class="analysis-section">
                         <h5>Performance Tier</h5>
                         <ul>
-                            <li>${performanceTier.message}</li>
+                            <li>${_e(performanceTier.message)}</li>
                         </ul>
                     </div>
                     <div class="analysis-section">
@@ -1769,26 +1799,27 @@ class DiskBenchApp {
         const readBW = (summary.total_read_bw || 0) / 1024;
         const avgLatency = summary.avg_read_latency || 0;
 
+        const _e = (s) => this._escapeHTML(s);
         container.innerHTML = `
             <div class="test-analysis-header">
                 <h3>❓ Unknown Test Type Analysis</h3>
                 <div class="test-load-info">
-                    <strong>Test Type:</strong> ${this.selectedTestType}<br>
+                    <strong>Test Type:</strong> ${_e(this.selectedTestType)}<br>
                     <strong>Purpose:</strong> Generic performance assessment
                 </div>
             </div>
-            
+
             <div class="basic-metrics">
                 <h4>📈 Basic Performance Metrics</h4>
                 <div class="metrics-grid">
                     <div class="metric-item">
                         <div class="metric-label">Sequential Read</div>
-                        <div class="metric-value">${readBW.toFixed(0)} MB/s</div>
+                        <div class="metric-value">${_e(readBW.toFixed(0))} MB/s</div>
                         <div class="metric-status">Overall average</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Average Latency</div>
-                        <div class="metric-value">${avgLatency.toFixed(1)} ms</div>
+                        <div class="metric-value">${_e(avgLatency.toFixed(1))} ms</div>
                         <div class="metric-status">Average latency</div>
                     </div>
                 </div>
@@ -2119,8 +2150,20 @@ class DiskBenchApp {
     async pollTestStatus(testId) {
         if (!testId) return;
 
+        // Circuit breaker guard
+        const cb = this.circuitBreaker;
+        if (cb.state === 'open') {
+            console.warn('Circuit breaker OPEN: polling suspended.');
+            this.showConnectionWarning();
+            return;
+        }
+
         try {
             const result = await this.callBridgeAPI(`/api/test/${testId}`);
+
+            // Success path: reset circuit breaker counters
+            this.resetCircuitBreaker();
+            this.hideConnectionWarning();
 
             if (result.success && result.test_info) {
                 const testInfo = result.test_info;
@@ -2131,7 +2174,7 @@ class DiskBenchApp {
 
                 // If test is still running, continue polling
                 if (testInfo.status === 'running' || testInfo.status === 'starting') {
-                    setTimeout(() => this.pollTestStatus(testId), 2000); // Poll every 2 seconds
+                    this.schedulePoll(testId);
                 } else if (testInfo.status === 'completed') {
                     // Test completed, fetch final results
                     const finalResults = await this.callBridgeAPI(`/api/test/${testId}`);
@@ -2156,20 +2199,161 @@ class DiskBenchApp {
                     this.handleTestStopped('Test ended (unknown status)');
                 }
             } else {
-                // Handle cases where test might have disappeared or API error
-                console.error('Error fetching test status:', result.error);
-                this.isTestRunning = false;
-                this.currentTestId = null;
-                this.updateProgress(0, 'Error fetching test status.');
-                this.updateUI();
+                // API returned but with an error payload - treat as poll failure
+                this.recordPollFailure(testId, result.error || 'Error fetching test status');
             }
         } catch (error) {
             console.error('Polling error:', error);
-            // Assume test failed if polling errors out
+            this.recordPollFailure(testId, error.message);
+        }
+    }
+
+    /**
+     * Schedule the next poll with the current interval (respects backoff).
+     */
+    schedulePoll(testId) {
+        const cb = this.circuitBreaker;
+        if (cb.pollTimerId) {
+            clearTimeout(cb.pollTimerId);
+        }
+        cb.pollTimerId = setTimeout(() => this.pollTestStatus(testId), cb.currentIntervalMs);
+    }
+
+    /**
+     * Record a polling failure. Applies exponential backoff and may trip the circuit breaker.
+     */
+    recordPollFailure(testId, errorMessage) {
+        const cb = this.circuitBreaker;
+        cb.consecutiveFailures++;
+        cb.totalFailures++;
+        cb.lastFailureTime = Date.now();
+
+        console.warn(
+            `Poll failure #${cb.consecutiveFailures} (total: ${cb.totalFailures}): ${errorMessage}`
+        );
+
+        // Max total retries exceeded - give up entirely
+        if (cb.totalFailures >= cb.maxTotalRetries) {
+            console.error(`Max retries (${cb.maxTotalRetries}) reached. Stopping polling.`);
+            cb.state = 'open';
             this.isTestRunning = false;
             this.currentTestId = null;
-            this.updateProgress(0, 'Test polling failed.');
+            this.updateProgress(0, 'Server unreachable. Polling stopped after too many failures.');
+            this.showConnectionWarning();
             this.updateUI();
+            return;
+        }
+
+        // Trip circuit breaker after consecutive failure threshold
+        if (cb.consecutiveFailures >= cb.maxConsecutiveFailures) {
+            cb.state = 'open';
+            console.warn('Circuit breaker tripped to OPEN state.');
+            this.showConnectionWarning();
+            this.updateProgressDetails(
+                `Connection lost (${cb.consecutiveFailures} failures). Click "Reconnect" to retry.`
+            );
+            return;
+        }
+
+        // Exponential backoff: double the interval, capped at maxIntervalMs
+        cb.currentIntervalMs = Math.min(cb.currentIntervalMs * 2, cb.maxIntervalMs);
+        console.info(`Next poll in ${cb.currentIntervalMs}ms (backoff active)`);
+
+        // Update UI with connection issue hint
+        this.updateProgressDetails(
+            `Connection issue (attempt ${cb.consecutiveFailures}/${cb.maxConsecutiveFailures}). Retrying in ${Math.round(cb.currentIntervalMs / 1000)}s...`
+        );
+
+        // Schedule next attempt with backoff
+        this.schedulePoll(testId);
+    }
+
+    /**
+     * Reset circuit breaker to healthy defaults (called on successful poll).
+     */
+    resetCircuitBreaker() {
+        const cb = this.circuitBreaker;
+        cb.state = 'closed';
+        cb.consecutiveFailures = 0;
+        cb.totalFailures = 0;
+        cb.currentIntervalMs = cb.baseIntervalMs;
+        cb.lastFailureTime = null;
+    }
+
+    /**
+     * Attempt to reconnect after the circuit breaker tripped.
+     * Transitions to half-open and fires a single probe poll.
+     */
+    attemptReconnect() {
+        const cb = this.circuitBreaker;
+        if (cb.state !== 'open') return;
+
+        console.info('Attempting reconnect (half-open probe)...');
+        cb.state = 'half-open';
+        cb.consecutiveFailures = 0;
+        cb.currentIntervalMs = cb.baseIntervalMs;
+
+        this.hideConnectionWarning();
+        this.updateProgressDetails('Reconnecting to server...');
+
+        const testId = this.currentTestId;
+        if (testId) {
+            this.pollTestStatus(testId);
+        } else {
+            // No active test - just check if server is reachable
+            this.callBridgeAPI('/api/status')
+                .then(() => {
+                    this.resetCircuitBreaker();
+                    this.hideConnectionWarning();
+                    this.updateProgress(0, 'Server reconnected.');
+                })
+                .catch(() => {
+                    cb.state = 'open';
+                    cb.consecutiveFailures = cb.maxConsecutiveFailures;
+                    this.showConnectionWarning();
+                });
+        }
+    }
+
+    /**
+     * Show a connection warning banner with a Reconnect button.
+     */
+    showConnectionWarning() {
+        let banner = document.getElementById('connectionWarningBanner');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'connectionWarningBanner';
+            banner.className = 'connection-warning-banner';
+            banner.innerHTML = `
+                <div class="connection-warning-content">
+                    <div class="connection-warning-text">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span>Server connection lost. Status polling has been suspended.</span>
+                    </div>
+                    <button id="reconnectBtn" class="btn btn-warning" onclick="window.app.attemptReconnect()">
+                        <i class="fas fa-sync-alt"></i> Reconnect
+                    </button>
+                </div>
+            `;
+
+            const progressSection = document.getElementById('progressSection');
+            if (progressSection) {
+                progressSection.insertBefore(banner, progressSection.firstChild.nextSibling);
+            } else {
+                document.body.prepend(banner);
+            }
+        }
+
+        banner.classList.remove('hidden');
+    }
+
+    /**
+     * Hide the connection warning banner.
+     */
+    hideConnectionWarning() {
+        const banner = document.getElementById('connectionWarningBanner');
+        if (banner) {
+            banner.classList.add('hidden');
         }
     }
 
@@ -2230,6 +2414,7 @@ class DiskBenchApp {
         const elapsedTime = testInfo.elapsed_time || 0;
         const remainingTime = testInfo.remaining_time || 0;
 
+        const _e = (s) => this._escapeHTML(s);
         notice.innerHTML = `
             <div class="notice-content">
                 <div class="notice-header">
@@ -2238,12 +2423,12 @@ class DiskBenchApp {
                 </div>
                 <div class="notice-details">
                     <div class="test-info">
-                        <span class="test-name">${this.getTestDisplayName(testType)}</span>
-                        <span class="test-progress">${progress.toFixed(1)}% complete</span>
+                        <span class="test-name">${_e(this.getTestDisplayName(testType))}</span>
+                        <span class="test-progress">${_e(progress.toFixed(1))}% complete</span>
                     </div>
                     <div class="timing-info">
-                        <span class="elapsed">Elapsed: ${this.formatDuration(elapsedTime)}</span>
-                        <span class="remaining">Remaining: ${this.formatDuration(remainingTime)}</span>
+                        <span class="elapsed">Elapsed: ${_e(this.formatDuration(elapsedTime))}</span>
+                        <span class="remaining">Remaining: ${_e(this.formatDuration(remainingTime))}</span>
                     </div>
                 </div>
                 <div class="notice-actions">
@@ -2310,7 +2495,7 @@ class DiskBenchApp {
             banner.style.fontFamily = 'system-ui, sans-serif';
             document.body.prepend(banner);
         }
-        banner.innerHTML = `⚠️  ${message}. Install FIO with <code>brew install fio</code> and reload.`;
+        banner.innerHTML = `⚠️  ${this._escapeHTML(message)}. Install FIO with <code>brew install fio</code> and reload.`;
     }
 
     exportResults() {
@@ -2512,6 +2697,14 @@ function showPatternInfo(testType) {
 
     let content = '';
 
+    // Escape helper (use app instance if available, otherwise inline)
+    const _e = (s) => {
+        if (window.app && window.app._escapeHTML) return window.app._escapeHTML(s);
+        const div = document.createElement('div');
+        div.textContent = String(s ?? '');
+        return div.innerHTML;
+    };
+
     // Prefer dynamic catalog from backend if available
     const catalog = window.app && window.app.testsCatalog;
     if (catalog && catalog.tests && catalog.tests[testType]) {
@@ -2521,11 +2714,11 @@ function showPatternInfo(testType) {
         const durationText = minutes ? `${minutes} Minuten` : 'Unbekannt';
         content = `
             <div class="pattern-overview">
-                <h4>${t.display_label ? `${t.display_label}: ` : ''}${t.name || testType}</h4>
-                <p>${t.description || ''}</p>
+                <h4>${t.display_label ? `${_e(t.display_label)}: ` : ''}${_e(t.name || testType)}</h4>
+                <p>${_e(t.description || '')}</p>
             </div>
             <div class="technical-specs">
-                <strong>Dauer:</strong> ${durationText}
+                <strong>Dauer:</strong> ${_e(durationText)}
             </div>
         `;
     } else {
