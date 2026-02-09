@@ -1,6 +1,66 @@
 # Changes Report
 
 
+## [2026-02-09 10:11] Session 20260209-101156
+
+### Commits
+7a1f9ff chore(cleanup): remove legacy dirs (qlab-disk-tester, memory-bank) + consolidate TODO files
+c186ef7 chore(cleanup): remove legacy dirs (qlab-disk-tester, memory-bank) + consolidate TODO files
+9e02ebd chore(session): Auto-commit at session end
+82b87a7 chore(session): Auto-commit at session end
+74dfc41 chore(reports): update test reports after MF-1/MF-2/MF-5 completion (126 passed)
+5195361 refactor(bridge-server): split server.py (2773 LOC) into 9 modules (<=300 LOC each)
+aa9b94b chore(session): Auto-commit at session end
+ce5aae3 chore(session): Auto-commit at session end
+5788085 fix(web-gui): escape dynamic data in innerHTML to prevent XSS
+89ec807 chore(session): Auto-commit at session end
+
+### Staged Changes
+- Keine staged Changes
+
+### Unstaged Changes
+.coverage                        | Bin 53248 -> 53248 bytes
+ 90_reports/changes.md            |  34 +++++++++
+ 90_reports/test-report.md        |  22 +++---
+ bridge-server/process_manager.py | 161 +++++++++++++++++++++++++++++++--------
+ 4 files changed, 174 insertions(+), 43 deletions(-)
+
+---
+
+## [2026-02-09 10:10] Refactor: PID-based FIO process cleanup (H-3)
+
+### Aenderung
+cleanup_fio_processes() refactored von fragilem `ps aux` String-Matching
+auf PID-basiertes Tracking ueber self.running_processes.
+
+### Vorher
+- Einziger Mechanismus: `ps aux` parsen + nach "fio"/"diskbench" Pattern suchen
+- test_id Parameter wurde akzeptiert aber ignoriert
+- Fragil: konnte fremde Prozesse matchen
+
+### Nachher
+- **Primaer**: PID-basiertes Tracking ueber self.running_processes (subprocess.Popen-Objekte)
+- **Fallback**: `ps aux` nur bei allgemeinem Sweep (test_id=None) fuer echte Orphans
+- os.kill(pid, 0) fuer Liveness-Checks statt ps-Parsing
+- test_id wird korrekt genutzt fuer gezieltes Cleanup
+
+### Neue Hilfsmethoden
+- `_kill_tracked_process()`: Terminiert tracked Popen, raeume Registry auf
+- `_pid_alive()`: os.kill(pid, 0) Liveness-Check
+- `_kill_pid()`: SIGTERM -> wait -> SIGKILL Eskalation
+- `_find_orphan_fio_pids()`: ps aux Fallback, excludiert tracked PIDs
+
+### Betroffene Dateien
+- bridge-server/process_manager.py (refactored)
+- tests/unit/test_cleanup_fio_processes.py (NEU: 11 Tests)
+- 90_reports/test-report.md, changes.md (aktualisiert)
+
+Tests added: 11 neue Tests (test_cleanup_fio_processes.py)
+Tests updated: 0 (alle 126 bestehenden Tests unveraendert und gruen)
+Risiken/HOLDs: Keine neuen. H-3 geloest.
+
+---
+
 ## [2026-02-09 10:09] Legacy Cleanup
 
 ### Aenderung

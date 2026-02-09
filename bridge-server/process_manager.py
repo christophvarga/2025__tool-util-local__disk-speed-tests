@@ -127,44 +127,141 @@ class ProcessManagerMixin:
 
     # ----- FIO orphan cleanup -----
     def cleanup_fio_processes(self, test_id: Optional[str] = None) -> List[int]:
-        """Find and kill orphaned FIO processes related to our tests."""
+        """Terminate FIO processes using PID tracking (primary) with
+        ``ps aux`` pattern matching as a fallback for true orphans.
+
+        Args:
+            test_id: If given, only clean up the process tracked for that
+                     test.  If ``None``, sweep *all* tracked processes and
+                     then fall back to ``ps aux`` for untracked orphans.
+
+        Returns:
+            List of PIDs that were successfully killed.
+        """
+        killed: List[int] = []
         try:
-            self.logger.info("Searching for orphaned FIO processes...")
-            result = subprocess.run(['ps', 'aux'], capture_output=True, text=True, timeout=10)
-            if result.returncode != 0:
-                return []
-            killed: List[int] = []
-            markers = ('diskbench-test_', '/tmp/diskbench-', 'diskbench_', 'fio_config.ini')
-            for line in result.stdout.split('\n'):
-                if 'fio' not in line or not any(m in line for m in markers):
-                    continue
-                parts = line.split()
-                if len(parts) < 2:
-                    continue
-                try:
-                    pid = int(parts[1])
-                except ValueError:
-                    continue
-                self.logger.info(f"Found orphaned FIO process: PID {pid}")
-                try:
-                    os.kill(pid, 15)
-                    time.sleep(2)
-                    try:
-                        os.kill(pid, 0)
-                        os.kill(pid, 9)
-                    except ProcessLookupError:
-                        pass
-                    killed.append(pid)
-                except ProcessLookupError:
-                    pass
-                except PermissionError:
-                    self.logger.warning(f"Permission denied killing PID {pid}")
+            # --- Primary: PID-based cleanup via self.running_processes ---
+            if test_id is not None:
+                # Targeted cleanup for a single test
+                process = self.running_processes.get(test_id)
+                if process is not None:
+                    killed.extend(self._kill_tracked_process(test_id, process))
+            else:
+                # General sweep: iterate all tracked processes
+                for tid in list(self.running_processes):
+                    proc = self.running_processes.get(tid)
+                    if proc is not None:
+                        killed.extend(self._kill_tracked_process(tid, proc))
+
+                # --- Fallback: ps aux pattern matching for true orphans ---
+                orphan_pids = self._find_orphan_fio_pids()
+                for pid in orphan_pids:
+                    if pid in killed:
+                        continue
+                    killed.extend(self._kill_pid(pid, label="orphaned FIO"))
+
             if killed:
-                self.logger.info(f"Cleaned up {len(killed)} orphaned FIO: {killed}")
+                self.logger.info(
+                    f"Cleaned up {len(killed)} FIO process(es): {killed}"
+                )
             return killed
         except Exception as e:
             self.logger.error(f"Error cleaning up FIO processes: {e}")
+            return killed
+
+    # ----- kill helpers -----
+    def _kill_tracked_process(self, test_id: str,
+                              process: subprocess.Popen) -> List[int]:
+        """Terminate a tracked subprocess.Popen and remove it from the
+        registry.  Returns a list containing the PID if it was killed."""
+        pid = process.pid
+        result: List[int] = []
+        try:
+            # Check whether the process is still alive
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            self.logger.info(
+                f"Tracked process for {test_id} (PID {pid}) already exited"
+            )
+            self.running_processes.pop(test_id, None)
+            return result
+        except PermissionError:
+            # Process exists but we cannot signal it
+            self.logger.warning(
+                f"Permission denied checking PID {pid} for {test_id}"
+            )
+            self.running_processes.pop(test_id, None)
+            return result
+
+        self.logger.info(f"Killing tracked process for {test_id} (PID {pid})")
+        result = self._kill_pid(pid, label=f"tracked[{test_id}]")
+        self.running_processes.pop(test_id, None)
+        return result
+
+    @staticmethod
+    def _pid_alive(pid: int) -> bool:
+        """Return True if *pid* is still running."""
+        try:
+            os.kill(pid, 0)
+            return True
+        except (ProcessLookupError, PermissionError):
+            return False
+
+    def _kill_pid(self, pid: int, label: str = "FIO") -> List[int]:
+        """Send SIGTERM, wait briefly, escalate to SIGKILL if needed.
+        Returns ``[pid]`` on success or ``[]`` on failure."""
+        try:
+            os.kill(pid, 15)  # SIGTERM
+            time.sleep(2)
+            if self._pid_alive(pid):
+                os.kill(pid, 9)  # SIGKILL
+                self.logger.info(f"Force-killed {label} PID {pid}")
+            else:
+                self.logger.info(f"Terminated {label} PID {pid} gracefully")
+            return [pid]
+        except ProcessLookupError:
+            self.logger.info(f"{label} PID {pid} already exited")
             return []
+        except PermissionError:
+            self.logger.warning(f"Permission denied killing {label} PID {pid}")
+            return []
+
+    def _find_orphan_fio_pids(self) -> List[int]:
+        """Use ``ps aux`` as a fallback to discover FIO processes that are
+        not tracked in ``self.running_processes``."""
+        tracked_pids = {
+            p.pid for p in self.running_processes.values()
+            if p is not None
+        }
+        try:
+            result = subprocess.run(
+                ['ps', 'aux'], capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode != 0:
+                return []
+        except Exception as e:
+            self.logger.error(f"ps aux fallback failed: {e}")
+            return []
+
+        markers = (
+            'diskbench-test_', '/tmp/diskbench-', 'diskbench_', 'fio_config.ini',
+        )
+        orphans: List[int] = []
+        for line in result.stdout.split('\n'):
+            if 'fio' not in line or not any(m in line for m in markers):
+                continue
+            parts = line.split()
+            if len(parts) < 2:
+                continue
+            try:
+                pid = int(parts[1])
+            except ValueError:
+                continue
+            if pid in tracked_pids:
+                continue  # will be handled via primary path
+            self.logger.info(f"Found untracked orphan FIO process: PID {pid}")
+            orphans.append(pid)
+        return orphans
 
     # ----- background test thread -----
     def _run_test_thread(self, test_id: str, args: List[str],
