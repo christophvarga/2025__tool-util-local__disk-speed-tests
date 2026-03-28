@@ -12,7 +12,7 @@
 
 ### Context
 - See `00_infos/llm-context.md` for project context
-- Check `00_infos/meta/open-questions.md` for HOLDs
+- See `00_infos/repo-contract.yaml` for machine-readable structure (Kanon v2)- Check `00_infos/meta/open-questions.md` for HOLDs
 
 ### Overrides
 <!-- Example: -->

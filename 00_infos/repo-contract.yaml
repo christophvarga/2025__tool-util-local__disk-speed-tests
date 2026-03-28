@@ -1,0 +1,33 @@
+# repo-contract.yaml — Maschinenlesbarer Vertrag (Kanon v2)
+# Generiert: 2026-03-28 | Schema: v1.0
+# REVIEW ERFORDERLICH: Bitte manuell pruefen und anpassen
+
+contract_version: "1.0"
+
+repo:
+  name: "tools--disk-speed-tests"
+  suite: "tools"
+  status: "active"
+
+type:
+  primary: "cli"
+
+stack:
+  languages: [python]
+  runtime: "python"
+
+paths:
+  source: "."
+  tests: "87_tests/"
+  docs: "00_infos/"
+  context: "00_infos/llm-context.md"
+  holds: "00_infos/meta/open-questions.md"
+
+commands:
+  test: "pytest 87_tests/ -v"
+  test_report: "make test-report"
+
+deployment:
+  deployed: false
+  ci:
+    platform: "none"
