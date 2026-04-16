@@ -1,0 +1,39 @@
+# Gitleaks Configuration — varga.media Repositories
+# Replaces hand-rolled regex in pre-commit hook with proper secrets detection.
+#
+# Uses gitleaks built-in rules (entropy + patterns) plus custom allowlisting
+# for template variables and known false positives.
+#
+# Docs: https://github.com/gitleaks/gitleaks
+# Version: 1.0.0
+
+title = "varga.media gitleaks config"
+
+# Use default rules (covers GitHub tokens, AWS keys, OpenAI keys, generic secrets, etc.)
+# Only extend with allowlist below.
+
+[allowlist]
+  description = "Known false positives: template variables, placeholders, documentation"
+
+  # Template variable patterns — these are substituted at deploy-time, not secrets
+  regexTarget = "line"
+  regexes = [
+    # Shell/YAML template variables: ${VAR_NAME} or $VAR_NAME
+    '''\$\{[A-Z_]+\}''',
+    # Placeholder values
+    '''CHANGE_ME''',
+    '''PLACEHOLDER''',
+    '''EXAMPLE''',
+    '''TODO''',
+    '''your-.*-here''',
+    # env.template files contain intentional placeholder patterns
+    '''=CHANGE_ME''',
+  ]
+
+  # Files that are expected to contain secret-like patterns (documentation, templates)
+  paths = [
+    '''env\.template$''',
+    '''\.md$''',
+    '''\.example$''',
+    '''\.sample$''',
+  ]
