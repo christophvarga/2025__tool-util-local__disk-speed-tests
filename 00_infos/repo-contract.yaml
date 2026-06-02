@@ -1,20 +1,23 @@
-# repo-contract.yaml — Maschinenlesbarer Vertrag (Kanon v2)
-# Generiert: 2026-03-28 | Schema: v1.0
-# REVIEW ERFORDERLICH: Bitte manuell pruefen und anpassen
-
-contract_version: "1.0"
+contract_version: "2.0"
 
 repo:
   name: "tools--disk-speed-tests"
+  description: "QLab Disk Performance Tester — FIO-basiertes Web-GUI fuer Disk-Speed-Benchmarks"
   suite: "tools"
-  status: "active"
+  status: "legacy"
 
 type:
   primary: "cli"
+  tags: [benchmark, disk, fio]
 
 stack:
   languages: [python]
   runtime: "python"
+  runtime_version: null
+  framework: null
+  package_manager: null
+  database: null
+  test_framework: "pytest"
 
 paths:
   source: "."
@@ -24,10 +27,39 @@ paths:
   holds: "00_infos/meta/open-questions.md"
 
 commands:
+  dev: null
+  build: null
   test: "pytest 87_tests/ -v"
-  test_report: "make test-report"
+  test_report: null
+  lint: null
+  smoke: null
 
 deployment:
   deployed: false
+  mode: "not-deployed"
+  domain: null
+  health_path: null
   ci:
     platform: "none"
+    auto_deploy: false
+    deploy_branches: []
+
+lifecycle:
+  state: "legacy"
+  kill_date: null
+  owner: "christoph@varga.media"
+  last_review: "2026-05-22"
+
+operational:
+  auth_boundary: "none"
+  data_store: "none"
+  backup_class: "none"
+  host: "none"
+
+env:
+  required: []
+  optional: []
+
+depends_on:
+  services: []
+  repos: []
