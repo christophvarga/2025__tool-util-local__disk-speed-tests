@@ -14,6 +14,7 @@ Dieses Repo liefert die Sprint-Orchestrierung fuer LARGE Tasks und Multi-Session
 - `current_sprint` aktiv → `prompt_path` + `state_path` laden, `next_actions` abarbeiten
 - Kein Sprint → Globales Workflow-Protocol greift (SMALL/MEDIUM)
 - Blueprint: `00_infos/policies/mega-loop-blueprint.md` (nur LARGE/Sprint)
+- CLI-Overlay: `00_infos/policies/mega-loop-cli-overlay.md` (Claude Code / OpenCode / Codex)
 - Modell-Tiers: `00_infos/policies/model-aliases.yaml`
 - Ask nur bei echten Ask-Gates (siehe Workflow-Protocol unten)
 
@@ -45,6 +46,50 @@ Hauptkontext orchestriert und entscheidet. Worker/Sub-Sessions implementieren un
 
 ### Pragmatische Architektur
 Erst Truth-Pass (existierendes Pattern?), dann Impact-Einstufung, dann reversible Entscheidung.
+
+---
+
+## 1.1 Repo-Collection-Root ist kein Projekt-Root
+
+`/Users/christophvarga/Documents/03_code_repos` ist ein Sammlerordner fuer Repos,
+kein Repo. Sessions duerfen diesen Pfad nicht als `CLAUDE_PROJECT_DIR`, primaeres
+`cwd`, Artifact-Output oder Screenshot-Ziel verwenden.
+
+Immer in ein konkretes Repo wechseln, z.B.:
+
+```bash
+cd /Users/christophvarga/Documents/03_code_repos/infra--ci-cd
+```
+
+Cross-Repo-Zugriff ist als zusaetzliche Read-Root erlaubt, aber nicht als
+primaerer Arbeitskontext. Hintergrund, Incident und Audit-Check:
+`00_infos/policies/repo-collection-root-hygiene.md`.
+
+---
+
+## 1.2 Keine Human-Auth ueber `ci.varga.media` / `ssh.varga.media`
+
+Coding-Sessions duerfen den User nicht auf `ci.varga.media` oder
+`ssh.varga.media` schicken und keine interaktive Cloudflare-/CI-/SSH-Anmeldung
+verlangen. Das ist kein automatischer, zukunftsfaehiger Betriebsweg.
+
+Verbindliche Regel:
+- Fuer CI-/Deploy-/Statusfragen zuerst APIs, Keychain/BWS-Tokens,
+  Woodpecker-Statushelper und non-interactive Operator-Surfaces verwenden.
+- `ci.varga.media` und `ssh.varga.media` sind fuer Human-Authentifizierung
+  verboten, wenn der Ablauf einen User-Login, Browser-Login, Tastatureingabe,
+  OTP, Passwortprompt oder manuelles Session-Refresh braucht.
+- Falls ein Remote-Zugriff wirklich noetig ist: nur non-interactive, dokumentiert,
+  mit vorhandener Maschinen-Identitaet/Service-Token/BatchMode und klarem
+  Fallback. Kann das nicht autonom laufen, ist es ein HOLD/ASK-Gate, kein
+  "bitte log dich ein"-Schritt.
+- Autonome Factory-/Worker-Pfade duerfen diese Lockerung nicht erben. Dort gelten
+  weiterhin explizite Scopes, Secrets und fail-closed Auth.
+
+Beispiel: Woodpecker-Status/Trigger via `30_ci/bin/woodpecker-status` oder
+`https://ci.varga.media/api/...` mit `WOODPECKER_TOKEN`, Remote-Zugriff via
+BatchMode/Service-Token-Wrapper; nicht via Human-Login auf `ci.varga.media` oder
+`ssh.varga.media`. CI-Gate: `30_ci/bin/no-interactive-ssh-lint.py`.
 
 ---
 
@@ -169,34 +214,113 @@ Parallele Agents koennen sich gegenseitig ueberschreiben wenn sie auf demselben 
 
 Branch-Drift = Branch wechselt unbemerkt während einer Session (durch Hooks, Automation oder manuelle Aktionen).
 
-**Bekannte Drift-Quellen:** `sync-nodes.sh`, `context-sync.py`, SessionStart/Stop-Hooks mit `git checkout`, manueller Branch-Wechsel bei dirty Working Tree.
+### Permanentes Modell (Execution-Isolation-Contract — ersetzt das `.claude-repo.lock` Band-Aid)
 
-**Loesung (Prioritaet: b → d → c):**
+Zwei sich ergaenzende, IMMER aktive Invarianten machen es unmoeglich, dass Deploy/Sync-Automation
+ODER Sub-Agents den Branch eines Working Trees flippen, den eine Session haelt:
 
-### (b) Hook-Audit + Whitelist (Voraussetzung)
+**T3 — Deploy laeuft OFF-TREE.** Deploys mutieren nicht mehr in-place das geteilte Primary-Worktree.
+`30_ci/bin/deploy-git-sync.sh` (`deploy_git_sync <app_path> <branch>`) loest ein DEDIZIERTES
+Deploy-Worktree (`<app_path>/.deploy-worktrees/<branch>`, ein git linked worktree, gitignored) auf
+und fuehrt `checkout`/`reset --hard` NUR dort aus. Der Caller deployt aus dem zurueckgegebenen Pfad.
+`.woodpecker/edge-deploy-on-push.yml` nutzt diesen Helper statt `cd $APP_PATH; git stash; checkout; reset`.
+
+Wenn ein Schritt nicht off-tree kann, wird der Lock AUTORITATIV: `claude-lock-check.sh`
+exportiert `_require_no_primary_worktree_lock <path>` — wenn `<path>` ein Primary-Worktree
+(`absolute-git-dir == git-common-dir`) mit IRGENDEINEM `.claude-repo.lock` ist, bricht die
+Branch-Mutation hart ab (exit 75). KEIN stale-pid-Bypass, KEIN same-session-Bypass mehr fuer
+diesen Fall. Verdrahtet in: `edge-deploy`, `edge-deploy-rollback`, `deploy_app.sh` (sourced),
+`edge-deploy-on-push.yml` (via Helper), `sync-nodes-on-push.yml` macmini + dev-1 (inline:
+jeder Lock — auch stale — auf dem Primary-Worktree → skip statt proceed).
+
+**T5 — No-Branch-Mutation-Hook IMMER aktiv.** `scripts/hooks/check-no-branch-mutation.py` ist
+NICHT mehr opt-in via `CLAUDE_SPRINT_AWARE=1`, sondern by-default aktiv fuer interaktive + Agent-
+Sessions. Blockt `git checkout|switch|reset --hard|stash {push,pop,drop,clear}|rebase|clean -f`.
+Allowlist (die EINZIGEN sanktionierten Mutatoren): `deploy-git-sync.sh`, `edge-deploy`,
+`edge-deploy-rollback`, `deploy_app.sh`. Override pro Befehl: `CLAUDE_ALLOW_BRANCH_MUTATION=1`
+(audit-logged nach `~/.claude/logs/branch-mutation-overrides.log`). Komplett-Deaktivierung nur
+fuer Recovery: `CLAUDE_NO_BRANCH_MUTATION_HOOK=0`. Registrierung: `matcher: "Bash"` PreToolUse —
+Template `00_infos/policies/templates/cc-hooks-branch-mutation-fragment.json`, Distribution via
+`claude-config-sync.sh` (LIVE-Schritt, human-gated). Regression: `87_tests/unit/test_execution_isolation_contract.py`.
+
+Die unten dokumentierten Wave-6-F4-Lock-Checks (b/d/c) bleiben als Defense-in-Depth-Schichten gueltig,
+sind aber nicht mehr die primaere Verteidigung — das Band-Aid ist durch das obige permanente Modell ersetzt.
+
+### Sprint 2026-05-22 Drift-Statistik (Wave-6 F4)
+
+**Beobachtete Events im Sprint 2026-05-22 (Fleet-Grumpy-Followup):** 6+ Drift-Events.
+- `sync-nodes-on-push.yml` `sync-macmini` step hat Working Tree stashed + Branch gewechselt (Auto-Stashes: 5 Eintraege im stash list zwischen 09:51 und 10:21 dieses Sprints).
+- Worker landeten teilweise auf falschem Branch nach Session-Wechsel.
+- `kb-hook-dispatcher.sh` fehlte komplett (file nicht in git, nicht in stash) → Hook-Errors in jeder Session.
+
+### Audit-Ergebnis (Wave-6 F4, 2026-05-22)
+
+Aktive branch-mutierende Quellen im Repo (`grep -r "git checkout\|git switch\|git reset --hard"`):
+
+| Datei | Status | Lock-Check |
+|-------|--------|-----------|
+| `30_ci/bin/edge-deploy` | mutiert (Apps + infra) | **T3: + `_require_no_primary_worktree_lock` (authoritative, kein Bypass)** |
+| `30_ci/bin/edge-deploy-rollback` | mutiert (checkout SHA) | **T3: + `_require_no_primary_worktree_lock`** |
+| `30_ci/20_deploy/deploy_app.sh` | mutiert (checkout + pull) | **T3: + `_require_no_primary_worktree_lock`** |
+| `.woodpecker/sync-nodes-on-push.yml` (macmini) | mutiert (checkout) | **T3: jeder Lock (auch stale) → skip** |
+| `.woodpecker/sync-nodes-on-push.yml` (dev-1 SSH) | mutiert remote | **T3: jeder Lock (auch stale) → skip** |
+| `.woodpecker/edge-deploy-on-push.yml` | OFF-TREE via `deploy-git-sync.sh` | **T3: kein in-place mehr — sync im `.deploy-worktrees/<branch>`** |
+| `.woodpecker/auto-merge.yml` | nur `git push`, kein lokales checkout | nicht noetig |
+| `.woodpecker/drift-detector.yml` | nur diagnostisch (kein checkout) | nicht noetig |
+| `30_ci/bin/branch-drift-guard.sh` | nur `--check`/`--status` | nicht noetig (selbst der Guard) |
+| `30_ci/bin/branch-burndown-phase3.sh` | kein checkout/reset/switch | n/a |
+| `30_ci/bin/branch-review-helper.sh` | kein checkout/reset/switch | n/a |
+| `30_ci/20_deploy/remote_deploy.sh` | kein checkout/reset/switch | n/a |
+
+Whitelist (Branch-Mutation erlaubt — alle anderen Scripts: VERBOTEN):
+1. `edge-deploy`, `edge-deploy-rollback`, `deploy_app.sh` — operative Deploy-Tooling.
+2. `sync-nodes-on-push.yml` macmini/dev-1 steps — Fleet-Sync.
+3. `edge-deploy-on-push.yml` deploy step — automatisierte App-Deploys.
+
+**SessionStart/Stop-Hooks (`~/.claude/hooks/`):** Audit ergab KEINE Branch-Mutation in den 6 aktiven Hook-Scripts (`agenda_check.py`, `check-repo-lock.py`, `memory-write-guard.py`, `orchestrator-mode-check.py`, `perm-guard.py`).
+
+### Loesung (Prioritaet: b → d → c)
+
+#### (b) Hook-Audit + Whitelist (Voraussetzung)
 
 Vor jeder Lock-Ausweitung: identifizieren welche Hooks Branch-Mutation ausloesen.
 
 ```bash
-grep -r "git checkout\|git switch\|git reset --hard" 30_ci/ ~/.claude/hooks/ scripts/sync-*.sh
+grep -r "git checkout\|git switch\|git reset --hard" 30_ci/ ~/.claude/hooks/ .woodpecker/ scripts/sync-*.sh 2>/dev/null
 ```
 
-Nur Hooks auf Whitelist duerfen Branch wechseln — alle anderen: VERBOTEN.
+Nur Hooks auf Whitelist (oben) duerfen Branch wechseln — alle anderen: VERBOTEN.
 
-### (d) `.claude-repo.lock` auf alle Hooks ausweiten (Kern-Fix)
+#### (d) `.claude-repo.lock` auf alle Hooks ausweiten (Kern-Fix)
 
-Bestehender Lock-Mechanismus (seit `sync-nodes-on-push.yml`) auf alle identifizierten Hooks ausweiten:
+Kanonischer Helper: `30_ci/bin/claude-lock-check.sh` — wird von Deploy-Scripts gesourct und exportiert `_check_claude_repo_lock <repo_path>`. Eigene Session (`CLAUDE_SESSION_ID`) ist vom Lock befreit.
+
+Pipelines mit Container-Steps (keine source-Moeglichkeit) machen inline PID-Lock-Check:
 
 ```bash
-# Alle branch-mutierenden Scripts pruefen zuerst:
-if [ -f .claude-repo.lock ]; then
-  echo "Branch-Lock aktiv — kein Branch-Wechsel erlaubt" >&2; exit 1
+if [ -f "$APP_PATH/.claude-repo.lock" ]; then
+  PID=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('pid') or '')" "$APP_PATH/.claude-repo.lock" 2>/dev/null || echo "")
+  if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+    echo "[deploy] Lock aktiv — Branch-Mutation uebersprungen"
+    BRANCH_MUTATION_ALLOWED=0
+  fi
 fi
+# ... nur bei BRANCH_MUTATION_ALLOWED=1 git checkout/reset ausfuehren
 ```
 
-### (c) Pre-flight Check vor Agent-Start (Defense-in-Depth)
+Wave-6 F4 hat diesen Pattern in `edge-deploy-on-push.yml` ergaenzt — damit haben alle 6 identifizierten Drift-Quellen einen Lock-Check.
 
-Vor jedem `Agent()`-Aufruf PFLICHT:
+#### (c) Pre-flight Check vor Agent-Start (Defense-in-Depth)
+
+Vor jedem `Agent()`-Aufruf PFLICHT (zwei Layer):
+
+1. **branch-drift-guard.sh --check** — exitet hart bei Detached HEAD oder dirty Working Tree.
+2. **`~/.claude/hooks/PreToolUse-Agent.sh`** (Wave-6 F4 ergaenzt) — loggt JSON-Line nach
+   `~/.claude/logs/agent-preflight.log` (ts, branch, dirty_files, session, warn) und schreibt
+   stderr-WARN bei Detached HEAD oder dirty Tree. Diagnostisch, nicht blockierend
+   (Hook-Registrierung in `~/.claude/settings.json` `hooks.PreToolUse` mit `matcher: "Agent|Task"`).
+
+Manueller Check:
 
 ```bash
 git status --porcelain   # leer = clean working tree
@@ -205,10 +329,15 @@ git branch --show-current  # = erwarteter Branch
 
 Kein Agent-Start bei uncommitted Changes, Detached HEAD oder Branch-Abweichung vom Session-Start.
 
-### Sprint-Isolation (Vollstaendige Loesung fuer Lane-B-Sprints)
+### Sprint-Isolation (historisch — jetzt vom permanenten Modell subsumiert)
 
-Fuer Long-Runs (>30min, Lane B): Sprint-Isolation via `CLAUDE_SPRINT_AWARE=1`.
-Details: `00_infos/policies/mega-loop-blueprint.md` (Sprint-Isolation Sektion).
+> **Veraltet seit Execution-Isolation-Contract (siehe oben).** `check-no-branch-mutation.py`
+> ist jetzt ALWAYS-ON (nicht mehr nur bei `CLAUDE_SPRINT_AWARE=1`). Das Sprint-Isolation-Flag
+> bleibt nur noch fuer ergaenzende Sprint-Registry-Konflikt-Checks relevant.
+
+Frueher: Sprint-Isolation via `CLAUDE_SPRINT_AWARE=1` aktivierte den PreToolUse-Hook
+`scripts/hooks/check-no-branch-mutation.py` nur in Sprint-Sessions. Der Hook ist nun by-default
+aktiv (T5 oben). Details: `00_infos/policies/mega-loop-blueprint.md` (Sprint-Isolation Sektion).
 
 ---
 
@@ -229,11 +358,73 @@ Nach jedem Fleet-Merge-Sprint gelten harte Exit-Kriterien. Kein Sprint-Close ohn
 
 Enthaelt: Exit-Kriterien-Tabelle, Auto-Commit-Garbage-Regel, Branch-Schuld-Limits, Detached-HEAD-Recovery, Sprint-Close-Checkliste, Re-Audit-Trigger.
 
+---
+
+## 11. HOLD-Closure-Policy (PFLICHT — strict seit 2026-05-22)
+
+**Hintergrund:** Sprint 2026-05-19 hat `HOLD-CALENDAR-SYNC-ICLOUD-PASSWORD` nach Commit als RESOLVED markiert, obwohl die Live-Probe noch 404 lieferte. Der Container war erst Stunden spaeter wirklich healthy. Diese Closure-Policy schliesst diese Luecke.
+
+### Closure-Kriterien (eines davon muss erfuellt sein)
+
+Ein HOLD darf **nur** dann als `RESOLVED` / `GELOEST` markiert werden, wenn EINS davon belegt ist:
+
+1. **Live-Probe gruen.** Smoke-Test wurde nach dem Fix ausgefuehrt und liefert das erwartete Ergebnis (HTTP 200/302/etc., `exit 0`, Container `healthy`, Query liefert erwartete Row, ...).
+2. **Code-only / no live target.** HOLD betrifft Code/Doku/Refactor ohne live-runtime-Komponente — Tests sind gruen (`pytest`/`vitest`/`go test` Output dokumentiert).
+3. **Admin-Close.** HOLD ist `DROPPED`, `DEFERRED`, `OBSOLETE`, `ACCEPTED-RISK`, `ACKNOWLEDGED`, `Triage-Resolved` oder `Duplicate` — Grund explizit angegeben.
+
+### PFLICHT-Felder im open-questions.md Eintrag
+
+Jeder Close-Eintrag dokumentiert mindestens EINES der folgenden Felder:
+
+- **`Verified-Via:`** — kompakter Beleg (curl-Output, pg_isready-Result, Smoke-Test Exit-Code, Test-Suite Pass-Count, Container-Status). PFLICHT bei Live-Komponenten.
+- **`verify_command:`** — der Befehl, der die Verifikation produziert. Wiederholbar.
+- **`Evidence:`** / **`Evidenz:`** — Pfad zu Report mit ausfuehrlicher Verifikation (`90_reports/<sprint>/<file>.md`).
+
+### Anti-Pattern (VERBOTEN)
+
+- HOLD nach `git commit` schliessen **ohne** live-test wenn HOLD eine deploy-Komponente betraf.
+- "Commit X behebt das" als Close-Grund ohne Smoke-Test der live-Komponente.
+- `RESOLVED` markieren weil die naechste Sprint-Phase startet — Closure und Phase-Wechsel sind orthogonal.
+- HOLD in Aktive-Section als `RESOLVED` markiert lassen ohne Move in Geloeste-Section (Triage-Drift).
+
+### Empfehlung: `verify_command` Feld pro HOLD
+
+Bereits beim Anlegen eines HOLDs das `verify_command:` Feld definieren — der Close-Workflow ist dann trivial: Befehl ausfuehren, Output ins `Verified-Via:` Feld kopieren, dann erst markieren.
+
+**Beispiel-Template:**
+
+```markdown
+- [HOLD-XYZ] **AGENT** | Thema: calendar-sync hetzner deploy — Typ: deploy - Prio: medium - Datum: 20260522
+  - Kontext: <was nicht funktioniert>
+  - Naechster Schritt: <fix-plan>
+  - verify_command: curl -sf -o /dev/null -w "%{http_code}\n" https://calendar.varga.media/health
+  - Blockiert: <was blockiert>
+```
+
+**Beim Close:**
+
+```markdown
+- [HOLD-XYZ] **RESOLVED 20260522** | Thema: calendar-sync hetzner deploy
+  - Loesung: ICLOUD_APP_PASSWORD via BWS gesetzt, docker compose up -d.
+  - Verified-Via: curl https://calendar.varga.media/health → 200 (2026-05-22 16:42 UTC), Container healthy 15h
+  - Evidence: 90_reports/calendar-sync-deploy-verify-20260522.md
+```
+
+### Enforcement
+
+- **Pre-commit-Hook:** `scripts/hooks/check-hold-closure.py` warnt (default) / blockt (`--strict`) wenn ein HOLD im selben Commit von active→resolved wechselt ohne dass `Verified-Via:` / `verify_command:` / `Evidence:` / `Evidenz:` / Admin-Close-Marker im Diff steht.
+- **Audit (manuell):** `python3 scripts/hooks/check-hold-closure.py --audit` listet bestehende RESOLVED-Eintraege ohne Verify-Evidence.
+
+### Cross-Reference zu Governance
+
+`~/.claude/rules/governance.md` definiert ASK/CONFIRM/HOLD-Marker. Diese Closure-Policy **erweitert** den `[HOLD]`-Marker um harte Closure-Kriterien — sie ersetzt nicht die HOLD-Mechanik selbst (Ablage in `00_infos/meta/open-questions.md`, Weiterarbeiten an nicht-blockierten Pfaden, Eskalation an Secretary).
+
 ## Truth Hierarchy
 
 - `00_infos/repo-contract.yaml` = machine-readable repo facts and invariants
 - `00_infos/llm-context.md` = canonical project context and definitions
 - `00_infos/policies/model-overlays/*.md` = canonical model-instruction packs; manifest-referenced und nur additiv zu Basispolicies
+- `00_infos/policies/mega-loop-cli-overlay.md` = CLI-spezifische Mega-Loop-Rollen fuer Claude Code, OpenCode und Codex
 - `00_infos/meta/open-questions.md` = active HOLDs and unresolved questions
 - `00_infos/meta/agent-memory.md` = curated long-term Markdown learnings (human-edited)
 - PostgreSQL (`tasks`, `agent_sessions`, `handoff_state`) = live runtime state (geplant B5.4, aktuell YAML-basiert: manifest.yaml + *-state.yaml)
