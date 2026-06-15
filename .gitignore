@@ -115,3 +115,7 @@ temp/
 # Claude Code artifacts
 ~/.claude/
 **/~/.claude/
+AGENTS.md
+.gemini/knowledge.md
+.opencode/context.md
+.claude/
