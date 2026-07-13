@@ -13,23 +13,23 @@ type:
 stack:
   languages: [python]
   runtime: "python"
-  runtime_version: null
+  runtime_version: ">=3.9"
   framework: null
-  package_manager: null
+  package_manager: "pip"
   database: null
   test_framework: "pytest"
 
 paths:
   source: "."
-  tests: "87_tests/"
+  tests: "tests/ and diskbench/tests/"
   docs: "00_infos/"
   context: "00_infos/llm-context.md"
   holds: "00_infos/meta/open-questions.md"
 
 commands:
-  dev: null
+  dev: "bash scripts/start.sh --no-browser"
   build: null
-  test: "pytest 87_tests/ -v"
+  test: "python -m pytest tests -q && python -m pytest diskbench/tests -q"
   test_report: null
   lint: null
   smoke: null
@@ -48,7 +48,17 @@ lifecycle:
   state: "legacy"
   kill_date: null
   owner: "christoph@varga.media"
-  last_review: "2026-05-22"
+  last_review: "2026-07-13"
+
+documentation:
+  reviewed_paths:
+    - "00_infos/llm-context.md"
+    - "00_infos/repo-contract.yaml"
+    - "README.md"
+    - "pyproject.toml"
+    - "scripts/start.sh"
+    - "bridge-server/http_handlers.py"
+  runbooks_not_applicable_reason: "Lokales Legacy-Werkzeug ohne Deployment, externen Dienst oder dauerhaft betriebene Instanz; Start und Stopp sind Teil des lokalen Setup-Abschnitts."
 
 operational:
   auth_boundary: "none"
