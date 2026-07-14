@@ -1,15 +1,19 @@
-# QLab Disk Performance Tester - LLM Context
-*Version 1.5 – 15.3.2026*
+# QLab Disk Performance Tester — LLM Context
+*Context Version 1.6 — 13.7.2026*
 
-## Projekt-Mission
-Ein professionelles Disk Performance Testing Tool speziell für QLab Video-Playback-Anforderungen. Web-basierte GUI mit FIO-Engine für realistische Show-Pattern-Tests.
+## Purpose
+
+Lokales Disk-Performance-Werkzeug für QLab-Video-Playback-Anforderungen. Eine
+Web-GUI steuert über eine ausschließlich lokale HTTP-Bridge realistische FIO-
+Lastprofile. Das Repo ist als Legacy-Werkzeug gepflegt, aber nicht deployed und
+betreibt keinen zentralen Dienst.
 
 ## Current State
 - **Phase**: MVP abgeschlossen, Security-Hardening done
-- **Version**: 1.0.0-beta
+- **Python-Paketversion**: 1.3.0 (`pyproject.toml`)
 - **Status**: Funktionsfähig, Architektur finalisiert, Security gehärtet
-- **Branches**: `pre` (default), `main`
-- **Last Update**: 9.2.2026 - Security-Hardening + Refactoring + Legacy-Cleanup + Frontend-Modularization
+- **Kanonischer Branch**: `main`
+- **Last Documentation Review**: 13.7.2026
 
 ## Architecture
 - **Backend**: Python HTTP Bridge (localhost:8765), aufgeteilt in 9 Module (Mixin-Pattern)
@@ -22,6 +26,21 @@ Ein professionelles Disk Performance Testing Tool speziell für QLab Video-Playb
 - **Database**: Keine (JSON für Ergebnisse)
 - **Frontend**: Vanilla HTML/CSS/JavaScript
 - **Integration**: Homebrew FIO oder vendor/fio/macos/arm64/fio
+
+## Interfaces
+
+- Lokale Web-Oberfläche: `http://localhost:8765/`.
+- HTTP-Bridge: nur localhost; zentrale GET-Routen sind unter anderem
+  `/api/status`, `/api/disks`, `/api/validate`, `/api/version`, `/api/tests`,
+  `/api/fio-info` und `/api/test/<id>`.
+- Steuernde POST-Routen: `/api/test/start`, `/api/test/stop/<id>`,
+  `/api/test/stop-all`, `/api/setup` und `/api/validate`.
+- CLI: `python -m diskbench.main` beziehungsweise der installierte Befehl
+  `diskbench`; Ein- und Ausgabe sind Argumente, Fortschritt und JSON-Ergebnisse.
+- Externer Prozess: FIO aus Homebrew oder dem vendorten Offline-Pfad.
+
+Es gibt keine öffentliche URL, Remote-API, Datenbank oder Cross-Repo-
+Abhängigkeit. Ergebnis-JSON ist lokale Nutzerausgabe und kein Fleet-Vertrag.
 
 ## Bridge-Server Modulstruktur
 | Modul | Aufgabe | LOC |
@@ -112,3 +131,10 @@ Ein professionelles Disk Performance Testing Tool speziell für QLab Video-Playb
 ## Stabilität seit 9.2.2026
 - Keine weiteren Code-Aenderungen
 - 358 Session-End Auto-Commits (nur 90_reports/changes.md + test_reports/latest)
+
+## Ownership and operations
+
+Owner, Review-Evidence und Abhängigkeiten stehen in
+`00_infos/repo-contract.yaml`. Setup, Start und Stop sind lokale Nutzerabläufe in
+dieser Datei und im README. Ein separates Operations-Runbook ist nicht
+anwendbar, weil keine dauerhaft betriebene Instanz existiert.

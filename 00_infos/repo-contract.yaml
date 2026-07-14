@@ -1,33 +1,75 @@
-# repo-contract.yaml — Maschinenlesbarer Vertrag (Kanon v2)
-# Generiert: 2026-03-28 | Schema: v1.0
-# REVIEW ERFORDERLICH: Bitte manuell pruefen und anpassen
-
-contract_version: "1.0"
+contract_version: "2.0"
 
 repo:
   name: "tools--disk-speed-tests"
+  description: "QLab Disk Performance Tester — FIO-basiertes Web-GUI fuer Disk-Speed-Benchmarks"
   suite: "tools"
-  status: "active"
+  status: "legacy"
 
 type:
   primary: "cli"
+  tags: [benchmark, disk, fio]
 
 stack:
   languages: [python]
   runtime: "python"
+  runtime_version: ">=3.9"
+  framework: null
+  package_manager: "pip"
+  database: null
+  test_framework: "pytest"
 
 paths:
   source: "."
-  tests: "87_tests/"
+  tests: "tests/ and diskbench/tests/"
   docs: "00_infos/"
   context: "00_infos/llm-context.md"
   holds: "00_infos/meta/open-questions.md"
 
 commands:
-  test: "pytest 87_tests/ -v"
-  test_report: "make test-report"
+  dev: "bash scripts/start.sh --no-browser"
+  build: null
+  test: "python -m pytest tests -q && python -m pytest diskbench/tests -q"
+  test_report: null
+  lint: null
+  smoke: null
 
 deployment:
   deployed: false
+  mode: "not-deployed"
+  domain: null
+  health_path: null
   ci:
     platform: "none"
+    auto_deploy: false
+    deploy_branches: []
+
+lifecycle:
+  state: "legacy"
+  kill_date: null
+  owner: "christoph@varga.media"
+  last_review: "2026-07-13"
+
+documentation:
+  reviewed_paths:
+    - "00_infos/llm-context.md"
+    - "00_infos/repo-contract.yaml"
+    - "README.md"
+    - "pyproject.toml"
+    - "scripts/start.sh"
+    - "bridge-server/http_handlers.py"
+  runbooks_not_applicable_reason: "Lokales Legacy-Werkzeug ohne Deployment, externen Dienst oder dauerhaft betriebene Instanz; Start und Stopp sind Teil des lokalen Setup-Abschnitts."
+
+operational:
+  auth_boundary: "none"
+  data_store: "none"
+  backup_class: "none"
+  host: "none"
+
+env:
+  required: []
+  optional: []
+
+depends_on:
+  services: []
+  repos: []
